@@ -1,7 +1,6 @@
 from itertools import cycle
 import logging
 import sys
-import json
 from pathlib import Path
 
 from PyQt5 import uic
@@ -12,9 +11,9 @@ from PyQt5 import QtGui
 import numpy as np
 import pyqtgraph as pg
 import pandas as pd
-from spectres import spectres
 from absorber import AbsorbingSystem
-from astropy.io import fits
+import zhunter_io as io
+import spectral_functions as sf
 
 qt5_logger = logging.getLogger('PyQt5')
 qt5_logger.setLevel(logging.INFO)
@@ -277,51 +276,58 @@ class MainWindow(QtWidgets.QMainWindow):
         extracted_flux = flux_selected[0].mean(axis=1)
         extracted_err = err_selected[0].mean(axis=1)
         wvlg = flux_selected[1][0,:,0]
-        # [:-1] is to make sure the step plot below lines up with the 2D plot
         self.main_1D_spec.setData(wvlg, extracted_flux)
         self.err_1D_spec.setData(wvlg, extracted_err)
-        # self.ax1D.plot(wvlg, extracted_flux[:-1], stepMode=True, clear=True)
-        # self.ax1D.plot(wvlg, extracted_err[:-1], stepMode=True, pen=pg.mkPen(color='r'))
-        # Add crosshairs because the clear in plot above removes them
-        # self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
-        # self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
         self.ax1D.setYRange(min=np.quantile(self.data['flux_1D'], q=0.025),
                             max=np.quantile(self.data['flux_1D'], q=0.975))
 
     def plot_1D_spec(self, fname):
-        if fname is None:
-            self.fname = 'spenotnorm.dat'
+
+        # Make sure fname is a Path instance
+        self.fname = fname
+        if not isinstance(self.fname, Path):
+            self.fname = Path(self.fname)
+
+        # Load data
+        if self.fname.suffix == '.fits':
+            wvlg, flux, err = io.read_fits_1D_spectrum(self.fname)
         else:
-            self.fname = fname
-        try:
-            df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
+            try:
+                df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
+                wvlg = df['wvlg'].to_numpy()
+                flux = df['flux'].to_numpy()
+                err = df['err'].to_numpy()
+            except ValueError:
+                QtWidgets.QMessageBox.information(self,
+                                                  "Invalid input file",
+                                                  "Input file must be a standard fits file or a "
+                                                  "space-separated text file with 3 columns: "
+                                                  "wvlg, flux, error")
 
-            # Define useful data for future use
-            self.data['wvlg'] = df['wvlg'].to_numpy()
-            self.data['flux_1D'] = df['flux'].to_numpy()
-            self.data['err_1D'] = df['err'].to_numpy()
-            self.data['wvlg_min'] = np.min(df['wvlg'])
-            self.data['wvlg_max'] = np.max(df['wvlg'])
-            self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
+        # Define useful data for future use
+        self.data['wvlg'] = wvlg
+        self.data['flux_1D'] = flux
+        self.data['err_1D'] = err
+        self.data['wvlg_min'] = np.min(wvlg)
+        self.data['wvlg_max'] = np.max(wvlg)
+        self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
 
-            self.ax1D.setLabel("left", "Flux")  # [erg/s/cm2/A]
-            self.ax1D.setLabel("bottom", "Wavelength")  # [Å]
-            self.ax1D.showGrid(x=True, y=True)
-            self.main_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
-                                                 self.data['flux_1D'],
-                                                 pen=pg.mkPen(color='w'))
-            self.err_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
-                                                self.data['err_1D'],
-                                                pen=pg.mkPen(color='r'))
-            self.ax1D.addItem(self.main_1D_spec)
-            self.ax1D.addItem(self.err_1D_spec)
-            self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
-            self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
-        except ValueError:
-            QtWidgets.QMessageBox.information(self, "Invalid input file", "Input file must be a space-separated text file with 3 columns: wvlg, flux, error")
+        self.ax1D.setLabel("left", "Flux [erg/s/cm2/Å]")  # [erg/s/cm2/AA]
+        self.ax1D.setLabel("bottom", "Wavelength [Å]")  # [AA]
+        self.ax1D.showGrid(x=True, y=True)
+        self.main_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
+                                             self.data['flux_1D'],
+                                             pen=pg.mkPen(color='w'))
+        self.err_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
+                                            self.data['err_1D'],
+                                            pen=pg.mkPen(color='r'))
+        self.ax1D.addItem(self.main_1D_spec)
+        self.ax1D.addItem(self.err_1D_spec)
+        self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
+        self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
 
     def plot_2D_spec(self, fname=None):
-        wvlg, arcsec, flux, err = self.read_2D_data(fname)
+        wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
         wvlg_min = np.min(wvlg)
         wvlg_max = np.max(wvlg)
         arcsec_min = np.min(arcsec)
@@ -411,58 +417,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.addItem(self.err_1D_spec)
         self.roi.sigRegionChanged.connect(self.updatePlot)
 
-    def read_2D_data(self, fname):
-        if fname is None:
-            self.fname_2D = '/Users/palmerio/Science_projects/ESO_pipelines/XSH_QuickReduction/UVB/Output/xsh_scired_slit_nod_SCI_SLIT_FLUX_MERGE2D_UVB_UVB_1x2_100k.fits'
-        else:
-            self.fname_2D = fname
-        x = fits.open(self.fname_2D)
-        # Flux
-        flux = x['FLUX'].data
-        try:
-            err = x['ERR'].data
-        except KeyError:
-            err = flux * 0.
-
-        # Wavelength
-        wvlg_min = x['FLUX'].header['CRVAL1']
-        delta_wvlg = x['FLUX'].header['CDELT1']
-        n_wvlg = x['FLUX'].header['NAXIS1']
-        wvlg_units = x['FLUX'].header['CUNIT1'].strip()
-        wvlg_max = wvlg_min + n_wvlg*delta_wvlg
-        wvlg = np.arange(wvlg_min, wvlg_max, delta_wvlg)
-        if wvlg_units == 'nm':  # Convert to Angstrom
-            wvlg *= 10
-        # Arcseconds
-        arcsec_min = x['FLUX'].header['CRVAL2']
-        delta_arcsec = x['FLUX'].header['CDELT2']
-        n_arcsec = x['FLUX'].header['NAXIS2']
-        arcsec_max = arcsec_min + n_arcsec*delta_arcsec
-        arcsec = np.arange(arcsec_min, arcsec_max, delta_arcsec)
-        return wvlg, arcsec, flux, err
-
-    def smooth(self, wvlg, flux, err=None, smoothing=3):
-        if smoothing <= 0:
-            raise ValueError('Smoothing must be strictly positive')
-
-        wvlg_regrid = np.linspace(wvlg.min(),
-                                  wvlg.max(),
-                                  int(len(wvlg)/smoothing))
-        output = spectres(new_wavs=wvlg_regrid,
-                          spec_wavs=wvlg,
-                          spec_fluxes=flux,
-                          spec_errs=err,
-                          fill=0,
-                          verbose=False)
-        if err is None:
-            flux_sm = output
-            err_sm = None
-        else:
-            flux_sm = output[0]
-            err_sm = output[1]
-
-        return wvlg_regrid, flux_sm, err_sm
-
     def set_extraction_width(self):
         try:
             ext_width = float(self.textbox_for_extraction_width.text())
@@ -488,15 +442,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.sigRegionChanged.connect(self.updatePlot)
         self.roi.setZValue(10)
 
+    def clear_plot(self):
+
+        self.graphLayout.clear()
+        if self.mode == '2D':
+            self.hist = None
+
     def select_1D_file(self):
         self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
-        self.set_up_1D_plot()
-        self.plot_1D_spec(fname=self.fname)
+        if self.fname != '':
+            if Path(self.fname).exists():
+                self.clear_plot()
+                self.set_up_1D_plot()
+                self.plot_1D_spec(fname=self.fname)
 
     def select_2D_file(self):
         self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
-        self.set_up_2D_plot()
-        self.plot_2D_spec(fname=self.fname)
+        if self.fname != '':
+            if Path(self.fname).exists():
+                self.clear_plot()
+                self.set_up_2D_plot()
+                self.plot_2D_spec(fname=self.fname)
 
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
@@ -507,10 +473,10 @@ class MainWindow(QtWidgets.QMainWindow):
             smoothing = int(self.textbox_for_smooth.text())
             self.statusBar.showMessage("Smoothing by {} pixels".format(smoothing), 2000)
             log.debug("Smoothing {} pixels".format(smoothing))
-            x_sm, y_sm, err_sm = self.smooth(self.data['wvlg'],
-                                             self.data['flux_1D'],
-                                             err=self.data['err_1D'],
-                                             smoothing=smoothing)
+            x_sm, y_sm, err_sm = sf.smooth(self.data['wvlg'],
+                                           self.data['flux_1D'],
+                                           err=self.data['err_1D'],
+                                           smoothing=smoothing)
             log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
             log.debug('flux smoothed: {}'.format(y_sm))
             # if self.mode == '1D':
