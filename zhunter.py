@@ -68,7 +68,9 @@ class MainWindow(QtWidgets.QMainWindow):
         log.debug('Read lines from: {}'.format(self.lines_fname))
         # self.create_line_ratios(self.lines_fname)
 
-        self.mode = None
+        # General properties used throughout the code
+        # For status and keeping track of important information
+        self.mode = None   # Mode can be '1D' or '2D'
         self.data = {}
         self.hist = None
         self.xlims = [None, None]
@@ -96,8 +98,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.graphLayout
         self.mode = '2D'
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-        self.ax2D = self.graphLayout.addPlot(title='2D spectrum', row=0, col=0)
-        self.ax1D = self.graphLayout.addPlot(title='1D spectrum', row=1, col=0)
+        self.ax2D = self.graphLayout.addPlot(row=0, col=0)
+        self.ax1D = self.graphLayout.addPlot(row=1, col=0)
         self.ax1D.vb.setXLink(self.ax2D.vb)
         # Fix the size of left axis so the center panels align vertically
         self.ax2D.getAxis('left').setWidth(60)
@@ -108,8 +110,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
         self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
         self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
-        self.crosshair_x_1D.setZValue(9)
-        self.crosshair_y_1D.setZValue(9)
+        self.crosshair_x_1D.setZValue(9)     # To make sure crosshair is on top
+        self.crosshair_y_1D.setZValue(9)     # To make sure crosshair is on top
         self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
@@ -120,8 +122,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
         self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
         self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
-        self.crosshair_x_2D.setZValue(9)
-        self.crosshair_y_2D.setZValue(9)
+        self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
+        self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
         self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
         # To catch the key presses from the PlotItem
         self.ax2D.installEventFilter(self)
@@ -131,7 +133,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.graphLayout
         self.mode = '1D'
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-        self.ax1D = self.graphLayout.addPlot(title='1D spectrum')
+        self.ax1D = self.graphLayout.addPlot()
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
         # cross hair
@@ -279,8 +281,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.setYRange(min=np.quantile(self.data['flux_1D'], q=0.025),
                             max=np.quantile(self.data['flux_1D'], q=0.975))
 
-    def plot_1D_spec(self, fname):
-
+    def extract_data(self, fname):
         # Make sure fname is a Path instance
         self.fname = fname
         if not isinstance(self.fname, Path):
@@ -301,14 +302,25 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   "Input file must be a standard fits file or a "
                                                   "space-separated text file with 3 columns: "
                                                   "wvlg, flux, error")
+        return wvlg, flux, err
 
-        # Define useful data for future use
+    def load_1D_data(self, wvlg, flux, err):
+        """
+            Save wvlg, flux and err arrays, as well as mins, maxs and spans
+            in a dictionary for future use.
+        """
         self.data['wvlg'] = wvlg
         self.data['flux_1D'] = flux
         self.data['err_1D'] = err
         self.data['wvlg_min'] = np.min(wvlg)
         self.data['wvlg_max'] = np.max(wvlg)
         self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
+        return
+
+    def plot_1D_spec(self, fname):
+
+        wvlg, flux, err = self.extract_data(fname)
+        self.load_1D_data(wvlg, flux, err)
 
         self.ax1D.setLabel("left", "Flux [erg/s/cm2/Å]")  # [erg/s/cm2/AA]
         self.ax1D.setLabel("bottom", "Wavelength [Å]")  # [AA]
@@ -323,6 +335,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.addItem(self.err_1D_spec)
         self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
         self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
+        # Adjust default yrange
+        self.ax1D.setYRange(min=np.quantile(self.data['flux_1D'], q=0.025),
+                            max=np.quantile(self.data['flux_1D'], q=0.975))
 
     def plot_2D_spec(self, fname=None):
         wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
@@ -440,27 +455,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.sigRegionChanged.connect(self.updatePlot)
         self.roi.setZValue(10)
 
-    def clear_plot(self):
+    def select_1D_file(self):
+        self.select_file(mode='1D')
 
+    def select_2D_file(self):
+        self.select_file(mode='2D')
+
+    def select_file(self, mode):
+        self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
+        if self.fname != '':
+            if Path(self.fname).exists():
+                self.clear_plot()
+                self.mode = mode
+                if self.mode == '1D':
+                    self.set_up_1D_plot()
+                    self.plot_1D_spec(fname=self.fname)
+                elif self.mode == '2D':
+                    self.set_up_2D_plot()
+                    self.plot_2D_spec(fname=self.fname)
+
+    def clear_plot(self):
         self.graphLayout.clear()
         if self.mode == '2D':
             self.hist = None
-
-    def select_1D_file(self):
-        self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
-        if self.fname != '':
-            if Path(self.fname).exists():
-                self.clear_plot()
-                self.set_up_1D_plot()
-                self.plot_1D_spec(fname=self.fname)
-
-    def select_2D_file(self):
-        self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
-        if self.fname != '':
-            if Path(self.fname).exists():
-                self.clear_plot()
-                self.set_up_2D_plot()
-                self.plot_2D_spec(fname=self.fname)
+        self.mode = None
 
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
@@ -506,24 +524,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.flux_img.setImage(self.data['flux_2D'].T, levels=(self.data['q025'],
                                                                    self.data['q975']))
             self.err_img.setImage(self.data['err_2D'].T)
-
-    def create_line_ratios(fname_lines):
-        lines = pd.read_csv(fname_lines, sep='|', names=['name','wvlg'], comment='#')
-        ratio = []
-        ratio_name = []
-        for n1, w1 in zip(lines['name'], lines['wvlg']):
-            for n2, w2 in zip(lines['name'], lines['wvlg']):
-                ratio_name.append('/'.join([n1.strip(),n2.strip()]))
-                ratio.append(w1/w2)
-        df_ratios = pd.DataFrame({'value':ratio, 'name':ratio_name})
-        usable_ratios = (df_ratios['value'] > 1) & (df_ratios['value'] <= 2)
-        df_ratios = df_ratios[usable_ratios]
-        df_ratios = df_ratios.sort_values('value')
-        line_dir = Path(str(fname_lines)).resolve().parent
-        log.info("Saving line ratios in {}".format(line_dir/'line_ratio.txt'))
-        with open(line_dir/'line_ratio.txt', 'w') as f:
-            for r, n in zip(df_ratios['value'],df_ratios['name']):
-                f.write('{:.11f} | {:s}\n'.format(r,n))
 
 
 def main():
