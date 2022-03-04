@@ -10,7 +10,7 @@ from spectres import spectres
 
 def smooth(wvlg, flux, err=None, smoothing=3):
     """
-
+        A function to smooth a spectrum.
     """
     if smoothing <= 0:
         raise ValueError('Smoothing must be strictly positive')

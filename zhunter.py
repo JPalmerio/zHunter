@@ -96,7 +96,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.graphLayout
         self.mode = '2D'
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-        self.graphLayout.ci.setBorder((50, 50, 100))  # color borders to visualise them
         self.ax2D = self.graphLayout.addPlot(title='2D spectrum', row=0, col=0)
         self.ax1D = self.graphLayout.addPlot(title='1D spectrum', row=1, col=0)
         self.ax1D.vb.setXLink(self.ax2D.vb)
@@ -132,7 +131,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.graphLayout
         self.mode = '1D'
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-        self.graphLayout.ci.setBorder((50, 50, 100))  # color borders to visualise them
         self.ax1D = self.graphLayout.addPlot(title='1D spectrum')
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
@@ -392,8 +390,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Define useful data for future use
         self.data['flux_1D'] = flux_1D
-        self.data['flux_2D'] = flux        # Need to save the original data
-        self.data['flux_2D_disp'] = flux   # Used for displaying, can be smoothed etc..
+        self.data['flux_2D'] = flux        # Need to save original data for internal calculations
+        self.data['flux_2D_disp'] = flux   # This is the flux to be displayed, can be smoothed etc..
         self.data['err_1D'] = err_1D
         self.data['err_2D'] = err
         self.data['err_2D_disp'] = err
