@@ -41,6 +41,8 @@ def read_fits_1D_spectrum(filename):
         A function to read data from a 1D spectrum fits file.
         Returns wavelength in angstroms, flux and errors in erg/s/cm2/A .
     """
+    if isinstance(filename, Path):
+        filename = str(filename)
     hdu_list = fits.open(filename)
 
     # Start by looking for BinTableHDU
@@ -59,6 +61,8 @@ def read_fits_1D_spectrum(filename):
 
     except ValueError:
         log.warning("No BinTableHDU found in %s, trying different method", filename)
+    except IndexError:
+        log.warning("No extension 1 found for %s", filename)
 
     # If no Table found, look for an HDU extension named 'FLUX'
     try:
@@ -68,7 +72,8 @@ def read_fits_1D_spectrum(filename):
         log.info("Found FLUX extension in %s", filename)
     except KeyError:
         log.error("No BinTableHDU or FLUX extension found in file %s", filename)
-        raise IOError("Could not understand FITS format in file %s", filename)
+        raise ValueError("No BinTableHDU or FLUX extension found."
+                         "Could not understand FITS file format.")
 
     # Look for errors as well
     try:

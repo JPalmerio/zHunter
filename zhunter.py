@@ -355,11 +355,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Read data and load it into memory
         try:
             wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
-        except KeyError:
+        except Exception as e:
+            log.error(e)
             QtWidgets.QMessageBox.information(self,
                                               "Invalid input file",
-                                              "Input file for 2D mode must be a standard fits file "
-                                              "with FLUX and ERROR extensions")
+                                              str(e))
             self.clear_plot()
             return
 
