@@ -95,12 +95,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphLayout.setFocus()
 
     def set_up_2D_plot(self):
-        # self.graphLayout
         self.mode = '2D'
+
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
         self.ax2D = self.graphLayout.addPlot(row=0, col=0)
-        self.ax1D = self.graphLayout.addPlot(row=1, col=0)
+        self.ax1D = self.graphLayout.addPlot(row=1, col=0, rowspan=2)
         self.ax1D.vb.setXLink(self.ax2D.vb)
+        self.ax2D.hideAxis('bottom')
+
         # Fix the size of left axis so the center panels align vertically
         self.ax2D.getAxis('left').setWidth(60)
         self.ax1D.getAxis('left').setWidth(60)
@@ -113,6 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.crosshair_x_1D.setZValue(9)     # To make sure crosshair is on top
         self.crosshair_y_1D.setZValue(9)     # To make sure crosshair is on top
         self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
+
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
         self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
@@ -125,26 +128,51 @@ class MainWindow(QtWidgets.QMainWindow):
         self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
         self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
         self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
+
         # To catch the key presses from the PlotItem
         self.ax2D.installEventFilter(self)
         self.ax2D.setFocusPolicy(QtCore.Qt.StrongFocus)
 
+        # Create empty objects that will hold the data to be displayed
+        self._create_placeholders()
+
     def set_up_1D_plot(self):
-        # self.graphLayout
         self.mode = '1D'
+
         # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
         self.ax1D = self.graphLayout.addPlot()
+
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
+
         # cross hair
         self.crosshair_x_1D = pg.InfiniteLine(angle=90, movable=False)
         self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
         self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
         self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
         self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
+
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
         self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+        # Create empty objects that will hold the 1D data to be displayed
+        self._create_placeholders()
+
+    def _create_placeholders(self):
+        """
+            Create empty objects that will hold the 1D and 2D data
+            to be displayed.
+        """
+        self.flux_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='w'))
+        self.err_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='r'))
+        self.ax1D.addItem(self.flux_1D_spec)
+        self.ax1D.addItem(self.err_1D_spec)
+        if self.mode == '2D':
+            self.flux_2D_img = pg.ImageItem()
+            self.err_2D_img = pg.ImageItem()
+            self.ax2D.addItem(self.flux_2D_img)
+            self.ax2D.addItem(self.err_2D_img)
 
     def eventFilter(self, widget, event):
         if (event.type() == QtCore.QEvent.KeyPress):
@@ -170,7 +198,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Move 1D crosshair
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage("x=%0.5f, y=%0.5f" % (mousePoint.x(), mousePoint.y()))
+            self.statusBar.showMessage("Wavelength = %0.5f AA, Flux = %0.5f erg/s/cm2/AA," % (mousePoint.x(), mousePoint.y()))
             self.crosshair_x_1D.setPos(mousePoint.x())
             self.crosshair_y_1D.setPos(mousePoint.y())
             if self.mode == '2D':
@@ -179,7 +207,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             if self.ax2D.sceneBoundingRect().contains(pos):
                 mousePoint = self.ax2D.vb.mapSceneToView(pos)
-                self.statusBar.showMessage("x=%0.5f, y=%0.5f" % (mousePoint.x(), mousePoint.y()))
+                self.statusBar.showMessage("Wavelength = %0.5f AA, Spatial = %0.5f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
                 self.crosshair_x_2D.setPos(mousePoint.x())
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_x_1D.setPos(mousePoint.x())
@@ -270,18 +298,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.abs_listView.clearSelection()
             self.model.sort(0)
 
-    def updatePlot(self):
-        flux_selected = self.roi.getArrayRegion(self.data['flux_2D_disp'].T, self.flux_img, returnMappedCoords=True)
-        err_selected = self.roi.getArrayRegion(self.data['err_2D_disp'].T, self.err_img, returnMappedCoords=True)
-        extracted_flux = flux_selected[0].mean(axis=1)
-        extracted_err = err_selected[0].mean(axis=1)
-        wvlg = flux_selected[1][0,:,0]
-        self.main_1D_spec.setData(wvlg, extracted_flux)
-        self.err_1D_spec.setData(wvlg, extracted_err)
-        self.ax1D.setYRange(min=np.quantile(self.data['flux_1D'], q=0.025),
-                            max=np.quantile(self.data['flux_1D'], q=0.975))
-
-    def extract_data(self, fname):
+    def read_1D_data(self, fname):
         # Make sure fname is a Path instance
         self.fname = fname
         if not isinstance(self.fname, Path):
@@ -306,139 +323,201 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def load_1D_data(self, wvlg, flux, err):
         """
-            Save wvlg, flux and err arrays, as well as mins, maxs and spans
-            in a dictionary for future use.
+            Save wvlg, flux and err arrays into memory.
         """
         self.data['wvlg'] = wvlg
         self.data['flux_1D'] = flux
         self.data['err_1D'] = err
-        self.data['wvlg_min'] = np.min(wvlg)
-        self.data['wvlg_max'] = np.max(wvlg)
+        self.set_displayed_data(wvlg, flux, err, mode='1D')
+        self.calculate_displayed_data_range(mode='1D')
+
+    def load_2D_data(self, wvlg, arcsec, flux, err):
+        """
+            Loads wvlg, arcsec, flux and err arrays into memory.
+        """
+        self.data['wvlg'] = wvlg
+        self.data['flux_2D'] = flux
+        self.data['err_2D'] = err
+        self.data['arcsec'] = arcsec
+        self.set_displayed_data(wvlg, flux, err, mode='2D', arcsec=arcsec)
+        self.calculate_displayed_data_range(mode='2D')
+
+    def set_displayed_data(self, wvlg, flux, err, mode=None, arcsec=None):
+        """
+            Saves into memory the data that is actually being displayed
+            on the interface (after smoothing for example).
+        """
+        self.data['wvlg_disp'] = wvlg
+        self.data[f'flux_{mode}_disp'] = flux
+        self.data[f'err_{mode}_disp'] = err
+        if mode == '2D':
+            self.data['arcsec_disp'] = arcsec
+
+    def calculate_displayed_data_range(self, mode):
+        """
+            Compute the range spanned by the displayed data for
+            visualization purposed such as setting the min and max range
+            allowed by the ViewBox.
+        """
+        self.data['wvlg_min'] = np.min(self.data['wvlg_disp'])
+        self.data['wvlg_max'] = np.max(self.data['wvlg_disp'])
         self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
-        return
+        if mode == '1D':
+            self.data['q975_1D'] = np.quantile(self.data['flux_1D_disp'], q=0.975)
+            self.data['q025_1D'] = np.quantile(self.data['flux_1D_disp'], q=0.025)
+        if mode == '2D':
+            self.data['q975_2D'] = np.quantile(self.data['flux_2D_disp'], q=0.975)
+            self.data['q025_2D'] = np.quantile(self.data['flux_2D_disp'], q=0.025)
+            self.data['arcsec_min'] = np.min(self.data['arcsec_disp'])
+            self.data['arcsec_max'] = np.max(self.data['arcsec_disp'])
+            self.data['arcsec_med'] = np.median(self.data['arcsec_disp'])
+            self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
-    def plot_1D_spec(self, fname):
+    def visualize_1D_spec(self, fname):
 
-        wvlg, flux, err = self.extract_data(fname)
+        wvlg, flux, err = self.read_1D_data(fname)
         self.load_1D_data(wvlg, flux, err)
 
-        self.ax1D.setLabel("left", "Flux [erg/s/cm2/Å]")  # [erg/s/cm2/AA]
-        self.ax1D.setLabel("bottom", "Wavelength [Å]")  # [AA]
-        self.ax1D.showGrid(x=True, y=True)
-        self.main_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
-                                             self.data['flux_1D'],
-                                             pen=pg.mkPen(color='w'))
-        self.err_1D_spec = pg.PlotCurveItem(self.data['wvlg'],
-                                            self.data['err_1D'],
-                                            pen=pg.mkPen(color='r'))
-        self.ax1D.addItem(self.main_1D_spec)
-        self.ax1D.addItem(self.err_1D_spec)
-        self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
-        self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
-        # Adjust default yrange
-        self.ax1D.setYRange(min=np.quantile(self.data['flux_1D'], q=0.025),
-                            max=np.quantile(self.data['flux_1D'], q=0.975))
+        self.set_labels()
 
-    def plot_2D_spec(self, fname=None):
+        # Plot the 1D spectrum
+        self.plot_1D_data()
+
+        self.xlims[0] = np.min(self.flux_1D_spec.getData()[0])
+        self.xlims[1] = np.max(self.flux_1D_spec.getData()[0])
+
+    def visualize_2D_spec(self, fname):
+
+        # Read data and load it into memory
         wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
-        wvlg_min = np.min(wvlg)
-        wvlg_max = np.max(wvlg)
-        arcsec_min = np.min(arcsec)
-        arcsec_max = np.max(arcsec)
-        arcsec_med = np.median(arcsec)
-        q975 = np.quantile(flux, q=0.975)
-        q025 = np.quantile(flux, q=0.025)
+        self.load_2D_data(wvlg, arcsec, flux, err)
 
         # Plot the 2D spectrum
-        self.flux_img = pg.ImageItem()
-        self.flux_img.setImage(flux.T, levels=(q025, q975))
-        self.err_img = pg.ImageItem()
-        self.err_img.setImage(err.T)
-
-        # Transform image indexes to physical coordinates
-        self.rect = QtCore.QRectF(wvlg[0], arcsec[0],
-                                  wvlg[-1] - wvlg[0], arcsec[-1] - arcsec[0])
-        self.flux_img.setRect(self.rect)
-        self.err_img.setRect(self.rect)
-        self.ax2D.addItem(self.flux_img)
-        self.ax2D.addItem(self.err_img)
-        self.flux_img.setZValue(8)
-        self.err_img.setZValue(7)
+        self.plot_2D_data()
 
         # Set the zooming limits
-        self.ax2D.vb.setLimits(xMin=wvlg_min,
-                               xMax=wvlg_max,
-                               yMin=arcsec_min,
-                               yMax=arcsec_max)
-        self.ax1D.vb.setLimits(xMin=wvlg_min,
-                               xMax=wvlg_max)
-        self.ax1D.setLabel("left", "Flux")  # [erg/s/cm2/A]
-        self.ax1D.setLabel("bottom", "Wavelength")  # [Å]
-        self.ax1D.showGrid(x=True, y=True)
+        self.set_ViewBox_limits()
+
+        self.set_labels()
 
         # Add the side histogram of the pixel intensities
+        self.set_up_hist()
+
+        # Region of Interest
+        self.set_up_ROI()
+
+        # Extract 1D spectrum
+        wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
+        self.load_1D_data(wvlg_1D, flux_1D, err_1D)
+
+        # Plot the 1D spectrum
+        self.plot_1D_data()
+
+        self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
+
+    def plot_2D_data(self):
+        """
+            Takes the 2D display data loaded and plots it on the interface.
+        """
+        self.flux_2D_img.setImage(self.data['flux_2D_disp'].T,
+                                  levels=(self.data['q025_2D'], self.data['q975_2D']))
+
+        # This is will not be seen but is needed when doing the ROI extraction
+        # Essentially, we're overlaying 2 images, one of the flux and one of the errors
+        self.err_2D_img.setImage(self.data['err_2D_disp'].T)
+
+        # Transform image indexes to physical coordinates
+        self.rect = QtCore.QRectF(self.data['wvlg_disp'][0], self.data['arcsec_disp'][0],
+                                  self.data['wvlg_disp'][-1] - self.data['wvlg_disp'][0],
+                                  self.data['arcsec_disp'][-1] - self.data['arcsec_disp'][0])
+        self.flux_2D_img.setRect(self.rect)
+        self.err_2D_img.setRect(self.rect)
+        self.flux_2D_img.setZValue(8)
+        self.err_2D_img.setZValue(7)
+
+    def plot_1D_data(self):
+        """
+            Takes the 1D display data loaded and plots it on the interface.
+        """
+        self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp'])
+        self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp'])
+        self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
+
+    def extract_and_plot_1D(self):
+        wvlg, flux, err = self.extract_1D_from_ROI()
+        self.set_displayed_data(wvlg, flux, err, mode='1D')
+        self.plot_1D_data()
+
+    def extract_1D_from_ROI(self):
+        """
+            Return the mean of the flux and error in the area selected
+            by the Region Of Interest widget.
+        """
+        flux_selected = self.roi.getArrayRegion(self.data['flux_2D_disp'].T,
+                                                self.flux_2D_img,
+                                                returnMappedCoords=True)
+
+        err_selected = self.roi.getArrayRegion(self.data['err_2D_disp'].T,
+                                               self.err_2D_img,
+                                               returnMappedCoords=True)
+        flux_1D = flux_selected[0].mean(axis=1)
+        err_1D = err_selected[0].mean(axis=1)
+        wvlg = flux_selected[1][0,:,0]
+        return wvlg, flux_1D, err_1D
+
+    def set_up_hist(self):
         if self.hist is not None:
             self.graphLayout.removeItem(self.hist)
         self.hist = pg.HistogramLUTItem()
-        self.hist.setImageItem(self.flux_img)
-        self.graphLayout.addItem(self.hist, col=1, rowspan=2)
-        self.hist.setHistogramRange(q025, q975)
-        self.hist.setLevels(q025, q975)
+        self.hist.setImageItem(self.flux_2D_img)
+        self.graphLayout.addItem(self.hist, col=1, rowspan=3)
+        self.hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
+        self.hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
 
-        # Region of Interest
+    def set_up_ROI(self):
         spatial_width = float(self.textbox_for_extraction_width.text())
-        self.roi = pg.ROI(pos=[wvlg_min, arcsec_med-spatial_width/2],
-                          size=[wvlg_max-wvlg_min, spatial_width],
+        self.roi = pg.ROI(pos=[self.data['wvlg_min'], self.data['arcsec_med']-spatial_width/2],
+                          size=[self.data['wvlg_span'], spatial_width],
                           maxBounds=self.rect,
                           pen=pg.mkPen('r', width=2),
-                          hoverPen=pg.mkPen('r', width=4),
+                          hoverPen=pg.mkPen('r', width=5),
                           handlePen=pg.mkPen('r', width=2),
-                          handleHoverPen=pg.mkPen('r', width=4))
+                          handleHoverPen=pg.mkPen('r', width=5))
         self.ax2D.addItem(self.roi)
         self.roi.setZValue(10)
 
-        # Extract 1D spectrum
-        flux_selected = self.roi.getArrayRegion(flux.T, self.flux_img, returnMappedCoords=True)
-        err_selected = self.roi.getArrayRegion(err.T, self.err_img, returnMappedCoords=True)
-        flux_1D = flux_selected[0].mean(axis=1)
-        err_1D = err_selected[0].mean(axis=1)
+    def set_labels(self):
+        self.ax1D.setLabel("left", "Flux")  # [erg/s/cm2/AA]
+        self.ax1D.setLabel("bottom", "Wavelength")  # [AA]
+        self.ax1D.showGrid(x=True, y=True)
+        if self.mode == '2D':
+            self.ax2D.setLabel("left", "Arcseconds")  # [arcsec]
 
-        # Define useful data for future use
-        self.data['flux_1D'] = flux_1D
-        self.data['flux_2D'] = flux        # Need to save original data for internal calculations
-        self.data['flux_2D_disp'] = flux   # This is the flux to be displayed, can be smoothed etc..
-        self.data['err_1D'] = err_1D
-        self.data['err_2D'] = err
-        self.data['err_2D_disp'] = err
-        self.data['wvlg'] = wvlg
-        self.data['wvlg_2D_disp'] = wvlg
-        self.data['wvlg_min'] = wvlg_min
-        self.data['wvlg_max'] = wvlg_max
-        self.data['wvlg_span'] = wvlg_max-wvlg_min
-        self.data['arcsec'] = arcsec
-        self.data['arcsec_med'] = arcsec_med
-        self.data['arcsec_min'] = arcsec_min
-        self.data['arcsec_max'] = arcsec_max
-        self.data['arcsec_span'] = arcsec_max-arcsec_min
-        self.data['q975'] = q975
-        self.data['q025'] = q025
-
-        self.main_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='w'))
-        self.err_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='r'))
-        self.updatePlot()
-        self.ax1D.addItem(self.main_1D_spec)
-        self.ax1D.addItem(self.err_1D_spec)
-        self.roi.sigRegionChanged.connect(self.updatePlot)
+    def set_ViewBox_limits(self):
+        self.ax1D.vb.setLimits(xMin=self.data['wvlg_min'],
+                               xMax=self.data['wvlg_max'])
+        if self.mode == '2D':
+            self.ax2D.vb.setLimits(xMin=self.data['wvlg_min'],
+                                   xMax=self.data['wvlg_max'],
+                                   yMin=self.data['arcsec_min'],
+                                   yMax=self.data['arcsec_max'])
 
     def set_extraction_width(self):
         try:
             ext_width = float(self.textbox_for_extraction_width.text())
             if ext_width >= self.data['arcsec_span']:
-                QtWidgets.QMessageBox.information(self, "Invalid extraction width", "Can't change extraction width: it must be smaller than the spatial width spanned by the spectrum")
+                QtWidgets.QMessageBox.information(self,
+                                                  "Invalid extraction width",
+                                                  "Can't change extraction width: it must be "
+                                                  "smaller than the spatial width spanned by the "
+                                                  "spectrum")
                 return
             self.roi.setSize([self.data['wvlg_span'], ext_width])
         except ValueError:
-            QtWidgets.QMessageBox.information(self, "Invalid extraction width", "Can't change extraction width: it must be convertible to float")
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid extraction width",
+                                              "Can't change extraction width: it must be "
+                                              "convertible to float")
             self.textbox_for_z.setFocus()
 
     def reset_width(self):
@@ -456,12 +535,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.setZValue(10)
 
     def select_1D_file(self):
-        self.select_file(mode='1D')
+        self.select_file_and_plot(mode='1D')
 
     def select_2D_file(self):
-        self.select_file(mode='2D')
+        self.select_file_and_plot(mode='2D')
 
-    def select_file(self, mode):
+    def select_file_and_plot(self, mode):
         self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
         if self.fname != '':
             if Path(self.fname).exists():
@@ -469,10 +548,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.mode = mode
                 if self.mode == '1D':
                     self.set_up_1D_plot()
-                    self.plot_1D_spec(fname=self.fname)
+                    self.visualize_1D_spec(fname=self.fname)
                 elif self.mode == '2D':
                     self.set_up_2D_plot()
-                    self.plot_2D_spec(fname=self.fname)
+                    self.visualize_2D_spec(fname=self.fname)
 
     def clear_plot(self):
         self.graphLayout.clear()
@@ -496,19 +575,19 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
             log.debug('flux smoothed: {}'.format(y_sm))
             # if self.mode == '1D':
-            self.main_1D_spec.setData(x=x_sm, y=y_sm)
+            self.flux_1D_spec.setData(x=x_sm, y=y_sm)
             self.err_1D_spec.setData(x=x_sm, y=err_sm)
-            self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
-            self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
+            self.xlims[0] = np.min(self.flux_1D_spec.getData()[0])
+            self.xlims[1] = np.max(self.flux_1D_spec.getData()[0])
             # elif self.mode == '2D':
             #     self.data['wvlg_2D_disp'] = x_sm
             #     self.data['flux_2D_disp'] = y_sm
             #     self.data['err_2D_disp'] = err_sm
-            #     self.flux_img.setImage(y_sm.T, levels=(self.data['q025'], self.data['q975']))
-            #     self.err_img.setImage(err_sm.T)
+            #     self.flux_2D_img.setImage(y_sm.T, levels=(self.data['q025'], self.data['q975']))
+            #     self.err_2D_img.setImage(err_sm.T)
             #     # self.rect = QtCore.QRectF(x_sm[0], arcsec[0],
             #     # x_sm[-1]-x_sm[0], arcsec[-1]-arcsec[0])
-            #     # self.flux_img.setRect(self.rect)
+            #     # self.flux_2D_img.setRect(self.rect)
 
         except ValueError:
             QtWidgets.QMessageBox.information(self, "Invalid smooth value", "Smoothing value must be convertible to integer")
@@ -516,14 +595,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def reset_smoothing(self):
         if self.mode == '1D':
-            self.main_1D_spec.setData(x=self.data['wvlg'], y=self.data['flux_1D'])
+            self.flux_1D_spec.setData(x=self.data['wvlg'], y=self.data['flux_1D'])
             self.err_1D_spec.setData(x=self.data['wvlg'], y=self.data['err_1D'])
-            self.xlims[0] = np.min(self.main_1D_spec.getData()[0])
-            self.xlims[1] = np.max(self.main_1D_spec.getData()[0])
+            self.xlims[0] = np.min(self.flux_1D_spec.getData()[0])
+            self.xlims[1] = np.max(self.flux_1D_spec.getData()[0])
         elif self.mode == '2D':
-            self.flux_img.setImage(self.data['flux_2D'].T, levels=(self.data['q025'],
+            self.flux_2D_img.setImage(self.data['flux_2D'].T, levels=(self.data['q025'],
                                                                    self.data['q975']))
-            self.err_img.setImage(self.data['err_2D'].T)
+            self.err_2D_img.setImage(self.data['err_2D'].T)
 
 
 def main():
