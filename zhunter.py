@@ -104,7 +104,9 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self.mode == '2D':
             # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
             self.ax2D = self.graphLayout.addPlot(row=0, col=0)
-            self.ax1D = self.graphLayout.addPlot(row=1, col=0, rowspan=3)
+            self.ax1D = self.graphLayout.addPlot(row=1, col=0)
+            # Strech row 1 (where 1D plot is) to make it 3 times bigger in y than 2D plot
+            self.graphLayout.ci.layout.setRowStretchFactor(1, 3)
             self.ax1D.vb.setXLink(self.ax2D.vb)
             self.ax2D.hideAxis('bottom')
             self.ax2D.getAxis('left').setWidth(60)
@@ -431,7 +433,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.graphLayout.removeItem(self.hist)
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.flux_2D_img)
-        self.graphLayout.addItem(self.hist, col=1, rowspan=3)
+        self.graphLayout.addItem(self.hist, col=1, rowspan=2)
         self.hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
         self.hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
 
