@@ -94,17 +94,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.textbox_for_extraction_width.editingFinished.connect(self.set_extraction_width)
         self.graphLayout.setFocus()
 
-    def set_up_2D_plot(self):
-        self.mode = '2D'
+    # Setting up of plotting items
+    def set_up_plot(self):
 
-        # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-        self.ax2D = self.graphLayout.addPlot(row=0, col=0)
-        self.ax1D = self.graphLayout.addPlot(row=1, col=0, rowspan=2)
-        self.ax1D.vb.setXLink(self.ax2D.vb)
-        self.ax2D.hideAxis('bottom')
+        if self.mode == '1D':
+            # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
+            self.ax1D = self.graphLayout.addPlot()
+
+        elif self.mode == '2D':
+            # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
+            self.ax2D = self.graphLayout.addPlot(row=0, col=0)
+            self.ax1D = self.graphLayout.addPlot(row=1, col=0, rowspan=3)
+            self.ax1D.vb.setXLink(self.ax2D.vb)
+            self.ax2D.hideAxis('bottom')
+            self.ax2D.getAxis('left').setWidth(60)
 
         # Fix the size of left axis so the center panels align vertically
-        self.ax2D.getAxis('left').setWidth(60)
         self.ax1D.getAxis('left').setWidth(60)
 
         # cross hair for 1D plot
@@ -113,31 +118,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
         self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
-
-        # To catch the key presses from the PlotItem
-        self.ax2D.installEventFilter(self)
-        self.ax2D.setFocusPolicy(QtCore.Qt.StrongFocus)
+        if self.mode == '2D':
+            # Install also on 2D PlotItem
+            self.ax2D.installEventFilter(self)
+            self.ax2D.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         # Create empty objects that will hold the data to be displayed
-        self._create_placeholders()
-
-    def set_up_1D_plot(self):
-        self.mode = '1D'
-
-        # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
-        self.ax1D = self.graphLayout.addPlot()
-
-        # Fix the size of left axis so the center panels align vertically
-        self.ax1D.getAxis('left').setWidth(60)
-
-        # cross hair
-        self.set_up_crosshairs()
-
-        # To catch the key presses from the PlotItem
-        self.ax1D.installEventFilter(self)
-        self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
-
-        # Create empty objects that will hold the 1D data to be displayed
         self._create_placeholders()
 
     def _create_placeholders(self):
@@ -331,62 +317,49 @@ class MainWindow(QtWidgets.QMainWindow):
             self.data['arcsec_med'] = np.median(self.data['arcsec_disp'])
             self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
-    def visualize_1D_spec(self, fname):
+    def visualize_spec(self):
+
+        # Read data
         try:
-            wvlg, flux, err = io.read_1D_data(fname)
-        except ValueError as e:
+            if self.mode == '1D':
+                wvlg_1D, flux_1D, err_1D = io.read_1D_data(self.fname)
+            elif self.mode == '2D':
+                wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(self.fname)
+        except Exception as e:
             log.error(e)
             QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
             self.clear_plot()
             return
 
-        self.load_1D_data(wvlg, flux, err)
+        if self.mode == '2D':
+            # Load data into memory
+            self.load_2D_data(wvlg, arcsec, flux, err)
 
-        self.set_labels()
+            # Plot the 2D spectrum
+            self.plot_2D_data()
 
-        # Plot the 1D spectrum
-        self.plot_1D_data()
+            # Set the zooming limits
+            self.set_ViewBox_limits()
 
-        self.xlims[0] = np.min(self.flux_1D_spec.getData()[0])
-        self.xlims[1] = np.max(self.flux_1D_spec.getData()[0])
+            # Add the side histogram of the pixel intensities
+            self.set_up_hist()
 
-    def visualize_2D_spec(self, fname):
+            # Region of Interest
+            self.set_up_ROI()
 
-        # Read data and load it into memory
-        try:
-            wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
-        except Exception as e:
-            log.error(e)
-            QtWidgets.QMessageBox.information(self,
-                                              "Invalid input file",
-                                              str(e))
-            self.clear_plot()
-            return
+            # Extract 1D spectrum
+            wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
 
-        self.load_2D_data(wvlg, arcsec, flux, err)
-
-        # Plot the 2D spectrum
-        self.plot_2D_data()
-
-        # Set the zooming limits
-        self.set_ViewBox_limits()
-
-        self.set_labels()
-
-        # Add the side histogram of the pixel intensities
-        self.set_up_hist()
-
-        # Region of Interest
-        self.set_up_ROI()
-
-        # Extract 1D spectrum
-        wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
+        # The code below is the same in 1D or 2D mode, the only difference
+        # is that in the 1D case, the data comes from a file whereas in the 2D
+        # case it is extracted from the 2D data via the Region Of Interest (ROI)
         self.load_1D_data(wvlg_1D, flux_1D, err_1D)
 
         # Plot the 1D spectrum
         self.plot_1D_data()
 
-        self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
+        # Create appropriate labels
+        self.set_labels()
 
     def plot_2D_data(self):
         """
@@ -473,6 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
                           handleHoverPen=pg.mkPen('r', width=5))
         self.ax2D.addItem(self.roi)
         self.roi.setZValue(10)
+        self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
 
     def set_labels(self):
         self.ax1D.setLabel("left", "Flux")  # [erg/s/cm2/AA]
@@ -523,29 +497,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.setZValue(10)
 
     def select_1D_file(self):
-        self.select_file_and_plot(mode='1D')
+        self.mode = '1D'
+        log.info("Starting 1D mode!")
+        self.select_file_and_plot()
 
     def select_2D_file(self):
-        self.select_file_and_plot(mode='2D')
+        self.mode = '2D'
+        log.info("Starting 2D mode!")
+        self.select_file_and_plot()
 
-    def select_file_and_plot(self, mode):
+    def select_file_and_plot(self):
         self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
         if self.fname != '':
             if Path(self.fname).exists():
                 self.clear_plot()
-                self.mode = mode
-                if self.mode == '1D':
-                    self.set_up_1D_plot()
-                    self.visualize_1D_spec(fname=self.fname)
-                elif self.mode == '2D':
-                    self.set_up_2D_plot()
-                    self.visualize_2D_spec(fname=self.fname)
+                self.set_up_plot()
+                self.visualize_spec()
 
     def clear_plot(self):
         self.graphLayout.clear()
         if self.mode == '2D':
             self.hist = None
-        self.mode = None
 
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
