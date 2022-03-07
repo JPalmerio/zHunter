@@ -2,9 +2,38 @@ from astropy.io import fits
 from astropy.table import Table
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import logging
+from pathlib import Path
 
 log = logging.getLogger(__name__)
+
+
+def read_1D_data(fname):
+    """
+        A wrapper function to handle case for fits extension or txt file
+    """
+    # Make sure fname is a Path instance
+    if not isinstance(fname, Path):
+        fname = Path(fname)
+
+    # Load data
+    if fname.suffix == '.fits':
+        wvlg, flux, err = read_fits_1D_spectrum(fname)
+        if len(flux.shape) >= 2:
+            raise ValueError("Found a 2D array for FLUX extension but you "
+                             "asked for a 1D plot. Check your input.")
+    else:
+        try:
+            df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
+            wvlg = df['wvlg'].to_numpy()
+            flux = df['flux'].to_numpy()
+            err = df['err'].to_numpy()
+        except ValueError:
+            raise ValueError("Input file must be a standard fits file or a "
+                             "space-separated text file with 3 columns: "
+                             "wvlg, flux, error")
+    return wvlg, flux, err
 
 
 def read_fits_1D_spectrum(filename):

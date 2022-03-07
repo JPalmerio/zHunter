@@ -108,26 +108,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.getAxis('left').setWidth(60)
 
         # cross hair for 1D plot
-        self.crosshair_x_1D = pg.InfiniteLine(angle=90, movable=False)
-        self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
-        self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
-        self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
-        self.crosshair_x_1D.setZValue(9)     # To make sure crosshair is on top
-        self.crosshair_y_1D.setZValue(9)     # To make sure crosshair is on top
-        self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
+        self.set_up_crosshairs()
 
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
         self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
-
-        # cross hair for 2D plot
-        self.crosshair_x_2D = pg.InfiniteLine(angle=90, movable=False)
-        self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
-        self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
-        self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
-        self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
-        self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
-        self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
 
         # To catch the key presses from the PlotItem
         self.ax2D.installEventFilter(self)
@@ -139,18 +124,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_up_1D_plot(self):
         self.mode = '1D'
 
-        # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
+        # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
         self.ax1D = self.graphLayout.addPlot()
 
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
 
         # cross hair
-        self.crosshair_x_1D = pg.InfiniteLine(angle=90, movable=False)
-        self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
-        self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
-        self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
-        self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
+        self.set_up_crosshairs()
 
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
@@ -198,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Move 1D crosshair
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage("Wavelength = %0.5f AA, Flux = %0.5f erg/s/cm2/AA," % (mousePoint.x(), mousePoint.y()))
+            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
             self.crosshair_x_1D.setPos(mousePoint.x())
             self.crosshair_y_1D.setPos(mousePoint.y())
             if self.mode == '2D':
@@ -207,7 +188,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             if self.ax2D.sceneBoundingRect().contains(pos):
                 mousePoint = self.ax2D.vb.mapSceneToView(pos)
-                self.statusBar.showMessage("Wavelength = %0.5f AA, Spatial = %0.5f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
+                self.statusBar.showMessage("Wavelength = %0.3f AA, Spatial = %0.3f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
                 self.crosshair_x_2D.setPos(mousePoint.x())
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_x_1D.setPos(mousePoint.x())
@@ -298,29 +279,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.abs_listView.clearSelection()
             self.model.sort(0)
 
-    def read_1D_data(self, fname):
-        # Make sure fname is a Path instance
-        self.fname = fname
-        if not isinstance(self.fname, Path):
-            self.fname = Path(self.fname)
-
-        # Load data
-        if self.fname.suffix == '.fits':
-            wvlg, flux, err = io.read_fits_1D_spectrum(self.fname)
-        else:
-            try:
-                df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
-                wvlg = df['wvlg'].to_numpy()
-                flux = df['flux'].to_numpy()
-                err = df['err'].to_numpy()
-            except ValueError:
-                QtWidgets.QMessageBox.information(self,
-                                                  "Invalid input file",
-                                                  "Input file must be a standard fits file or a "
-                                                  "space-separated text file with 3 columns: "
-                                                  "wvlg, flux, error")
-        return wvlg, flux, err
-
     def load_1D_data(self, wvlg, flux, err):
         """
             Save wvlg, flux and err arrays into memory.
@@ -374,8 +332,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
     def visualize_1D_spec(self, fname):
+        try:
+            wvlg, flux, err = io.read_1D_data(fname)
+        except ValueError as e:
+            log.error(e)
+            QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
+            self.clear_plot()
+            return
 
-        wvlg, flux, err = self.read_1D_data(fname)
         self.load_1D_data(wvlg, flux, err)
 
         self.set_labels()
@@ -389,7 +353,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def visualize_2D_spec(self, fname):
 
         # Read data and load it into memory
-        wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
+        try:
+            wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(fname)
+        except KeyError:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid input file",
+                                              "Input file for 2D mode must be a standard fits file "
+                                              "with FLUX and ERROR extensions")
+            self.clear_plot()
+            return
+
         self.load_2D_data(wvlg, arcsec, flux, err)
 
         # Plot the 2D spectrum
@@ -464,6 +437,21 @@ class MainWindow(QtWidgets.QMainWindow):
         err_1D = err_selected[0].mean(axis=1)
         wvlg = flux_selected[1][0,:,0]
         return wvlg, flux_1D, err_1D
+
+    def set_up_crosshairs(self):
+        self.crosshair_x_1D = pg.InfiniteLine(angle=90, movable=False)
+        self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
+        self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
+        self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
+        self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
+        if self.mode == '2D':
+            self.crosshair_x_2D = pg.InfiniteLine(angle=90, movable=False)
+            self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
+            self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
+            self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
+            self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
+            self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
+            self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
 
     def set_up_hist(self):
         if self.hist is not None:
