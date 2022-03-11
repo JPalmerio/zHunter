@@ -2,9 +2,38 @@ from astropy.io import fits
 from astropy.table import Table
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import logging
+from pathlib import Path
 
 log = logging.getLogger(__name__)
+
+
+def read_1D_data(fname):
+    """
+        A wrapper function to handle case for fits extension or txt file
+    """
+    # Make sure fname is a Path instance
+    if not isinstance(fname, Path):
+        fname = Path(fname)
+
+    # Load data
+    if fname.suffix == '.fits':
+        wvlg, flux, err = read_fits_1D_spectrum(fname)
+        if len(flux.shape) >= 2:
+            raise ValueError("Found a 2D array for FLUX extension but you "
+                             "asked for a 1D plot. Check your input.")
+    else:
+        try:
+            df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
+            wvlg = df['wvlg'].to_numpy()
+            flux = df['flux'].to_numpy()
+            err = df['err'].to_numpy()
+        except ValueError:
+            raise ValueError("Input file must be a standard fits file or a "
+                             "space-separated text file with 3 columns: "
+                             "wvlg, flux, error")
+    return wvlg, flux, err
 
 
 def read_fits_1D_spectrum(filename):
@@ -12,6 +41,8 @@ def read_fits_1D_spectrum(filename):
         A function to read data from a 1D spectrum fits file.
         Returns wavelength in angstroms, flux and errors in erg/s/cm2/A .
     """
+    if isinstance(filename, Path):
+        filename = str(filename)
     hdu_list = fits.open(filename)
 
     # Start by looking for BinTableHDU
@@ -30,6 +61,8 @@ def read_fits_1D_spectrum(filename):
 
     except ValueError:
         log.warning("No BinTableHDU found in %s, trying different method", filename)
+    except IndexError:
+        log.warning("No extension 1 found for %s", filename)
 
     # If no Table found, look for an HDU extension named 'FLUX'
     try:
@@ -39,7 +72,8 @@ def read_fits_1D_spectrum(filename):
         log.info("Found FLUX extension in %s", filename)
     except KeyError:
         log.error("No BinTableHDU or FLUX extension found in file %s", filename)
-        raise IOError("Could not understand FITS format in file %s", filename)
+        raise ValueError("No BinTableHDU or FLUX extension found."
+                         "Could not understand FITS file format.")
 
     # Look for errors as well
     try:
