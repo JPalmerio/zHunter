@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 
+ROOT_DIR = Path(__file__).parent.resolve()
 
 ABSORBER_COLORS = cycle(['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00',
                          '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'])
@@ -56,14 +57,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load the UI Page
         pg.setConfigOption('foreground', 'w')
-        uic.loadUi('main_frame.ui', self)
+        uic.loadUi(ROOT_DIR/'main_frame.ui', self)
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
 
         # Load the line lists
-        self.line_ratios = pd.read_csv('line_ratio.txt', sep='|', names=['ratio','name'], comment='#')
+        self.line_ratios = pd.read_csv(ROOT_DIR/'line_lists/line_ratio.txt', sep='|', names=['ratio','name'], comment='#')
         log.debug('Read line ratios: {}'.format(self.line_ratios))
-        self.lines_fname = 'basic_line_list.txt'
+        self.lines_fname = ROOT_DIR/'line_lists/basic_line_list.txt'
         self.lines = pd.read_csv(self.lines_fname, sep='|', names=['name','wvlg'], comment='#')
         log.debug('Read lines from: {}'.format(self.lines_fname))
         # self.create_line_ratios(self.lines_fname)
@@ -73,7 +74,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mode = None   # Mode can be '1D' or '2D'
         self.data = {}
         self.hist = None
-        self.xlims = [None, None]
 
         # List of absorbers
         self.model = AbsorberModel()
@@ -202,43 +202,55 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D.addItem(self.flux_2D_img)
             self.ax2D.addItem(self.err_2D_img)
 
-    def eventFilter(self, widget, event):
-        if (event.type() == QtCore.QEvent.KeyPress):
-            if widget is self.ax1D:
-                crosshair = self.crosshair_x_1D
-            elif widget is self.ax2D:
-                crosshair = self.crosshair_x_2D
-            else:
-                return
-            key = event.key()
-            x_pos = crosshair.getPos()[0]
-            if key == QtCore.Qt.Key_Q:
-                self.statusBar.showMessage("Added x=%0.5f, to Lambda_1" % (x_pos), 2000)
-                self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
-            elif key == QtCore.Qt.Key_E:
-                self.statusBar.showMessage("Added x=%0.5f, to Lambda_2" % (x_pos), 2000)
-                self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
+    def visualize_spec(self):
+        """
+            Main function to be called once to set up the visualization.
+            It does, in this order :
+                1) Read data
+                2) Load in into memory
+                3) Show the data on the interface
+                4)  a) Set up ROI for 1D extraction if 2D mode
+                    b) Extract, load into memory and show 1D
+                5) Finalize display by adding labels, etc.
+        """
+        # Read data
+        try:
+            if self.mode == '1D':
+                wvlg_1D, flux_1D, err_1D = io.read_1D_data(self.fname)
+            elif self.mode == '2D':
+                wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(self.fname)
+        except Exception as e:
+            log.error(e)
+            QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
+            self.clear_plot()
+            return
 
-        return QtWidgets.QWidget.eventFilter(self, widget, event)
-
-    def move_crosshair(self, evt):
-        pos = evt
-        # Move 1D crosshair
-        if self.ax1D.sceneBoundingRect().contains(pos):
-            mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
-            self.crosshair_x_1D.setPos(mousePoint.x())
-            self.crosshair_y_1D.setPos(mousePoint.y())
-            if self.mode == '2D':
-                self.crosshair_x_2D.setPos(mousePoint.x())
-        # If 2D mode, check for movement on 2D ax
         if self.mode == '2D':
-            if self.ax2D.sceneBoundingRect().contains(pos):
-                mousePoint = self.ax2D.vb.mapSceneToView(pos)
-                self.statusBar.showMessage("Wavelength = %0.3f AA, Spatial = %0.3f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
-                self.crosshair_x_2D.setPos(mousePoint.x())
-                self.crosshair_y_2D.setPos(mousePoint.y())
-                self.crosshair_x_1D.setPos(mousePoint.x())
+            # Load data into memory
+            self.load_2D_data(wvlg, arcsec, flux, err)
+
+            # Plot the 2D spectrum
+            self.plot_2D_data()
+
+            # Region of Interest
+            self.set_up_ROI()
+
+            # Extract 1D spectrum
+            wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
+
+        # The code below is the same in 1D or 2D mode, the only difference
+        # is that in the 1D case, the data comes from a file whereas in the 2D
+        # case it is extracted from the 2D data via the Region Of Interest (ROI)
+        self.load_1D_data(wvlg_1D, flux_1D, err_1D)
+
+        # Plot the 1D spectrum
+        self.plot_1D_data()
+
+        # Create appropriate labels
+        self.set_labels()
+
+        # Set the zooming limits
+        self.set_ViewBox_limits()
 
     def load_1D_data(self, wvlg, flux, err):
         """
@@ -300,55 +312,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['arcsec_med'] = np.median(self.data['arcsec_disp'])
         self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
-    def visualize_spec(self):
-        """
-            Main function to be called once to set up the visualization.
-            It does, in this order :
-                1) Read data
-                2) Load in into memory
-                3) Show the data on the interface
-                4) Finalize display by adding labels, ROI, etc.
-            If in 2D mode, the 1D is plotted after setting up the ROI.
-        """
-        # Read data
-        try:
-            if self.mode == '1D':
-                wvlg_1D, flux_1D, err_1D = io.read_1D_data(self.fname)
-            elif self.mode == '2D':
-                wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(self.fname)
-        except Exception as e:
-            log.error(e)
-            QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
-            self.clear_plot()
-            return
-
-        if self.mode == '2D':
-            # Load data into memory
-            self.load_2D_data(wvlg, arcsec, flux, err)
-
-            # Plot the 2D spectrum
-            self.plot_2D_data()
-
-            # Region of Interest
-            self.set_up_ROI()
-
-            # Extract 1D spectrum
-            wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
-
-        # The code below is the same in 1D or 2D mode, the only difference
-        # is that in the 1D case, the data comes from a file whereas in the 2D
-        # case it is extracted from the 2D data via the Region Of Interest (ROI)
-        self.load_1D_data(wvlg_1D, flux_1D, err_1D)
-
-        # Plot the 1D spectrum
-        self.plot_1D_data()
-
-        # Create appropriate labels
-        self.set_labels()
-
-        # Set the zooming limits
-        self.set_ViewBox_limits()
-
     def plot_2D_data(self):
         """
             Takes the 2D display data loaded and plots it on the interface.
@@ -383,6 +346,46 @@ class MainWindow(QtWidgets.QMainWindow):
         self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp']*1e18)
         self.ax1D.setYRange(min=self.data['q025_1D']*1e18, max=self.data['q975_1D']*1e18)
 
+    # Events
+    def eventFilter(self, widget, event):
+        if (event.type() == QtCore.QEvent.KeyPress):
+            if widget is self.ax1D:
+                crosshair = self.crosshair_x_1D
+            elif widget is self.ax2D:
+                crosshair = self.crosshair_x_2D
+            else:
+                return
+            key = event.key()
+            x_pos = crosshair.getPos()[0]
+            if key == QtCore.Qt.Key_Q:
+                self.statusBar.showMessage("Added x=%0.5f, to Lambda_1" % (x_pos), 2000)
+                self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
+            elif key == QtCore.Qt.Key_E:
+                self.statusBar.showMessage("Added x=%0.5f, to Lambda_2" % (x_pos), 2000)
+                self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
+
+        return QtWidgets.QWidget.eventFilter(self, widget, event)
+
+    def move_crosshair(self, evt):
+        pos = evt
+        # Move 1D crosshair
+        if self.ax1D.sceneBoundingRect().contains(pos):
+            mousePoint = self.ax1D.vb.mapSceneToView(pos)
+            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
+            self.crosshair_x_1D.setPos(mousePoint.x())
+            self.crosshair_y_1D.setPos(mousePoint.y())
+            if self.mode == '2D':
+                self.crosshair_x_2D.setPos(mousePoint.x())
+        # If 2D mode, check for movement on 2D ax
+        if self.mode == '2D':
+            if self.ax2D.sceneBoundingRect().contains(pos):
+                mousePoint = self.ax2D.vb.mapSceneToView(pos)
+                self.statusBar.showMessage("Wavelength = %0.3f AA, Spatial = %0.3f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
+                self.crosshair_x_2D.setPos(mousePoint.x())
+                self.crosshair_y_2D.setPos(mousePoint.y())
+                self.crosshair_x_1D.setPos(mousePoint.x())
+
+    # ROI
     def extract_and_plot_1D(self):
         wvlg, flux, err = self.extract_1D_from_ROI()
         self.set_displayed_data(wvlg, flux, err, mode='1D')
@@ -426,18 +429,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def reset_width(self):
         self.ax2D.removeItem(self.roi)
-        spatial_width = 1  # arcsec, default
-        self.roi = pg.ROI(pos=[self.data['wvlg_min'], self.data['arcsec_med']-spatial_width/2],
-                          size=[self.data['wvlg_max']-self.data['wvlg_min'], spatial_width],
-                          maxBounds=self.rect,
-                          pen=pg.mkPen('r', width=2),
-                          hoverPen=pg.mkPen('r', width=4),
-                          handlePen=pg.mkPen('r', width=2),
-                          handleHoverPen=pg.mkPen('r', width=4))
-        self.ax2D.addItem(self.roi)
-        self.roi.sigRegionChanged.connect(self.updatePlot)
-        self.roi.setZValue(10)
+        self.textbox_for_extraction_width.setText('1')
+        self.set_up_ROI()
+        self.extract_and_plot_1D()
 
+    # File selection
     def select_1D_file(self):
         self.mode = '1D'
         log.info("Starting 1D mode!")
@@ -462,6 +458,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             self.hist = None
 
+    # Modify displayed data
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
         if 'wvlg' not in self.data.keys():
