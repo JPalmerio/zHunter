@@ -115,6 +115,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # Strech column 0 (where 1D and 2D plots are) to make it 5 times bigger in x than the side histograms
             self.graphLayout.ci.layout.setColumnStretchFactor(0, 5)
 
+            # Remove padding so that panning preserves x and y range
+            self.ax2D.vb.setDefaultPadding(padding=0.00)
+
             # Link the side histograms to the central plots
             self.ax1D.vb.setXLink(self.ax2D.vb)
             self.ax2D_sideview.vb.setYLink(self.ax2D.vb)
@@ -135,6 +138,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
         self.ax1D.getAxis('bottom').setHeight(30)
+        # Remove padding so that panning preserves x and y range
+        self.ax1D.vb.setDefaultPadding(padding=0.00)
 
         # cross hair for 1D plot
         self.set_up_crosshairs()
@@ -401,19 +406,36 @@ class MainWindow(QtWidgets.QMainWindow):
         if (event.type() == QtCore.QEvent.KeyPress):
             if widget is self.ax1D:
                 crosshair = self.crosshair_x_1D
+                vb = widget.vb
             elif widget is self.ax2D:
                 crosshair = self.crosshair_x_2D
+                vb = widget.vb
             else:
                 return
             key = event.key()
+            # Setting lambda 1 and 2
             x_pos = crosshair.getPos()[0]
+            state = vb.getState()
+            x_view, y_view = state['viewRange']
+
             if key == QtCore.Qt.Key_Q:
-                self.statusBar.showMessage("Added x=%0.5f, to Lambda_1" % (x_pos), 2000)
+                self.statusBar.showMessage("Setting Lambda_1 at %0.5f AA" % (x_pos), 2000)
                 self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
             elif key == QtCore.Qt.Key_E:
-                self.statusBar.showMessage("Added x=%0.5f, to Lambda_2" % (x_pos), 2000)
+                self.statusBar.showMessage("Setting Lambda_2 at %0.5f AA " % (x_pos), 2000)
                 self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
-
+            # Panning with keyboard
+            # For some reason the value returned after setting the range is slightly
+            # larger (I suspect because of padding) and this results in 'zooming out'
+            # after multiple key presses...
+            elif key == QtCore.Qt.Key_D:
+                vb.setRange(xRange=np.array(x_view)+0.15*np.abs(x_view[1] - x_view[0]))
+            elif key == QtCore.Qt.Key_A:
+                vb.setRange(xRange=np.array(x_view)-0.15*np.abs(x_view[1] - x_view[0]))
+            elif key == QtCore.Qt.Key_W:
+                vb.setRange(yRange=np.array(y_view)+0.15*np.abs(y_view[1] - y_view[0]))
+            elif key == QtCore.Qt.Key_S:
+                vb.setRange(yRange=np.array(y_view)-0.15*np.abs(y_view[1] - y_view[0]))
         return QtWidgets.QWidget.eventFilter(self, widget, event)
 
     def move_crosshair(self, evt):
