@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # For status and keeping track of important information
         self.mode = None   # Mode can be '1D' or '2D'
         self.data = {}
-        self.hist = None
+        self.img_hist = None
 
         # List of absorbers
         self.model = AbsorberModel()
@@ -98,21 +98,43 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_up_plot(self):
 
         if self.mode == '1D':
+            # Add title
+            self.graphLayout.addLabel(self.fname.name, row=0)
             # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
-            self.ax1D = self.graphLayout.addPlot()
+            self.ax1D = self.graphLayout.addPlot(row=1, col=0)
 
         elif self.mode == '2D':
+            # Add title
+            self.graphLayout.addLabel(self.fname.name, row=0, colspan=2)
             # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
-            self.ax2D = self.graphLayout.addPlot(row=0, col=0)
-            self.ax1D = self.graphLayout.addPlot(row=1, col=0)
-            # Strech row 1 (where 1D plot is) to make it 3 times bigger in y than 2D plot
-            self.graphLayout.ci.layout.setRowStretchFactor(1, 3)
+            self.ax2D = self.graphLayout.addPlot(row=1, col=0)
+            self.ax1D = self.graphLayout.addPlot(row=2, col=0)
+            self.ax2D_sideview = self.graphLayout.addPlot(row=1, col=1)
+            # Strech row 2 (where 1D plot is) to make it 3 times bigger in y than 2D plot
+            self.graphLayout.ci.layout.setRowStretchFactor(2, 3)
+            # Strech column 0 (where 1D and 2D plots are) to make it 5 times bigger in x than the side histograms
+            self.graphLayout.ci.layout.setColumnStretchFactor(0, 5)
+
+            # Link the side histograms to the central plots
             self.ax1D.vb.setXLink(self.ax2D.vb)
+            self.ax2D_sideview.vb.setYLink(self.ax2D.vb)
+
+            # Hide the axis to make the plot prettier and more compact
             self.ax2D.hideAxis('bottom')
+            self.ax2D_sideview.hideAxis('bottom')
+            self.ax2D_sideview.hideAxis('left')
+            self.ax2D_sideview.showAxis('right')
+
+            # Change all the widths to be equal so things are aligned
             self.ax2D.getAxis('left').setWidth(60)
+            self.ax2D_sideview.getAxis('right').setWidth(30)
+
+            # Remove mouse interactions on side histogram
+            self.ax2D_sideview.setMouseEnabled(x=False, y=True)
 
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
+        self.ax1D.getAxis('bottom').setHeight(30)
 
         # cross hair for 1D plot
         self.set_up_crosshairs()
@@ -140,20 +162,24 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             self.crosshair_x_2D = pg.InfiniteLine(angle=90, movable=False)
             self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
+            self.crosshair_y_2D_sideview = pg.InfiniteLine(angle=0, movable=False)
             self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
             self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
+            self.ax2D_sideview.addItem(self.crosshair_y_2D_sideview, ignoreBounds=True)
             self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
             self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
+            self.crosshair_y_2D_sideview.setZValue(9)     # To make sure crosshair is on top
             self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
+            self.ax2D_sideview.scene().sigMouseMoved.connect(self.move_crosshair)
 
-    def set_up_hist(self):
-        if self.hist is not None:
-            self.graphLayout.removeItem(self.hist)
-        self.hist = pg.HistogramLUTItem()
-        self.hist.setImageItem(self.flux_2D_img)
-        self.graphLayout.addItem(self.hist, col=1, rowspan=2)
-        self.hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
-        self.hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
+    def set_up_img_hist(self):
+        if self.img_hist is not None:
+            self.graphLayout.removeItem(self.img_hist)
+        self.img_hist = pg.HistogramLUTItem()
+        self.img_hist.setImageItem(self.flux_2D_img)
+        self.graphLayout.addItem(self.img_hist, row=2, col=1, rowspan=1)
+        self.img_hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
+        self.img_hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
 
     def set_up_ROI(self):
         spatial_width = float(self.textbox_for_extraction_width.text())
@@ -166,6 +192,19 @@ class MainWindow(QtWidgets.QMainWindow):
                           handleHoverPen=pg.mkPen('r', width=5))
         self.ax2D.addItem(self.roi)
         self.roi.setZValue(10)
+        # Extend ROI visualization to side histogram
+        self.ROI_y_hist_lower = pg.InfiniteLine(self.roi.pos()[1],
+                                                angle=0,
+                                                movable=False,
+                                                pen=pg.mkPen('r', width=2))
+
+        self.ROI_y_hist_upper = pg.InfiniteLine(self.roi.pos()[1]+self.roi.size()[1],
+                                                angle=0,
+                                                movable=False,
+                                                pen=pg.mkPen('r', width=2))
+
+        self.ax2D_sideview.addItem(self.ROI_y_hist_lower, ignoreBounds=True)
+        self.ax2D_sideview.addItem(self.ROI_y_hist_upper, ignoreBounds=True)
         self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
 
     def set_labels(self):
@@ -174,9 +213,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.showGrid(x=True, y=True)
         if self.mode == '2D':
             self.ax2D.setLabel("left", "Arcseconds")  # [arcsec]
-            self.ax2D.setTitle(self.fname.name)
-        elif self.mode == '1D':
-            self.ax1D.setTitle(self.fname.name)
+            self.ax2D_sideview.showGrid(x=True, y=True)
+            self.ax2D_sideview.setLabel("right", "Arcseconds")  # [arcsec]
 
     def set_ViewBox_limits(self):
         self.ax1D.vb.setLimits(xMin=self.data['wvlg_min'],
@@ -186,6 +224,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                    xMax=self.data['wvlg_max'],
                                    yMin=self.data['arcsec_min'],
                                    yMax=self.data['arcsec_max'])
+            self.ax2D_sideview.vb.setLimits(yMin=self.data['arcsec_min'],
+                                            yMax=self.data['arcsec_max'])
 
     def _create_placeholders(self):
         """
@@ -196,11 +236,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.err_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='r'))
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.err_1D_spec)
+
         if self.mode == '2D':
             self.flux_2D_img = pg.ImageItem()
             self.err_2D_img = pg.ImageItem()
+            self.sidehist_2D = pg.PlotCurveItem(np.zeros(1), np.zeros(1),
+                                                pen=pg.mkPen(color='w'))
             self.ax2D.addItem(self.flux_2D_img)
             self.ax2D.addItem(self.err_2D_img)
+            self.ax2D_sideview.addItem(self.sidehist_2D)
 
     def visualize_spec(self):
         """
@@ -333,7 +377,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.err_2D_img.setZValue(7)
 
         # Add the side histogram of the pixel intensities
-        self.set_up_hist()
+        self.set_up_img_hist()
+        # Add the side histogram fo the flux values as a function of spatial position
+        self.plot_2D_sidehist()
 
     def plot_1D_data(self):
         """
@@ -345,6 +391,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp']*1e18)
         self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp']*1e18)
         self.ax1D.setYRange(min=self.data['q025_1D']*1e18, max=self.data['q975_1D']*1e18)
+
+    def plot_2D_sidehist(self):
+        y_dist = np.sum(self.data['flux_2D_disp'], axis=1)
+        self.sidehist_2D.setData(y_dist, self.data['arcsec_disp'])
 
     # Events
     def eventFilter(self, widget, event):
@@ -371,7 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Move 1D crosshair
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
+            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e x 1e-18 erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
             self.crosshair_x_1D.setPos(mousePoint.x())
             self.crosshair_y_1D.setPos(mousePoint.y())
             if self.mode == '2D':
@@ -384,9 +434,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.crosshair_x_2D.setPos(mousePoint.x())
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_x_1D.setPos(mousePoint.x())
+                self.crosshair_y_2D_sideview.setPos(mousePoint.y())
+            elif self.ax2D_sideview.sceneBoundingRect().contains(pos):
+                mousePoint = self.ax2D_sideview.vb.mapSceneToView(pos)
+                self.statusBar.showMessage("Spatial = %0.3f arcsec" % mousePoint.y())
+                self.crosshair_y_2D.setPos(mousePoint.y())
+                self.crosshair_y_2D_sideview.setPos(mousePoint.y())
 
     # ROI
+    def show_ROI_y_hist(self):
+        self.ROI_y_hist_lower.setPos(self.roi.pos()[1])
+        self.ROI_y_hist_upper.setPos(self.roi.pos()[1]+self.roi.size()[1])
+
     def extract_and_plot_1D(self):
+        self.show_ROI_y_hist()
         wvlg, flux, err = self.extract_1D_from_ROI()
         self.set_displayed_data(wvlg, flux, err, mode='1D')
         self.plot_1D_data()
@@ -456,7 +517,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_plot(self):
         self.graphLayout.clear()
         if self.mode == '2D':
-            self.hist = None
+            self.img_hist = None
 
     # Modify displayed data
     def apply_smoothing(self):
