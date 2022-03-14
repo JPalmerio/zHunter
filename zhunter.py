@@ -62,10 +62,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStatusBar(self.statusBar)
 
         # Load the line lists
-        self.line_ratios = pd.read_csv(ROOT_DIR/'line_lists/line_ratio.txt', sep='|', names=['ratio','name'], comment='#')
+        self.line_ratios = pd.read_csv(ROOT_DIR/'line_lists/line_ratio.csv', sep=',', names=['ratio','name'], comment='#')
         log.debug('Read line ratios: {}'.format(self.line_ratios))
-        self.lines_fname = ROOT_DIR/'line_lists/basic_line_list.txt'
-        self.lines = pd.read_csv(self.lines_fname, sep='|', names=['name','wvlg'], comment='#')
+        self.lines_fname = ROOT_DIR/'line_lists/basic_line_list.csv'
+        self.lines = pd.read_csv(self.lines_fname, sep=',', names=['name','wvlg'], comment='#')
         log.debug('Read lines from: {}'.format(self.lines_fname))
         # self.create_line_ratios(self.lines_fname)
 
@@ -173,7 +173,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D_sideview.addItem(self.crosshair_y_2D_sideview, ignoreBounds=True)
             self.crosshair_x_2D.setZValue(9)     # To make sure crosshair is on top
             self.crosshair_y_2D.setZValue(9)     # To make sure crosshair is on top
-            self.crosshair_y_2D_sideview.setZValue(9)     # To make sure crosshair is on top
             self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
             self.ax2D_sideview.scene().sigMouseMoved.connect(self.move_crosshair)
 

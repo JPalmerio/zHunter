@@ -2,15 +2,18 @@ import pyqtgraph as pg
 from PyQt5 import QtGui
 import pandas as pd
 import logging
+from pathlib import Path
+
 
 log = logging.getLogger(__name__)
+ROOT_DIR = Path(__file__).parent.resolve()
 
 
 class AbsorbingSystem():
-    def __init__(self, z, PlotItem, color=QtGui.QColor('blue'), fname='basic_line_list.txt'):
+    def __init__(self, z, PlotItem, color=QtGui.QColor('blue'), fname=ROOT_DIR/'line_lists/basic_line_list.csv'):
         self.redshift = z
         self.color = color
-        self.lines = pd.read_csv('basic_line_list.txt', sep='|', names=['name','wvlg'], header=0)
+        self.lines = pd.read_csv(fname, sep=',', names=['name','wvlg'], header=0)
         self.plotted_lines = []
         self.pi = PlotItem
 

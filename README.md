@@ -7,6 +7,13 @@ It uses [`Python 3.8`](https://www.python.org/downloads/release/python-383/) and
 
 # Installation
 
+Clone the git repository:
+```
+$ git clone https://github.com/JPalmerio/zHunter.git
+$ cd zHunter
+```
+
+
 If you use a virtual environment manager for python (which we recommend), you can create an environment specific for *z*Hunter with:
 
 ```
@@ -21,7 +28,7 @@ There is no installation yet, just clone the repository and launch the code by r
 $ python zhunter.py
 ```
 
-You can make sure the code works by loading the 2D file `example_2D.fits` (*hint*: GRB redshift is around 6.3).
+You can make sure the code works by loading the 2D file `./example_data/example_2D.fits` (*hint*: GRB redshift is around 6.3).
 
 # Usage
 
