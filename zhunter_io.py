@@ -60,37 +60,41 @@ def read_fits_1D_spectrum(filename):
         return wvlg, flux, error
 
     except ValueError:
-        log.warning("No BinTableHDU found in %s, trying different method", filename)
+        log.debug("No BinTableHDU found, trying different method")
     except IndexError:
-        log.warning("No extension 1 found for %s", filename)
+        log.debug("No extension 1 found")
 
     # If no Table found, look for an HDU extension named 'FLUX'
     try:
         data_index = hdu_list.index_of('FLUX')
         hdr = hdu_list[data_index].header
         flux = fits.getdata(filename, ext=data_index)
-        log.info("Found FLUX extension in %s", filename)
+        log.debug("Found FLUX extension")
     except KeyError:
-        log.error("No BinTableHDU or FLUX extension found in file %s", filename)
-        raise ValueError("No BinTableHDU or FLUX extension found."
-                         "Could not understand FITS file format.")
+        log.debug("No BinTableHDU or FLUX extension found, falling back to default index")
+        try:
+            hdr = hdu_list[0].header
+            flux = fits.getdata(filename, ext=0)
+            log.debug("Found data in extension 0")
+        except Exception as e:
+            log.error(e)
+            raise ValueError("Could not understand FITS file format for {:s}.".format(filename))
 
     # Look for errors as well
     try:
         err_index = hdu_list.index_of('ERRS')
         error = fits.getdata(filename, ext=err_index)
-        log.debug("Found ERRS extension in %s", filename)
+        log.debug("Found ERRS extension")
     except KeyError:
-        log.warning("No ERRS extension found in file %s "
-                    "; setting errors to 0", filename)
+        log.warning("No ERRS extension found; setting errors to 0")
         error = 0.*flux
 
     # Check for wavelength units
     try:
         wvlg_unit = u.Unit(hdr['CUNIT1'].strip())
     except KeyError:
-        log.warning("No unit found in header for wavelength, assuming nanometers")
-        wvlg_unit = u.nm
+        log.warning("No unit found in header for wavelength, assuming angstroms")
+        wvlg_unit = u.AA
     wvlg_step = (hdr['CDELT1'] * wvlg_unit).to('AA').value  # Make sure units are Angstrom
     wvlg_init = (hdr['CRVAL1'] * wvlg_unit).to('AA').value  # Make sure units are Angstrom
     wvlg = np.array([wvlg_init + i*wvlg_step for i in range(flux.shape[0])])
