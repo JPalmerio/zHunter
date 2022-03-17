@@ -5,7 +5,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def create_line_ratios(input_fname, sep='|', output_fname='line_ratio.txt'):
+def create_line_ratios(input_fname, sep=',', output_fname='line_ratio.csv', save=False):
     """
         Takes a line list and calculate all possible ratios between the
         line wavelengths. Then keep only 1 < ratio <= 2 and write them
@@ -28,10 +28,8 @@ def create_line_ratios(input_fname, sep='|', output_fname='line_ratio.txt'):
 
     line_dir = Path(str(input_fname)).resolve().parent
     output_fname = line_dir/output_fname
-    log.info("Saving line ratios in {}".format(output_fname))
-
-    with open(output_fname, 'w') as f:
-        for r, n in zip(df_ratios['value'],df_ratios['name']):
-            f.write('{:.11f} | {:s}\n'.format(r,n))
+    if save:
+        df_ratios.to_csv(output_fname)
+        log.info("Saved line ratios in {}".format(output_fname))
 
     return df_ratios

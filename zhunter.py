@@ -11,9 +11,11 @@ from PyQt5 import QtGui
 import numpy as np
 import pyqtgraph as pg
 import pandas as pd
-from absorber import AbsorbingSystem
 import zhunter_io as io
 import spectral_functions as sf
+from spectroscopic_system import SpecSystem
+from line_list_selection import SelectLineListsDialog, select_file
+from misc import create_line_ratios
 
 qt5_logger = logging.getLogger('PyQt5')
 qt5_logger.setLevel(logging.INFO)
@@ -27,27 +29,28 @@ ABSORBER_COLORS = cycle(['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', 
                          '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'])
 
 
-class AbsorberModel(QtCore.QAbstractListModel):
-    def __init__(self, *args, absorbers=None, **kwargs):
-        super(AbsorberModel, self).__init__(*args, **kwargs)
-        self.absorbers = absorbers or []
+class SpecSystemModel(QtCore.QAbstractListModel):
+    def __init__(self, *args, specsystems=None, **kwargs):
+        super(SpecSystemModel, self).__init__(*args, **kwargs)
+        self.specsystems = specsystems or []
 
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
             # See below for the data structure.
-            status, absorber = self.absorbers[index.row()]
-            return "z = {:.5f}".format(absorber.redshift)
+            status, specsys = self.specsystems[index.row()]
+            return "z = {:.5f} ({:s})".format(specsys.redshift,
+                                              specsys.sys_type)
 
         if role == QtCore.Qt.ForegroundRole:
-            status, absorber = self.absorbers[index.row()]
-            return QtGui.QBrush(QtGui.QColor(absorber.color))
+            status, specsys = self.specsystems[index.row()]
+            return QtGui.QBrush(QtGui.QColor(specsys.color))
 
         if role == QtCore.Qt.DecorationRole:
-            status, absorber = self.absorbers[index.row()]
-            return QtGui.QColor(absorber.color)
+            status, specsys = self.specsystems[index.row()]
+            return QtGui.QColor(specsys.color)
 
     def rowCount(self, index):
-        return len(self.absorbers)
+        return len(self.specsystems)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -62,12 +65,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStatusBar(self.statusBar)
 
         # Load the line lists
-        self.line_ratios = pd.read_csv(ROOT_DIR/'line_lists/line_ratio.csv', sep=',', names=['ratio','name'], comment='#')
-        log.debug('Read line ratios: {}'.format(self.line_ratios))
-        self.lines_fname = ROOT_DIR/'line_lists/basic_line_list.csv'
-        self.lines = pd.read_csv(self.lines_fname, sep=',', names=['name','wvlg'], comment='#')
-        log.debug('Read lines from: {}'.format(self.lines_fname))
-        # self.create_line_ratios(self.lines_fname)
+        self.fnames = {}
+        self.fnames['data'] = ROOT_DIR/'example_data/example_2D.fits'
+        self.fnames['emission_lines'] = ROOT_DIR/'line_lists/emission_lines.csv'
+        self.fnames['absorption_lines'] = ROOT_DIR/'line_lists/basic_line_list.csv'
+        self.fnames['line_ratio'] = ROOT_DIR/'line_lists/line_ratio.csv'
+        self.load_line_lists(calc_ratio=False)
 
         # General properties used throughout the code
         # For status and keeping track of important information
@@ -75,14 +78,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data = {}
         self.img_hist = None
 
-        # List of absorbers
-        self.model = AbsorberModel()
-        self.abs_listView.setModel(self.model)
-        self.abs_listView.setStyleSheet("QListView{background-color: black;}")
+        # List of spectral systems
+        self.model = SpecSystemModel()
+        self.specsysView.setModel(self.model)
+        self.specsysView.setStyleSheet("QListView{background-color: black;}")
         self.add_abs_button.clicked.connect(self.add_absorber)
-        self.del_abs_button.clicked.connect(self.delete_absorber)
+        self.add_em_button.clicked.connect(self.add_emitter)
+        self.del_specsys_button.clicked.connect(self.delete_specsys)
         self.file_1D_button.clicked.connect(self.select_1D_file)
         self.file_2D_button.clicked.connect(self.select_2D_file)
+        self.file_line_list_button.clicked.connect(self.select_line_lists)
 
         # Connect all signals and slots
         self.ratio_button.clicked.connect(self.calculate_ratio)
@@ -99,21 +104,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.mode == '1D':
             # Add title
-            self.graphLayout.addLabel(self.fname.name, row=0)
+            self.graphLayout.addLabel(self.fnames['data'].name, row=0)
             # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
             self.ax1D = self.graphLayout.addPlot(row=1, col=0)
 
         elif self.mode == '2D':
+            # self.graphLayout.ci.setBorder((80, 80, 100))
             # Add title
-            self.graphLayout.addLabel(self.fname.name, row=0, colspan=2)
+            self.graphLayout.addLabel(self.fnames['data'].name, row=0, colspan=2)
             # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
             self.ax2D = self.graphLayout.addPlot(row=1, col=0)
             self.ax1D = self.graphLayout.addPlot(row=2, col=0)
             self.ax2D_sideview = self.graphLayout.addPlot(row=1, col=1)
             # Strech row 2 (where 1D plot is) to make it 3 times bigger in y than 2D plot
-            self.graphLayout.ci.layout.setRowStretchFactor(2, 3)
+            self.graphLayout.ci.layout.setRowStretchFactor(2, 2)
             # Strech column 0 (where 1D and 2D plots are) to make it 5 times bigger in x than the side histograms
-            self.graphLayout.ci.layout.setColumnStretchFactor(0, 5)
+            self.graphLayout.ci.layout.setColumnStretchFactor(0, 100)
 
             # Remove padding so that panning preserves x and y range
             self.ax2D.vb.setDefaultPadding(padding=0.00)
@@ -126,11 +132,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D.hideAxis('bottom')
             self.ax2D_sideview.hideAxis('bottom')
             self.ax2D_sideview.hideAxis('left')
-            self.ax2D_sideview.showAxis('right')
 
             # Change all the widths to be equal so things are aligned
             self.ax2D.getAxis('left').setWidth(60)
-            self.ax2D_sideview.getAxis('right').setWidth(30)
 
             # Remove mouse interactions on side histogram
             self.ax2D_sideview.setMouseEnabled(x=False, y=True)
@@ -138,6 +142,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis('left').setWidth(60)
         self.ax1D.getAxis('bottom').setHeight(30)
+
         # Remove padding so that panning preserves x and y range
         self.ax1D.vb.setDefaultPadding(padding=0.00)
 
@@ -179,9 +184,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_up_img_hist(self):
         if self.img_hist is not None:
             self.graphLayout.removeItem(self.img_hist)
-        self.img_hist = pg.HistogramLUTItem()
-        self.img_hist.setImageItem(self.flux_2D_img)
-        self.graphLayout.addItem(self.img_hist, row=2, col=1, rowspan=1)
+        self.img_hist = pg.HistogramLUTItem(self.flux_2D_img, gradientPosition='left')
+        self.graphLayout.addItem(self.img_hist, row=2, col=1)
+        self.img_hist.fillHistogram(False)
         self.img_hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
         self.img_hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
 
@@ -217,8 +222,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.showGrid(x=True, y=True)
         if self.mode == '2D':
             self.ax2D.setLabel("left", "Arcseconds")  # [arcsec]
-            self.ax2D_sideview.showGrid(x=True, y=True)
-            self.ax2D_sideview.setLabel("right", "Arcseconds")  # [arcsec]
 
     def set_ViewBox_limits(self):
         self.ax1D.vb.setLimits(xMin=self.data['wvlg_min'],
@@ -264,9 +267,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Read data
         try:
             if self.mode == '1D':
-                wvlg_1D, flux_1D, err_1D = io.read_1D_data(self.fname)
+                wvlg_1D, flux_1D, err_1D = io.read_1D_data(self.fnames['data'])
             elif self.mode == '2D':
-                wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(self.fname)
+                wvlg, arcsec, flux, err = io.read_fits_2D_spectrum(self.fnames['data'])
         except Exception as e:
             log.error(e)
             QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
@@ -307,7 +310,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['wvlg'] = wvlg
         self.data['flux_1D'] = flux
         self.data['err_1D'] = err
-        self.set_displayed_data(wvlg, flux, err, mode='1D')
+        self.set_1D_displayed_data(wvlg, flux, err)
         self.calculate_1D_displayed_data_range()
 
     def load_2D_data(self, wvlg, arcsec, flux, err):
@@ -318,19 +321,48 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['flux_2D'] = flux
         self.data['err_2D'] = err
         self.data['arcsec'] = arcsec
-        self.set_displayed_data(wvlg, flux, err, mode='2D', arcsec=arcsec)
+        self.set_2D_displayed_data(wvlg, flux, err, arcsec)
         self.calculate_2D_displayed_data_range()
 
-    def set_displayed_data(self, wvlg, flux, err, mode=None, arcsec=None):
+    def load_line_lists(self, calc_ratio):
+        self.abs_lines = pd.read_csv(self.fnames['absorption_lines'], sep=',', names=['name','wvlg'], comment='#')
+        log.debug('Read absorption lines from: {}'.format(self.fnames['absorption_lines']))
+        self.em_lines = pd.read_csv(self.fnames['emission_lines'], sep=',', names=['name','wvlg'], comment='#')
+        log.debug('Read emission lines from: {}'.format(self.fnames['emission_lines']))
+        if calc_ratio:
+            self.line_ratios = create_line_ratios(self.fnames['absorption_lines'])
+        else:
+            self.line_ratios = pd.read_csv(self.fnames['line_ratio'], sep=',', names=['ratio','name'], comment='#')
+            log.debug('Read line ratios: {}'.format(self.fnames['absorption_lines']))
+
+    def set_2D_displayed_data(self, wvlg, flux, err, arcsec):
         """
             Saves into memory the data that is actually being displayed
             on the interface (after smoothing for example).
         """
+        # Multiply flux and err by 1e18 to have it in reasonable units
+        # and allow y crosshair to work (otherwise the code considers
+        # it to be zero)
         self.data['wvlg_disp'] = wvlg
-        self.data[f'flux_{mode}_disp'] = flux
-        self.data[f'err_{mode}_disp'] = err
-        if mode == '2D':
-            self.data['arcsec_disp'] = arcsec
+        self.data['flux_2D_disp'] = flux * 1e18
+        self.data['err_2D_disp'] = err * 1e18
+        self.data['arcsec_disp'] = arcsec
+
+    def set_1D_displayed_data(self, wvlg, flux, err):
+        """
+            Saves into memory the data that is actually being displayed
+            on the interface (after smoothing for example).
+        """
+        # Multiply flux and err by 1e18 to have it in reasonable units
+        # and allow y crosshair to work (otherwise the code considers
+        # it to be zero)
+        if self.mode == '1D':
+            factor = 1e18
+        else:
+            factor = 1
+        self.data['wvlg_disp'] = wvlg
+        self.data['flux_1D_disp'] = flux * factor
+        self.data['err_1D_disp'] = err * factor
 
     def calculate_1D_displayed_data_range(self):
         """
@@ -389,15 +421,12 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Takes the 1D display data loaded and plots it on the interface.
         """
-        # Multiply flux and err by 1e18 to have it in reasonable units
-        # and allow y crosshair to work (otherwise the code considers
-        # it to be zero)
-        self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp']*1e18)
-        self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp']*1e18)
-        self.ax1D.setYRange(min=self.data['q025_1D']*1e18, max=self.data['q975_1D']*1e18)
+        self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp'])
+        self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp'])
+        self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
 
     def plot_2D_sidehist(self):
-        y_dist = np.sum(self.data['flux_2D_disp'], axis=1)
+        y_dist = np.median(self.data['flux_2D_disp'], axis=1)
         self.sidehist_2D.setData(y_dist, self.data['arcsec_disp'])
 
     # Events
@@ -470,7 +499,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def extract_and_plot_1D(self):
         self.show_ROI_y_hist()
         wvlg, flux, err = self.extract_1D_from_ROI()
-        self.set_displayed_data(wvlg, flux, err, mode='1D')
+        self.set_1D_displayed_data(wvlg, flux, err)
         self.plot_1D_data()
 
     def extract_1D_from_ROI(self):
@@ -527,10 +556,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.select_file_and_plot()
 
     def select_file_and_plot(self):
-        self.fname, _ = QtWidgets.QFileDialog.getOpenFileName()
-        if self.fname != '':
-            self.fname = Path(self.fname)
-            if self.fname.exists():
+        fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat)')
+        # self.fnames['data'], _ = QtWidgets.QFileDialog.getOpenFileName()
+        if fname:
+            self.fnames['data'] = Path(fname)
+            if self.fnames['data'].exists():
                 self.clear_plot()
                 self.set_up_plot()
                 self.visualize_spec()
@@ -539,6 +569,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphLayout.clear()
         if self.mode == '2D':
             self.img_hist = None
+
+    def select_line_lists(self):
+        s = SelectLineListsDialog(self)
+        # s.show()
 
     # Modify displayed data
     def apply_smoothing(self):
@@ -557,7 +591,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
             log.debug('flux smoothed: {}'.format(y_sm))
             # if self.mode == '1D':
-            self.set_displayed_data(x_sm, y_sm, err_sm, mode='1D')
+            self.set_1D_displayed_data(x_sm, y_sm, err_sm)
             self.calculate_1D_displayed_data_range()
             self.plot_1D_data()
             # TODO : implement 2D smoothing
@@ -579,10 +613,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Display the original data the was read from the file.
         """
-        self.set_displayed_data(wvlg=self.data['wvlg'],
-                                flux=self.data['flux_1D'],
-                                err=self.data['err_1D'],
-                                mode='1D')
+        self.set_1D_displayed_data(wvlg=self.data['wvlg'],
+                                   flux=self.data['flux_1D'],
+                                   err=self.data['err_1D'])
         self.calculate_1D_displayed_data_range()
         # self.calculate_2D_displayed_data_range()
         self.plot_1D_data()
@@ -618,60 +651,85 @@ class MainWindow(QtWidgets.QMainWindow):
             self.line_name_list.clear()
             self.line_name_list.addItem('Invalid input')
 
+    # Systems
     def feeling_lucky(self):
         chosen_ratio = self.line_name_list.selectedItems()[0]
-        log.debug('Chosen ratio is: {}'.format(repr(chosen_ratio.text())))
+        log.debug('Chosen ratio is: {}'.format(chosen_ratio.text()))
         if chosen_ratio:
             l_name = chosen_ratio.text().split('/')[0].strip()
-            log.debug('Line name to search for is: {}'.format(repr(l_name)))
-            cond = self.lines['name'].str.contains(l_name.strip('*'))  # have to strip '*' or pandas doesnt work
-            if len(self.lines[cond]) == 0:
-                QtWidgets.QMessageBox.information(self, "No lines found", "Could not find any line names associated with this ratio. Check line list provided.")
+            log.debug('Line name to search for is: {}'.format(l_name))
+            cond = self.abs_lines['name'].str.contains(l_name.strip('*'))  # have to strip '*' or pandas doesnt work
+            if len(self.abs_lines[cond]) == 0:
+                QtWidgets.QMessageBox.information(self,
+                                                  "No lines found",
+                                                  "Could not find any line names associated with "
+                                                  f"{l_name.strip('*')}. Check line list provided.")
                 return
-            elif len(self.lines[cond]) >= 2:
-                QtWidgets.QMessageBox.information(self, "Too many lines found", "Found more than one line. Check line list provided.")
+            elif len(self.abs_lines[cond]) >= 2:
+                QtWidgets.QMessageBox.information(self,
+                                                  "Too many lines found",
+                                                  f"Found more than one line for {l_name.strip('*')}. "
+                                                  "Check line list provided.")
                 return
             else:
-                l_wvlg_rest = float(self.lines[cond]['wvlg'].item())
+                l_wvlg_rest = float(self.abs_lines[cond]['wvlg'].item())
                 log.debug('Found corresponding wavelength: {}'.format(l_wvlg_rest))
                 l_wvlg_obs = np.max([float(self.textbox_for_wvlg1.text()),
                                      float(self.textbox_for_wvlg2.text())])
                 log.debug('Collecting observed wavelength: {}'.format(l_wvlg_obs))
                 z = l_wvlg_obs/l_wvlg_rest - 1.
                 log.debug('Calculated corresponding redshift: {}'.format(z))
-                self.add_absorber(z=z)
+                self.add_specsys(z=z, sys_type='abs')
 
     def add_absorber(self, z=None):
+        self.add_specsys(z, sys_type='abs')
+
+    def add_emitter(self, z=None):
+        self.add_specsys(z, sys_type='em')
+
+    def add_specsys(self, z=None, sys_type='abs'):
         try:
             if not z:
                 log.debug("z is %s, reading from textbox for z", z)
                 z = float(self.textbox_for_z.text())
+            if sys_type == 'abs':
+                lines = self.abs_lines
+                sys_type_str = 'absorber'
+            elif sys_type == 'em':
+                lines = self.em_lines
+                sys_type_str = 'emitter'
             color = next(ABSORBER_COLORS)
-            abs_sys = AbsorbingSystem(z=z, PlotItem=self.ax1D, color=color)
-            self.statusBar.showMessage("Adding absorber at redshift %.5lf" % z, 2000)
+            abs_sys = SpecSystem(z=z,
+                                 sys_type=sys_type,
+                                 PlotItem=self.ax1D,
+                                 color=color,
+                                 lines=lines)
+            self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
             abs_sys.draw(xmin=self.data['wvlg_min'], xmax=self.data['wvlg_max'])
             # Update model
-            self.model.absorbers.append((True, abs_sys))
+            self.model.specsystems.append((True, abs_sys))
             self.model.layoutChanged.emit()
             self.textbox_for_z.setText("")
-            log.info("Added absorber at redshift %.5lf" % z)
+            log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError:
-            QtWidgets.QMessageBox.information(self, "Invalid absorber", "Can't add absorber: z must be convertible to float")
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid spectral system",
+                                              "Can't add system: z must be convertible to float")
             self.textbox_for_z.setFocus()
 
-    def delete_absorber(self, i):
-        indexes = self.abs_listView.selectedIndexes()
+    def delete_specsys(self, i):
+        indexes = self.specsysView.selectedIndexes()
         if indexes:
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             # Remove the item and refresh.
-            _, _abs = self.model.absorbers[index.row()]
-            self.statusBar.showMessage("Removing absorber at redshift %.5lf" % _abs.redshift, 2000)
-            _abs.remove()
-            del self.model.absorbers[index.row()]
+            _, _sys = self.model.specsystems[index.row()]
+            self.statusBar.showMessage("Removing system at redshift %.5lf" % _sys.redshift, 2000)
+            _sys.remove()
+            del self.model.specsystems[index.row()]
             self.model.layoutChanged.emit()
             # Clear the selection (as it is no longer valid).
-            self.abs_listView.clearSelection()
+            self.specsysView.clearSelection()
             self.model.sort(0)
 
 
