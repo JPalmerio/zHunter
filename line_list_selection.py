@@ -17,7 +17,7 @@ def select_file(parent, fname, file_type):
     dialog.setDirectory(str(line_dir))
     dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
     filename = None
-    if dialog.exec_() == QtWidgets.QDialog.Accepted:
+    if dialog.exec() == QtWidgets.QDialog.Accepted:
         filename = dialog.selectedFiles()
     if filename:
         return str(filename[0])
@@ -38,7 +38,7 @@ class SelectLineListsDialog(QtWidgets.QDialog):
         self.em_line_file_select_button.clicked.connect(self.select_emission)
         self.abs_line_file_select_button.clicked.connect(self.select_absorption)
 
-        if self.exec_() == QtWidgets.QDialog.Accepted:
+        if self.exec() == QtWidgets.QDialog.Accepted:
             self.parent.fnames['emission_lines'] = self.fname_em
             self.parent.fnames['absorption_lines'] = self.fname_abs
 

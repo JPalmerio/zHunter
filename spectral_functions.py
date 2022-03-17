@@ -6,6 +6,9 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.io import fits
 from spectres import spectres
+import logging
+
+log = logging.getLogger(__name__)
 
 
 def smooth(wvlg, flux, err=None, smoothing=3):
@@ -70,8 +73,10 @@ def calc_vel_corr(header, kind='barycentric'):
     date_obs = Time(mjd+exptime/(2.*86400.0), format='mjd')  # midpoint of observation
     tel_pos = EarthLocation.from_geodetic(lat=tel_lat, lon=tel_long, height=tel_alt)
     vel_corr = coord.radial_velocity_correction(kind=kind, obstime=date_obs, location=tel_pos)
+    vel_corr = vel_corr.to('km/s')
+    log.debug("Velocity correction calculated: {:.3f} {:s}".format(vel_corr.value, vel_corr.unit))
 
-    return vel_corr.to('km/s')
+    return vel_corr
 
 
 def air_to_vac(wavelength):

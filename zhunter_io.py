@@ -25,14 +25,14 @@ def read_1D_data(fname):
                              "asked for a 1D plot. Check your input.")
     else:
         try:
-            df = pd.read_csv(fname, sep=r'\s+', names=['wvlg', 'flux', 'err'], dtype=float)
+            df = pd.read_csv(fname, sep=',', names=['wvlg', 'flux', 'err'], comment='#', dtype=float)
             wvlg = df['wvlg'].to_numpy()
             flux = df['flux'].to_numpy()
             err = df['err'].to_numpy()
         except ValueError:
             raise ValueError("Input file must be a standard fits file or a "
-                             "space-separated text file with 3 columns: "
-                             "wvlg, flux, error")
+                             "comma-separated text file with 3 columns: "
+                             "wvlg,flux,error")
     return wvlg, flux, err
 
 

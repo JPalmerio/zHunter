@@ -8,6 +8,10 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 
+import astropy.units as u
+from astropy.io import fits
+import astropy.constants as cst
+
 import numpy as np
 import pyqtgraph as pg
 import pandas as pd
@@ -15,6 +19,7 @@ import zhunter_io as io
 import spectral_functions as sf
 from spectroscopic_system import SpecSystem
 from line_list_selection import SelectLineListsDialog, select_file
+from key_binding import KeyBindingHelpDialog
 from misc import create_line_ratios
 
 qt5_logger = logging.getLogger('PyQt5')
@@ -72,11 +77,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fnames['line_ratio'] = ROOT_DIR/'line_lists/line_ratio.csv'
         self.load_line_lists(calc_ratio=False)
 
-        # General properties used throughout the code
-        # For status and keeping track of important information
-        self.mode = None   # Mode can be '1D' or '2D'
-        self.data = {}
-        self.img_hist = None
+        # Call reset to set general properties that will be used
+        self.reset_plot()
 
         # List of spectral systems
         self.model = SpecSystemModel()
@@ -89,7 +91,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.file_2D_button.clicked.connect(self.select_2D_file)
         self.file_line_list_button.clicked.connect(self.select_line_lists)
 
+        # Help
+        self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
+        self.actionKey_Bindings.setShortcut(QtCore.Qt.Key_H)
+
         # Connect all signals and slots
+        self.to_vacuum_button.clicked.connect(self.wvlg_to_vacuum)
+        self.to_air_button.clicked.connect(self.wvlg_to_air)
+        self.barycentric_button.clicked.connect(self.wvlg_bary_correction)
+        self.heliocentric_button.clicked.connect(self.wvlg_helio_correction)
         self.ratio_button.clicked.connect(self.calculate_ratio)
         self.find_line_ratios_button.clicked.connect(self.find_ratio_names)
         self.feeling_lucky_button.clicked.connect(self.feeling_lucky)
@@ -273,15 +283,21 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as e:
             log.error(e)
             QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
-            self.clear_plot()
+            self.reset_plot()
             return
+
+        if self.fnames['data'].suffix == '.fits':
+            self.data['header'] = fits.getheader(self.fnames['data'])
+        else:
+            log.warning("Not a fits file, no header loaded.")
+            self.data['header'] = None
 
         if self.mode == '2D':
             # Load data into memory
             self.load_2D_data(wvlg, arcsec, flux, err)
 
             # Plot the 2D spectrum
-            self.plot_2D_data()
+            self.draw_2D_data()
 
             # Region of Interest
             self.set_up_ROI()
@@ -295,7 +311,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.load_1D_data(wvlg_1D, flux_1D, err_1D)
 
         # Plot the 1D spectrum
-        self.plot_1D_data()
+        self.draw_1D_data()
 
         # Create appropriate labels
         self.set_labels()
@@ -392,7 +408,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['arcsec_med'] = np.median(self.data['arcsec_disp'])
         self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
-    def plot_2D_data(self):
+    def draw_2D_data(self):
         """
             Takes the 2D display data loaded and plots it on the interface.
         """
@@ -417,7 +433,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add the side histogram fo the flux values as a function of spatial position
         self.plot_2D_sidehist()
 
-    def plot_1D_data(self):
+    def draw_1D_data(self):
         """
             Takes the 1D display data loaded and plots it on the interface.
         """
@@ -443,8 +459,7 @@ class MainWindow(QtWidgets.QMainWindow):
             key = event.key()
             # Setting lambda 1 and 2
             x_pos = crosshair.getPos()[0]
-            state = vb.getState()
-            x_view, y_view = state['viewRange']
+            x_view, y_view = vb.getState()['viewRange']
 
             if key == QtCore.Qt.Key_Q:
                 self.statusBar.showMessage("Setting Lambda_1 at %0.5f AA" % (x_pos), 2000)
@@ -500,7 +515,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show_ROI_y_hist()
         wvlg, flux, err = self.extract_1D_from_ROI()
         self.set_1D_displayed_data(wvlg, flux, err)
-        self.plot_1D_data()
+        self.draw_1D_data()
 
     def extract_1D_from_ROI(self):
         """
@@ -556,19 +571,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.select_file_and_plot()
 
     def select_file_and_plot(self):
-        fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat)')
+        fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat *.txt)')
         # self.fnames['data'], _ = QtWidgets.QFileDialog.getOpenFileName()
         if fname:
             self.fnames['data'] = Path(fname)
             if self.fnames['data'].exists():
-                self.clear_plot()
+                self.reset_plot()
                 self.set_up_plot()
                 self.visualize_spec()
 
-    def clear_plot(self):
+    def reset_plot(self):
         self.graphLayout.clear()
-        if self.mode == '2D':
-            self.img_hist = None
+        self.data = {}
+        self.img_hist = None
+        self.wvlg_corrections = {'to_air':False,
+                                 'to_vacuum':False,
+                                 'heliocentric':False,
+                                 'barycentric':False}
 
     def select_line_lists(self):
         s = SelectLineListsDialog(self)
@@ -593,7 +612,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # if self.mode == '1D':
             self.set_1D_displayed_data(x_sm, y_sm, err_sm)
             self.calculate_1D_displayed_data_range()
-            self.plot_1D_data()
+            self.draw_1D_data()
             # TODO : implement 2D smoothing
             # elif self.mode == '2D':
             #     self.data['wvlg_2D_disp'] = x_sm
@@ -618,9 +637,81 @@ class MainWindow(QtWidgets.QMainWindow):
                                    err=self.data['err_1D'])
         self.calculate_1D_displayed_data_range()
         # self.calculate_2D_displayed_data_range()
-        self.plot_1D_data()
+        self.draw_1D_data()
         # TODO : implement 2D smoothing
 
+    def wvlg_to_air(self):
+        if self.wvlg_corrections['to_air']:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid action",
+                                              "You have already converted wavelength from vacuum "
+                                              "to air.")
+        else:
+            wvlg = self.data['wvlg_disp'] * u.AA
+            wvlg_in_air = sf.vac_to_air(wvlg)
+            self.data['wvlg_disp'] = wvlg_in_air.to('AA').value
+            self.wvlg_corrections['to_air'] = True
+            self.wvlg_corrections['to_vacuum'] = False
+            self.draw_1D_data()
+            if self.mode == '2D':
+                self.draw_2D_data()
+            log.info("Converted wavelength from vacuum to air.")
+
+    def wvlg_to_vacuum(self):
+        if self.wvlg_corrections['to_vacuum']:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid action",
+                                              "You have already converted wavelength from air "
+                                              "to vacuum.")
+        else:
+            wvlg = self.data['wvlg_disp'] * u.AA
+            wvlg_in_vac = sf.air_to_vac(wvlg)
+            self.data['wvlg_disp'] = wvlg_in_vac.to('AA').value
+            self.wvlg_corrections['to_air'] = False
+            self.wvlg_corrections['to_vacuum'] = True
+            self.draw_1D_data()
+            if self.mode == '2D':
+                self.draw_2D_data()
+            log.info("Converted wavelength from air to vacuum.")
+
+    def wvlg_bary_correction(self):
+        self.wvlg_radial_correction(kind='barycentric')
+
+    def wvlg_helio_correction(self):
+        self.wvlg_radial_correction(kind='heliocentric')
+
+    def wvlg_radial_correction(self, kind):
+        if self.wvlg_corrections['barycentric'] or self.wvlg_corrections['heliocentric']:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid action",
+                                              "You have already corrected for barycentric or "
+                                              "heliocentric motion.")
+        elif self.data['header'] is None:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid action",
+                                              "You can only correct fits files for barycentric or "
+                                              "heliocentric motion.")
+        else:
+            try:
+                wvlg = self.data['wvlg_disp'] * u.AA
+                c = cst.c.to('km/s')
+                vcorr = sf.calc_vel_corr(header=self.data['header'], kind=kind)
+                wvlg_corr = wvlg * (1. + vcorr/c)
+                self.data['wvlg_disp'] = wvlg_corr.to('AA').value
+                self.wvlg_corrections['barycentric'] = True
+                self.wvlg_corrections['heliocentric'] = True
+                self.draw_1D_data()
+                if self.mode == '2D':
+                    self.draw_2D_data()
+                log.info("Converted wavelength from {:s} motion".format(kind))
+            except KeyError as e:
+                log.error(e)
+                QtWidgets.QMessageBox.information(self,
+                                                  "Invalid header",
+                                                  f"Could not correct for {kind} motion :\n"
+                                                  "" + str(e))
+
+    # Ratios
     def calculate_ratio(self):
         """ Calculates the ratio between the two selected wavelength """
         try:
@@ -737,7 +828,7 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()
     main.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':

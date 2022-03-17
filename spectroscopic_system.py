@@ -67,12 +67,3 @@ class SpecSystem():
         for line in self.plotted_lines:
             self.pi.removeItem(line)
         log.info("Deleted %s System at redshift %.5lf", self.sys_type, self.redshift)
-
-    # def save_absorber(self, filename):
-    #     fname_syst = filename+'_%.4lf.txt'.format(self.redshift)
-    #     with open(fname_syst, 'w') as f:
-    #         f.write('$Redshift \t %.5lf \n' %self.redshift)
-    #         for i in range(len(self.line_name)):
-    #             f.write(self.line_name[i] + '\t' + str(self.line_wvlg[i]) + '\n')
-    #     log.info("Saved system in '{}'", filename)
-
