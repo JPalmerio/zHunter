@@ -40,15 +40,26 @@ class SpecSystem():
             gt_min = (xmin is None) or (w * (1+self.redshift) >= xmin)
             lt_max = (xmax is None) or (w * (1+self.redshift) <= xmax)
             if gt_min and lt_max:
-                line = pg.InfiniteLine(w * (1+self.redshift),
-                                       span=(0.,0.8),
-                                       pen=pen,
-                                       name='z={:.5f}'.format(self.redshift),
-                                       label=n,
-                                       labelOpts={'color':self.color,
-                                                  'fill':brush,
-                                                  'angle':45,
-                                                  'position':1})#,movable=True)
+                if self.sys_type == 'abs':
+                    line = pg.InfiniteLine(w * (1+self.redshift),
+                                           span=(0.,0.8),
+                                           pen=pen,
+                                           name='z={:.5f}'.format(self.redshift),
+                                           label=n,
+                                           labelOpts={'color':self.color,
+                                                      'fill':brush,
+                                                      'angle':45,
+                                                      'position':1})#,movable=True)
+                elif self.sys_type == 'em':
+                    line = pg.InfiniteLine(w * (1+self.redshift),
+                                           span=(0.2, 1.),
+                                           pen=pen,
+                                           name='z={:.5f}'.format(self.redshift),
+                                           label=n,
+                                           labelOpts={'color':self.color,
+                                                      'fill':brush,
+                                                      'angle':-45,
+                                                      'position':0})#,movable=True)
                 self.pi.addItem(line)
                 self.plotted_lines.append(line)
 
