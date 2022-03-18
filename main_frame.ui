@@ -31,19 +31,29 @@
        </widget>
       </item>
       <item row="0" column="1">
+       <widget class="QCheckBox" name="show_error_cb">
+        <property name="text">
+         <string>Show error</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
        <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>158</width>
+          <width>108</width>
           <height>20</height>
          </size>
         </property>
        </spacer>
       </item>
-      <item row="0" column="2" colspan="2">
+      <item row="0" column="3">
        <widget class="QLabel" name="label_wvlg_correction">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -68,20 +78,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="4">
-       <spacer name="horizontalSpacer_4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>18</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="0" column="5" colspan="2">
+      <item row="0" column="4" colspan="2">
        <widget class="QLabel" name="label_extraction">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -106,7 +103,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="7" colspan="2">
+      <item row="0" column="6" colspan="2">
        <widget class="QLabel" name="label_smooth">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -131,7 +128,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="9">
+      <item row="0" column="8">
        <widget class="QLabel" name="label_wvlg_1">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -156,7 +153,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="10">
+      <item row="0" column="9">
        <widget class="QLineEdit" name="textbox_for_wvlg1">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -184,7 +181,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="11">
+      <item row="0" column="10">
        <widget class="QLabel" name="label_ratio">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -209,7 +206,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="12">
+      <item row="0" column="11">
        <widget class="QLineEdit" name="textbox_for_ratio">
         <property name="enabled">
          <bool>true</bool>
@@ -263,19 +260,29 @@
        </widget>
       </item>
       <item row="1" column="1">
+       <widget class="QCheckBox" name="telluric_cb">
+        <property name="text">
+         <string>Telluric absorption</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
        <spacer name="horizontalSpacer_3">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>158</width>
+          <width>108</width>
           <height>20</height>
          </size>
         </property>
        </spacer>
       </item>
-      <item row="1" column="2">
+      <item row="1" column="3">
        <widget class="QPushButton" name="to_vacuum_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -288,20 +295,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="3" colspan="2">
-       <widget class="QPushButton" name="heliocentric_button">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Heliocentric</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="5">
+      <item row="1" column="4">
        <widget class="QLineEdit" name="textbox_for_extraction_width">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -323,14 +317,14 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="6">
+      <item row="1" column="5">
        <widget class="QLabel" name="label_extraction_width_unit">
         <property name="text">
          <string> arcsec</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="7">
+      <item row="1" column="6">
        <widget class="QLineEdit" name="textbox_for_smooth">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -352,14 +346,14 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="8">
+      <item row="1" column="7">
        <widget class="QLabel" name="label_smooth_unit">
         <property name="text">
          <string> px</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="9">
+      <item row="1" column="8">
        <widget class="QLabel" name="label_wvlg_2">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
@@ -384,7 +378,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="10">
+      <item row="1" column="9">
        <widget class="QLineEdit" name="textbox_for_wvlg2">
         <property name="enabled">
          <bool>true</bool>
@@ -412,7 +406,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="11">
+      <item row="1" column="10">
        <widget class="QLabel" name="label">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -437,7 +431,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="12">
+      <item row="1" column="11">
        <widget class="QLineEdit" name="textbox_for_ratio_error_margin">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -476,19 +470,29 @@
        </widget>
       </item>
       <item row="2" column="1">
+       <widget class="QCheckBox" name="sky_em_cb">
+        <property name="text">
+         <string>Sky emission</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
        <spacer name="horizontalSpacer_2">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>158</width>
+          <width>108</width>
           <height>20</height>
          </size>
         </property>
        </spacer>
       </item>
-      <item row="2" column="2">
+      <item row="2" column="3">
        <widget class="QPushButton" name="to_air_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -501,34 +505,21 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="3" colspan="2">
-       <widget class="QPushButton" name="barycentric_button">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Barycentric</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="5" colspan="2">
+      <item row="2" column="4" colspan="2">
        <widget class="QPushButton" name="reset_width_button">
         <property name="text">
          <string>Reset width</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="7" colspan="2">
+      <item row="2" column="6" colspan="2">
        <widget class="QPushButton" name="reset_smooth_button">
         <property name="text">
          <string>Reset smooth</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="9" colspan="2">
+      <item row="2" column="8" colspan="2">
        <widget class="QPushButton" name="ratio_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -553,7 +544,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="11" colspan="2">
+      <item row="2" column="10" colspan="2">
        <widget class="QPushButton" name="find_line_ratios_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -798,12 +789,48 @@
     </property>
     <addaction name="actionKey_Bindings"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <widget class="QMenu" name="menuWavelength_correction">
+     <property name="title">
+      <string>Wavelength correction</string>
+     </property>
+     <addaction name="actionTo_vacuum"/>
+     <addaction name="actionTo_air"/>
+     <addaction name="actionHeliocentric"/>
+     <addaction name="actionBarycentric"/>
+    </widget>
+    <addaction name="menuWavelength_correction"/>
+   </widget>
+   <addaction name="menuEdit"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionKey_Bindings">
    <property name="text">
     <string>Key Bindings</string>
+   </property>
+  </action>
+  <action name="actionTo_vacuum">
+   <property name="text">
+    <string>To vacuum</string>
+   </property>
+  </action>
+  <action name="actionTo_air">
+   <property name="text">
+    <string>To air</string>
+   </property>
+  </action>
+  <action name="actionHeliocentric">
+   <property name="text">
+    <string>Heliocentric</string>
+   </property>
+  </action>
+  <action name="actionBarycentric">
+   <property name="text">
+    <string>Barycentric</string>
    </property>
   </action>
  </widget>

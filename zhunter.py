@@ -96,10 +96,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actionKey_Bindings.setShortcut(QtCore.Qt.Key_H)
 
         # Connect all signals and slots
+        self.show_error_cb.stateChanged.connect(self.show_hide_error)
         self.to_vacuum_button.clicked.connect(self.wvlg_to_vacuum)
         self.to_air_button.clicked.connect(self.wvlg_to_air)
-        self.barycentric_button.clicked.connect(self.wvlg_bary_correction)
-        self.heliocentric_button.clicked.connect(self.wvlg_helio_correction)
+        # self.barycentric_button.clicked.connect(self.wvlg_bary_correction)
+        # self.heliocentric_button.clicked.connect(self.wvlg_helio_correction)
         self.ratio_button.clicked.connect(self.calculate_ratio)
         self.find_line_ratios_button.clicked.connect(self.find_ratio_names)
         self.feeling_lucky_button.clicked.connect(self.feeling_lucky)
@@ -430,6 +431,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.err_2D_img.setRect(self.rect)
         self.flux_2D_img.setZValue(8)
         self.err_2D_img.setZValue(7)
+        # Don't display error image, just keep it for when extracting the 1D from the 2D
+        self.err_2D_img.hide()
 
         # Add the side histogram of the pixel intensities
         self.set_up_img_hist()
@@ -447,6 +450,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def plot_2D_sidehist(self):
         y_dist = np.median(self.data['flux_2D_disp'], axis=1)
         self.sidehist_2D.setData(y_dist, self.data['arcsec_disp'])
+
+    def show_hide_error(self):
+        if self.show_error_cb.isChecked():
+            self.err_1D_spec.show()
+        else:
+            self.err_1D_spec.hide()
 
     # Events
     def eventFilter(self, widget, event):

@@ -1,5 +1,5 @@
 #data partially from http://astronomy.nmsu.edu/drewski/tableofemissionlines.html
-#wavelength are in air
+#wavelength are in air except Lyalpha
 #name,wave
 Lyalpha,1215.67
 OII_3726,3726.032
