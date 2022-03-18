@@ -227,8 +227,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
 
     def set_labels(self):
-        self.ax1D.setLabel("left", "Flux (x 1e-18)")  # [erg/s/cm2/AA]
-        self.ax1D.setLabel("bottom", "Wavelength")  # [AA]
+        self.ax1D.setLabels(left="Flux (x 1e-18)", bottom="Wavelength")  # [erg/s/cm2/AA] and [AA]
         self.ax1D.showGrid(x=True, y=True)
         if self.mode == '2D':
             self.ax2D.setLabel("left", "Arcseconds")  # [arcsec]
@@ -256,6 +255,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.mode == '2D':
             self.flux_2D_img = pg.ImageItem()
+            # Monkey-patch the image to use our custom hover function.
+            # This is generally discouraged (I should subclass ImageItem instead),
+            # but it works for a very simple use like this.
+            self.flux_2D_img.hoverEvent = self.image_hover_event
             self.err_2D_img = pg.ImageItem()
             self.sidehist_2D = pg.PlotCurveItem(np.zeros(1), np.zeros(1),
                                                 pen=pg.mkPen(color='w'))
@@ -486,7 +489,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Move 1D crosshair
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage("Wavelength = %0.3f AA, Flux = %0.3e x 1e-18 erg/s/cm2/AA" % (mousePoint.x(), mousePoint.y()))
+            self.statusBar.showMessage(f"Wavelength = {mousePoint.x():0.3f} AA, Flux = {mousePoint.y()*1e-18:0.3e} erg/s/cm2/AA")
             self.crosshair_x_1D.setPos(mousePoint.x())
             self.crosshair_y_1D.setPos(mousePoint.y())
             if self.mode == '2D':
@@ -495,16 +498,32 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             if self.ax2D.sceneBoundingRect().contains(pos):
                 mousePoint = self.ax2D.vb.mapSceneToView(pos)
-                self.statusBar.showMessage("Wavelength = %0.3f AA, Spatial = %0.3f arcsec, Flux = " % (mousePoint.x(), mousePoint.y()))
                 self.crosshair_x_2D.setPos(mousePoint.x())
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_x_1D.setPos(mousePoint.x())
                 self.crosshair_y_2D_sideview.setPos(mousePoint.y())
             elif self.ax2D_sideview.sceneBoundingRect().contains(pos):
                 mousePoint = self.ax2D_sideview.vb.mapSceneToView(pos)
-                self.statusBar.showMessage("Spatial = %0.3f arcsec" % mousePoint.y())
+                self.statusBar.showMessage(f"Spatial = {mousePoint.y():0.3f} arcsec")
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_y_2D_sideview.setPos(mousePoint.y())
+
+    def image_hover_event(self, event):
+        """
+            Show the position and value under the mouse cursor.
+        """
+        if event.isExit():
+            self.statusBar.showMessage('')
+            return
+        pos = event.pos()
+        # x and y are reversed because the transpose of the flux is displayed
+        i, j = pos.y(), pos.x()
+        # Clip indexes to be 0 at minimum and len(flux)-1 at maximum
+        i = int(np.clip(i, 0, self.data['flux_2D_disp'].shape[0] - 1))
+        j = int(np.clip(j, 0, self.data['flux_2D_disp'].shape[1] - 1))
+        z = self.data['flux_2D_disp'][i, j]
+        x, y = self.data['wvlg_disp'][j], self.data['arcsec_disp'][i]
+        self.statusBar.showMessage(f"Wavelength = {x:0.3f} AA, Spatial = {y:0.3f} arcsec, Flux = {z*1e-18:.3e} erg/s/cm2/AA")
 
     # ROI
     def show_ROI_y_hist(self):
@@ -808,7 +827,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "Can't add system: z must be convertible to float")
             self.textbox_for_z.setFocus()
 
-    def delete_specsys(self, i):
+    def delete_specsys(self):
         indexes = self.specsysView.selectedIndexes()
         if indexes:
             # Indexes is a list of a single item in single-select mode.
