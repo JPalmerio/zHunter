@@ -522,7 +522,7 @@ class MainWindow(QtWidgets.QMainWindow):
         i = int(np.clip(i, 0, self.data['flux_2D_disp'].shape[0] - 1))
         j = int(np.clip(j, 0, self.data['flux_2D_disp'].shape[1] - 1))
         z = self.data['flux_2D_disp'][i, j]
-        x, y = self.data['wvlg_disp'][j], self.data['arcsec_disp'][i]
+        x, y = self.data['wvlg'][j], self.data['arcsec_disp'][i]
         self.statusBar.showMessage(f"Wavelength = {x:0.3f} AA, Spatial = {y:0.3f} arcsec, Flux = {z*1e-18:.3e} erg/s/cm2/AA")
 
     # ROI
