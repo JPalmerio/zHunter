@@ -316,6 +316,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Plot the 1D spectrum
         self.draw_1D_data()
+        self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
 
         # Create appropriate labels
         self.set_labels()
@@ -362,7 +363,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         # Multiply flux and err by 1e18 to have it in reasonable units
         # and allow y crosshair to work (otherwise the code considers
-        # it to be zero)
+        # it to be zero) and to allow histograms to be nicer
         self.data['wvlg_disp'] = wvlg
         self.data['flux_2D_disp'] = flux * 1e18
         self.data['err_2D_disp'] = err * 1e18
@@ -376,6 +377,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Multiply flux and err by 1e18 to have it in reasonable units
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero)
+        # Only do this in 1D mode because in 2D mode this is already
+        # done on the flux_2D values from which the 1D is extracted
         if self.mode == '1D':
             factor = 1e18
         else:
@@ -445,7 +448,6 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp'])
         self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp'])
-        self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
 
     def plot_2D_sidehist(self):
         y_dist = np.median(self.data['flux_2D_disp'], axis=1)
@@ -462,27 +464,28 @@ class MainWindow(QtWidgets.QMainWindow):
         if (event.type() == QtCore.QEvent.KeyPress):
             if widget is self.ax1D:
                 crosshair = self.crosshair_x_1D
-                vb = widget.vb
             elif widget is self.ax2D:
                 crosshair = self.crosshair_x_2D
-                vb = widget.vb
             else:
                 return
+
+            vb = widget.vb
             key = event.key()
-            # Setting lambda 1 and 2
             x_pos = crosshair.getPos()[0]
             x_view, y_view = vb.getState()['viewRange']
 
+            # Setting lambda 1 and 2
             if key == QtCore.Qt.Key_Q:
-                self.statusBar.showMessage("Setting Lambda_1 at %0.5f AA" % (x_pos), 2000)
+                self.statusBar.showMessage(f"Setting Lambda_1 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
             elif key == QtCore.Qt.Key_E:
-                self.statusBar.showMessage("Setting Lambda_2 at %0.5f AA " % (x_pos), 2000)
+                self.statusBar.showMessage(f"Setting Lambda_2 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
             # Panning with keyboard
-            # For some reason the value returned after setting the range is slightly
-            # larger (I suspect because of padding) and this results in 'zooming out'
-            # after multiple key presses...
+            # The value returned after setting the range is slightly
+            # larger (because of padding) and this results in 'zooming out'
+            # after multiple key presses... Had to force padding to 0 when
+            # defining the viewBox to remove this effect
             elif key == QtCore.Qt.Key_D:
                 vb.setRange(xRange=np.array(x_view)+0.15*np.abs(x_view[1] - x_view[0]))
             elif key == QtCore.Qt.Key_A:
@@ -579,7 +582,6 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "Invalid extraction width",
                                               "Can't change extraction width: it must be "
                                               "convertible to float")
-            self.textbox_for_z.setFocus()
 
     def reset_width(self):
         self.ax2D.removeItem(self.roi)
@@ -599,7 +601,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.select_file_and_plot()
 
     def select_file_and_plot(self):
-        fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat *.txt)')
+        fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat *.txt *.csv)')
         # self.fnames['data'], _ = QtWidgets.QFileDialog.getOpenFileName()
         if fname:
             self.fnames['data'] = Path(fname)
@@ -618,8 +620,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                  'barycentric':False}
 
     def select_line_lists(self):
-        s = SelectLineListsDialog(self)
-        # s.show()
+        SelectLineListsDialog(self)
 
     # Modify displayed data
     def apply_smoothing(self):
@@ -666,6 +667,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.calculate_1D_displayed_data_range()
         # self.calculate_2D_displayed_data_range()
         self.draw_1D_data()
+        self.textbox_for_smooth.setText('1')
         # TODO : implement 2D smoothing
 
     def wvlg_to_air(self):
