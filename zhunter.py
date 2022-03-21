@@ -335,7 +335,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Save wvlg, flux and err arrays into memory.
         """
-        self.data['wvlg'] = wvlg
+        self.data['wvlg_1D'] = wvlg
         self.data['flux_1D'] = flux
         self.data['err_1D'] = err
         self.set_1D_displayed_data(wvlg, flux, err)
@@ -558,6 +558,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show_ROI_y_hist()
         wvlg, flux, err = self.extract_1D_from_ROI()
         self.load_1D_data(wvlg, flux, err)
+        if int(self.textbox_for_smooth.text()) != 1:
+            wvlg, flux, err = self.smooth()
         self.set_1D_displayed_data(wvlg, flux, err)
         self.draw_1D_data()
 
@@ -637,21 +639,25 @@ class MainWindow(QtWidgets.QMainWindow):
         SelectLineListsDialog(self)
 
     # Modify displayed data
+    def smooth(self):
+        smoothing = int(self.textbox_for_smooth.text())
+        self.statusBar.showMessage("Smoothing by {} pixels".format(smoothing), 2000)
+        log.info("Smoothing {} pixels".format(smoothing))
+        x_sm, y_sm, err_sm = sf.smooth(self.data['wvlg_1D'],
+                                       self.data['flux_1D'],
+                                       err=self.data['err_1D'],
+                                       smoothing=smoothing)
+        log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
+        log.debug('flux smoothed: {}'.format(y_sm))
+        return x_sm, y_sm, err_sm
+
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
         if 'wvlg' not in self.data.keys():
             QtWidgets.QMessageBox.information(self, "No Spectrum", "Please provide a spectrum before smoothing")
             return
         try:
-            smoothing = int(self.textbox_for_smooth.text())
-            self.statusBar.showMessage("Smoothing by {} pixels".format(smoothing), 2000)
-            log.info("Smoothing {} pixels".format(smoothing))
-            x_sm, y_sm, err_sm = sf.smooth(self.data['wvlg_1D'],
-                                           self.data['flux_1D'],
-                                           err=self.data['err_1D'],
-                                           smoothing=smoothing)
-            log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
-            log.debug('flux smoothed: {}'.format(y_sm))
+            x_sm, y_sm, err_sm = self.smooth()
             # if self.mode == '1D':
             self.set_1D_displayed_data(x_sm, y_sm, err_sm)
             self.calculate_1D_displayed_data_range()
