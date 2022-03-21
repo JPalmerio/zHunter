@@ -249,8 +249,14 @@ class MainWindow(QtWidgets.QMainWindow):
             Create empty objects that will hold the 1D and 2D data
             to be displayed.
         """
-        self.flux_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='w'))
-        self.err_1D_spec = pg.PlotCurveItem(np.zeros(1), np.zeros(1), pen=pg.mkPen(color='r'))
+        self.flux_1D_spec = pg.PlotCurveItem(np.zeros(2),
+                                             np.zeros(1),
+                                             stepMode='center',
+                                             pen=pg.mkPen(color='w'))
+        self.err_1D_spec = pg.PlotCurveItem(np.zeros(2),
+                                            np.zeros(1),
+                                            stepMode='center',
+                                            pen=pg.mkPen(color='r'))
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.err_1D_spec)
 
@@ -364,7 +370,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Multiply flux and err by 1e18 to have it in reasonable units
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero) and to allow histograms to be nicer
-        self.data['wvlg_disp'] = wvlg
+        self.data['wvlg_2D_disp'] = wvlg
         self.data['flux_2D_disp'] = flux * 1e18
         self.data['err_2D_disp'] = err * 1e18
         self.data['arcsec_disp'] = arcsec
@@ -383,7 +389,12 @@ class MainWindow(QtWidgets.QMainWindow):
             factor = 1e18
         else:
             factor = 1
-        self.data['wvlg_disp'] = wvlg
+        # Modify wvlg array to be of size len(flux)+1 by adding the right
+        # edge of the last bin. This is to allow for visualization with
+        # stepMode='center'
+        dx = wvlg[1] - wvlg[0]
+        # Add the right edge of the final bin
+        self.data['wvlg_1D_disp'] = np.asarray(list(wvlg) + [wvlg[-1]+dx])
         self.data['flux_1D_disp'] = flux * factor
         self.data['err_1D_disp'] = err * factor
 
@@ -393,8 +404,8 @@ class MainWindow(QtWidgets.QMainWindow):
             visualization purposed such as setting the min and max range
             allowed by the ViewBox.
         """
-        self.data['wvlg_min'] = np.min(self.data['wvlg_disp'])
-        self.data['wvlg_max'] = np.max(self.data['wvlg_disp'])
+        self.data['wvlg_min'] = np.min(self.data['wvlg_1D_disp'])
+        self.data['wvlg_max'] = np.max(self.data['wvlg_1D_disp'])
         self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
         self.data['q975_1D'] = np.quantile(self.data['flux_1D_disp'], q=0.975)
         self.data['q025_1D'] = np.quantile(self.data['flux_1D_disp'], q=0.025)
@@ -405,8 +416,8 @@ class MainWindow(QtWidgets.QMainWindow):
             visualization purposed such as setting the min and max range
             allowed by the ViewBox.
         """
-        self.data['wvlg_min'] = np.min(self.data['wvlg_disp'])
-        self.data['wvlg_max'] = np.max(self.data['wvlg_disp'])
+        self.data['wvlg_min'] = np.min(self.data['wvlg_2D_disp'])
+        self.data['wvlg_max'] = np.max(self.data['wvlg_2D_disp'])
         self.data['wvlg_span'] = self.data['wvlg_max']-self.data['wvlg_min']
         self.data['q975_2D'] = np.quantile(self.data['flux_2D_disp'], q=0.975)
         self.data['q025_2D'] = np.quantile(self.data['flux_2D_disp'], q=0.025)
@@ -427,8 +438,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.err_2D_img.setImage(self.data['err_2D_disp'].T)
 
         # Transform image indexes to physical coordinates
-        self.rect = QtCore.QRectF(self.data['wvlg_disp'][0], self.data['arcsec_disp'][0],
-                                  self.data['wvlg_disp'][-1] - self.data['wvlg_disp'][0],
+        self.rect = QtCore.QRectF(self.data['wvlg_2D_disp'][0], self.data['arcsec_disp'][0],
+                                  self.data['wvlg_2D_disp'][-1] - self.data['wvlg_2D_disp'][0],
                                   self.data['arcsec_disp'][-1] - self.data['arcsec_disp'][0])
         self.flux_2D_img.setRect(self.rect)
         self.err_2D_img.setRect(self.rect)
@@ -446,8 +457,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Takes the 1D display data loaded and plots it on the interface.
         """
-        self.flux_1D_spec.setData(self.data['wvlg_disp'], self.data['flux_1D_disp'])
-        self.err_1D_spec.setData(self.data['wvlg_disp'], self.data['err_1D_disp'])
+        self.flux_1D_spec.setData(self.data['wvlg_1D_disp'], self.data['flux_1D_disp'])
+        self.err_1D_spec.setData(self.data['wvlg_1D_disp'], self.data['err_1D_disp'])
 
     def plot_2D_sidehist(self):
         y_dist = np.median(self.data['flux_2D_disp'], axis=1)
@@ -563,8 +574,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         flux_1D = flux_selected[0].mean(axis=1)
         err_1D = err_selected[0].mean(axis=1)
-        wvlg = flux_selected[1][0,:,0]
-        return wvlg, flux_1D, err_1D
+        wvlg_1D = flux_selected[1][0,:,0]
+
+        return wvlg_1D, flux_1D, err_1D
 
     def set_extraction_width(self):
         try:
@@ -677,14 +689,15 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "You have already converted wavelength from vacuum "
                                               "to air.")
         else:
-            wvlg = self.data['wvlg_disp'] * u.AA
+            wvlg = self.data[f'wvlg_{self.mode}_disp'] * u.AA
             wvlg_in_air = sf.vac_to_air(wvlg)
-            self.data['wvlg_disp'] = wvlg_in_air.to('AA').value
+            self.data[f'wvlg_{self.mode}_disp'] = wvlg_in_air.to('AA').value
             self.wvlg_corrections['to_air'] = True
             self.wvlg_corrections['to_vacuum'] = False
-            self.draw_1D_data()
             if self.mode == '2D':
                 self.draw_2D_data()
+            self.draw_1D_data()
+
             log.info("Converted wavelength from vacuum to air.")
 
     def wvlg_to_vacuum(self):
