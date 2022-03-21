@@ -103,7 +103,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.heliocentric_button.clicked.connect(self.wvlg_helio_correction)
         self.ratio_button.clicked.connect(self.calculate_ratio)
         self.find_line_ratios_button.clicked.connect(self.find_ratio_names)
-        self.feeling_lucky_button.clicked.connect(self.feeling_lucky)
+        self.add_ratio_button.clicked.connect(self.add_specsys_from_ratio)
+        self.add_line_button.clicked.connect(self.add_specsys_from_line)
         self.reset_smooth_button.clicked.connect(self.reset_smoothing)
         self.textbox_for_smooth.editingFinished.connect(self.apply_smoothing)
         self.reset_width_button.clicked.connect(self.reset_width)
@@ -556,6 +557,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def extract_and_plot_1D(self):
         self.show_ROI_y_hist()
         wvlg, flux, err = self.extract_1D_from_ROI()
+        self.load_1D_data(wvlg, flux, err)
         self.set_1D_displayed_data(wvlg, flux, err)
         self.draw_1D_data()
 
@@ -644,7 +646,7 @@ class MainWindow(QtWidgets.QMainWindow):
             smoothing = int(self.textbox_for_smooth.text())
             self.statusBar.showMessage("Smoothing by {} pixels".format(smoothing), 2000)
             log.info("Smoothing {} pixels".format(smoothing))
-            x_sm, y_sm, err_sm = sf.smooth(self.data['wvlg'],
+            x_sm, y_sm, err_sm = sf.smooth(self.data['wvlg_1D'],
                                            self.data['flux_1D'],
                                            err=self.data['err_1D'],
                                            smoothing=smoothing)
@@ -673,7 +675,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Display the original data the was read from the file.
         """
-        self.set_1D_displayed_data(wvlg=self.data['wvlg'],
+        self.set_1D_displayed_data(wvlg=self.data['wvlg_1D'],
                                    flux=self.data['flux_1D'],
                                    err=self.data['err_1D'])
         self.calculate_1D_displayed_data_range()
@@ -766,7 +768,6 @@ class MainWindow(QtWidgets.QMainWindow):
             if ratio_value < 0:
                 raise ValueError("Your ratio should never be negative")
             self.textbox_for_ratio.setText('{:.5f}'.format(ratio_value))
-            # self.textbox_for_ratio.setFocus()
         except ValueError:
             self.textbox_for_ratio.setText('Invalid input')
 
@@ -777,42 +778,62 @@ class MainWindow(QtWidgets.QMainWindow):
             ratio_value = float(self.textbox_for_ratio.text())
 
             cond = (abs(self.line_ratios['ratio'] - ratio_value) <= ratio_error_margin)
-            self.line_name_list.clear()
+            self.ratio_name_list.clear()
             for name in self.line_ratios[cond]['name']:
-                self.line_name_list.addItem(name)
+                self.ratio_name_list.addItem(name)
 
         except ValueError:
-            self.line_name_list.clear()
-            self.line_name_list.addItem('Invalid input')
+            self.ratio_name_list.clear()
+            self.ratio_name_list.addItem('Invalid input')
 
     # Systems
-    def feeling_lucky(self):
-        chosen_ratio = self.line_name_list.selectedItems()[0]
+    def add_specsys_from_ratio(self):
+        chosen_ratio = self.ratio_name_list.selectedItems()[0]
         log.debug('Chosen ratio is: {}'.format(chosen_ratio.text()))
         if chosen_ratio:
             l_name = chosen_ratio.text().split('/')[0].strip()
             log.debug('Line name to search for is: {}'.format(l_name))
-            cond = self.abs_lines['name'].str.contains(l_name.strip('*'))  # have to strip '*' or pandas doesnt work
-            if len(self.abs_lines[cond]) == 0:
-                QtWidgets.QMessageBox.information(self,
-                                                  "No lines found",
-                                                  "Could not find any line names associated with "
-                                                  f"{l_name.strip('*')}. Check line list provided.")
-                return
-            elif len(self.abs_lines[cond]) >= 2:
-                QtWidgets.QMessageBox.information(self,
-                                                  "Too many lines found",
-                                                  f"Found more than one line for {l_name.strip('*')}. "
-                                                  "Check line list provided.")
-                return
-            else:
-                l_wvlg_rest = float(self.abs_lines[cond]['wvlg'].item())
-                log.debug('Found corresponding wavelength: {}'.format(l_wvlg_rest))
+
+            cond = self.check_line_name(l_name)
+            l_wvlg_rest = float(self.abs_lines[cond]['wvlg'].item())
+            log.debug('Found corresponding wavelength: {}'.format(l_wvlg_rest))
+            try:
                 l_wvlg_obs = np.max([float(self.textbox_for_wvlg1.text()),
                                      float(self.textbox_for_wvlg2.text())])
-                log.debug('Collecting observed wavelength: {}'.format(l_wvlg_obs))
+            except ValueError:
+                QtWidgets.QMessageBox.information(self,
+                                                  "Invalid spectral system",
+                                                  "Lambda 1 and Lambda 2 must be convertible to float")
+                self.textbox_for_wvlg1.setFocus()
+                return
+            log.debug('Collecting observed wavelength: {}'.format(l_wvlg_obs))
+            z = l_wvlg_obs/l_wvlg_rest - 1.
+            log.debug('Calculated corresponding redshift: {}'.format(z))
+            self.add_specsys(z=z, sys_type='abs')
+
+    def add_specsys_from_line(self):
+        chosen_line = str(self.textbox_for_line.text())
+
+        if not chosen_line:
+            log.debug("Empty line textbox.")
+            return
+        else:
+            log.debug("Chosen line is: {}".format(chosen_line))
+            cond = self.check_line_name(chosen_line)
+            if cond is not None:
+                l_wvlg_rest = float(self.abs_lines[cond]['wvlg'].item())
+                log.debug("Found corresponding wavelength: {}".format(l_wvlg_rest))
+                try:
+                    l_wvlg_obs = float(self.textbox_for_wvlg1.text())
+                except ValueError:
+                    QtWidgets.QMessageBox.information(self,
+                                                      "Invalid spectral system",
+                                                      "Lambda 1 must be convertible to float")
+                    self.textbox_for_wvlg1.setFocus()
+                    return
+                log.debug("Collecting observed wavelength from Lambda 1: {}".format(l_wvlg_obs))
                 z = l_wvlg_obs/l_wvlg_rest - 1.
-                log.debug('Calculated corresponding redshift: {}'.format(z))
+                log.debug("Calculated corresponding redshift: {}".format(z))
                 self.add_specsys(z=z, sys_type='abs')
 
     def add_absorber(self, z=None):
@@ -865,6 +886,27 @@ class MainWindow(QtWidgets.QMainWindow):
             # Clear the selection (as it is no longer valid).
             self.specsysView.clearSelection()
             self.model.sort(0)
+
+    def check_line_name(self, l_name):
+        # have to strip '*' or pandas doesnt work
+        cond = self.abs_lines['name'].str.contains(l_name.strip('*'))
+        if len(self.abs_lines[cond]) == 0:
+            QtWidgets.QMessageBox.information(self,
+                                              "No lines found",
+                                              "Could not find any line names associated with "
+                                              f"{l_name}. Check line list provided.")
+            self.textbox_for_line.setFocus()
+            return None
+        elif len(self.abs_lines[cond]) >= 2:
+            QtWidgets.QMessageBox.information(self,
+                                              "Too many lines found",
+                                              f"Found more than one line for {l_name}. "
+                                              "Check line list provided.")
+            self.textbox_for_line.setFocus()
+            return None
+        else:
+            log.debug('Found line : {}'.format(self.abs_lines[cond]['name'].item()))
+            return cond
 
 
 def main():
