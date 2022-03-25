@@ -23,7 +23,9 @@ from key_binding import KeyBindingHelpDialog
 from misc import create_line_ratios
 
 qt5_logger = logging.getLogger('PyQt5')
+mpl_logger = logging.getLogger('matplotlib')
 qt5_logger.setLevel(logging.INFO)
+mpl_logger.setLevel(logging.INFO)
 log = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
@@ -128,7 +130,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D = self.graphLayout.addPlot(row=1, col=0)
             self.ax1D = self.graphLayout.addPlot(row=2, col=0)
             self.ax2D_sideview = self.graphLayout.addPlot(row=1, col=1)
-            # Strech row 2 (where 1D plot is) to make it 3 times bigger in y than 2D plot
+            # Strech row 2 (where 1D plot is) to make it 2 times bigger in y than 2D plot
             self.graphLayout.ci.layout.setRowStretchFactor(2, 2)
             # Strech column 0 (where 1D and 2D plots are) to make it 5 times bigger in x than the side histograms
             self.graphLayout.ci.layout.setColumnStretchFactor(0, 100)
@@ -201,6 +203,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.img_hist.fillHistogram(False)
         self.img_hist.setHistogramRange(self.data['q025_2D'], self.data['q975_2D'])
         self.img_hist.setLevels(self.data['q025_2D'], self.data['q975_2D'])
+        cmap = pg.colormap.get('afmhot', source='matplotlib')
+        self.img_hist.gradient.setColorMap(cmap)
 
     def set_up_ROI(self):
         spatial_width = float(self.textbox_for_extraction_width.text())
@@ -307,22 +311,10 @@ class MainWindow(QtWidgets.QMainWindow):
             # Load data into memory
             self.load_2D_data(wvlg, arcsec, flux, err)
 
-            # Plot the 2D spectrum
-            self.draw_2D_data()
-
             # Region of Interest
             self.set_up_ROI()
 
-            # Extract 1D spectrum
-            wvlg_1D, flux_1D, err_1D = self.extract_1D_from_ROI()
-
-        # The code below is the same in 1D or 2D mode, the only difference
-        # is that in the 1D case, the data comes from a file whereas in the 2D
-        # case it is extracted from the 2D data via the Region Of Interest (ROI)
-        self.load_1D_data(wvlg_1D, flux_1D, err_1D)
-
-        # Plot the 1D spectrum
-        self.draw_1D_data()
+        self.draw_data()
         self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
 
         # Create appropriate labels
@@ -426,6 +418,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['arcsec_max'] = np.max(self.data['arcsec_disp'])
         self.data['arcsec_med'] = np.median(self.data['arcsec_disp'])
         self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
+
+    def draw_data(self):
+        if self.mode == '2D':
+            self.draw_2D_data()
+            self.extract_and_plot_1D()
+        elif self.mode == '1D':
+            self.draw_1D_data()
+        else:
+            log.error("This should never happend. Should always be '1D' or '2D' mode.")
 
     def draw_2D_data(self):
         """
@@ -550,12 +551,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar.showMessage(f"Wavelength = {x:0.3f} AA, Spatial = {y:0.3f} arcsec, Flux = {z*1e-18:.3e} erg/s/cm2/AA")
 
     # ROI
-    def show_ROI_y_hist(self):
+    def show_ROI_on_sidehist(self):
         self.ROI_y_hist_lower.setPos(self.roi.pos()[1])
         self.ROI_y_hist_upper.setPos(self.roi.pos()[1]+self.roi.size()[1])
 
     def extract_and_plot_1D(self):
-        self.show_ROI_y_hist()
+        self.show_ROI_on_sidehist()
         wvlg, flux, err = self.extract_1D_from_ROI()
         self.load_1D_data(wvlg, flux, err)
         if int(self.textbox_for_smooth.text()) != 1:
@@ -702,10 +703,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.data[f'wvlg_{self.mode}_disp'] = wvlg_in_air.to('AA').value
             self.wvlg_corrections['to_air'] = True
             self.wvlg_corrections['to_vacuum'] = False
-            if self.mode == '2D':
-                self.draw_2D_data()
-            self.draw_1D_data()
-
+            self.draw_data()
             log.info("Converted wavelength from vacuum to air.")
 
     def wvlg_to_vacuum(self):
@@ -715,14 +713,12 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "You have already converted wavelength from air "
                                               "to vacuum.")
         else:
-            wvlg = self.data['wvlg_disp'] * u.AA
+            wvlg = self.data[f'wvlg_{self.mode}_disp'] * u.AA
             wvlg_in_vac = sf.air_to_vac(wvlg)
-            self.data['wvlg_disp'] = wvlg_in_vac.to('AA').value
+            self.data[f'wvlg_{self.mode}_disp'] = wvlg_in_vac.to('AA').value
             self.wvlg_corrections['to_air'] = False
             self.wvlg_corrections['to_vacuum'] = True
-            self.draw_1D_data()
-            if self.mode == '2D':
-                self.draw_2D_data()
+            self.draw_data()
             log.info("Converted wavelength from air to vacuum.")
 
     def wvlg_bary_correction(self):
@@ -751,9 +747,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.data['wvlg_disp'] = wvlg_corr.to('AA').value
                 self.wvlg_corrections['barycentric'] = True
                 self.wvlg_corrections['heliocentric'] = True
-                self.draw_1D_data()
-                if self.mode == '2D':
-                    self.draw_2D_data()
+                self.draw_data()
                 log.info("Converted wavelength from {:s} motion".format(kind))
             except KeyError as e:
                 log.error(e)
@@ -794,11 +788,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # Systems
     def add_specsys_from_ratio(self):
-        chosen_ratio = self.ratio_name_list.selectedItems()[0]
-        log.debug('Chosen ratio is: {}'.format(chosen_ratio.text()))
+        try:
+            chosen_ratio = self.ratio_name_list.selectedItems()[0]
+        except IndexError:
+            log.debug("Empty ratio list")
+            return
+        log.debug("Chosen ratio is: {}".format(chosen_ratio.text()))
         if chosen_ratio:
             l_name = chosen_ratio.text().split('/')[0].strip()
-            log.debug('Line name to search for is: {}'.format(l_name))
+            log.debug("Line name to search for is: {}".format(l_name))
 
             cond = self.check_line_name(l_name)
             l_wvlg_rest = float(self.abs_lines[cond]['wvlg'].item())
