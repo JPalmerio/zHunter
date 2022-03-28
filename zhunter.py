@@ -101,8 +101,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show_error_cb.stateChanged.connect(self.show_hide_error)
         self.to_vacuum_button.clicked.connect(self.wvlg_to_vacuum)
         self.to_air_button.clicked.connect(self.wvlg_to_air)
-        # self.barycentric_button.clicked.connect(self.wvlg_bary_correction)
-        # self.heliocentric_button.clicked.connect(self.wvlg_helio_correction)
+        self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
+        self.actionHeliocentric.triggered.connect(self.wvlg_helio_correction)
         self.ratio_button.clicked.connect(self.calculate_ratio)
         self.find_line_ratios_button.clicked.connect(self.find_ratio_names)
         self.add_ratio_button.clicked.connect(self.add_specsys_from_ratio)
@@ -743,11 +743,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "heliocentric motion.")
         else:
             try:
-                wvlg = self.data['wvlg_disp'] * u.AA
+                wvlg = self.data[f'wvlg_{self.mode}_disp'] * u.AA
                 c = cst.c.to('km/s')
                 vcorr = sf.calc_vel_corr(header=self.data['header'], kind=kind)
                 wvlg_corr = wvlg * (1. + vcorr/c)
-                self.data['wvlg_disp'] = wvlg_corr.to('AA').value
+                self.data[f'wvlg_{self.mode}_disp'] = wvlg_corr.to('AA').value
                 self.wvlg_corrections['barycentric'] = True
                 self.wvlg_corrections['heliocentric'] = True
                 self.draw_data()
