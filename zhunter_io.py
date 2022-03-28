@@ -91,7 +91,10 @@ def read_fits_1D_spectrum(filename):
 
     # Check for wavelength units
     try:
-        wvlg_unit = u.Unit(hdr['CUNIT1'].strip())
+        cunit1 = hdr['CUNIT1'].strip().lower()
+        if cunit1 == 'angstroms':
+            cunit1 = 'angstrom'
+        wvlg_unit = u.Unit(cunit1)
     except KeyError:
         log.warning("No unit found in header for wavelength, assuming angstroms")
         wvlg_unit = u.AA
