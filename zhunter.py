@@ -307,7 +307,10 @@ class MainWindow(QtWidgets.QMainWindow):
             log.warning("Not a fits file, no header loaded.")
             self.data['header'] = None
 
-        if self.mode == '2D':
+        if self.mode == '1D':
+            # Load data into memory
+            self.load_1D_data(wvlg_1D, flux_1D, err_1D)
+        elif self.mode == '2D':
             # Load data into memory
             self.load_2D_data(wvlg, arcsec, flux, err)
 
