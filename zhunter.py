@@ -330,6 +330,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Save wvlg, flux and err arrays into memory.
         """
+        self.data['wvlg'] = wvlg
         self.data['wvlg_1D'] = wvlg
         self.data['flux_1D'] = flux
         self.data['err_1D'] = err
@@ -657,8 +658,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def apply_smoothing(self):
         self.statusBar.showMessage('Smoothing...')
-        if 'wvlg' not in self.data.keys():
+        if ('wvlg' not in self.data.keys()):
+            self.textbox_for_smooth.blockSignals(True)
             QtWidgets.QMessageBox.information(self, "No Spectrum", "Please provide a spectrum before smoothing")
+            self.textbox_for_smooth.blockSignals(False)
             return
         try:
             x_sm, y_sm, err_sm = self.smooth()
@@ -678,7 +681,9 @@ class MainWindow(QtWidgets.QMainWindow):
             #     # self.flux_2D_img.setRect(self.rect)
 
         except ValueError:
+            self.textbox_for_smooth.blockSignals(True)
             QtWidgets.QMessageBox.information(self, "Invalid smooth value", "Smoothing value must be convertible to integer")
+            self.textbox_for_smooth.blockSignals(False)
             self.textbox_for_smooth.setFocus()
 
     def reset_smoothing(self):
