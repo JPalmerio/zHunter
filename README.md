@@ -32,6 +32,8 @@ You can make sure the code works by loading the 2D file `./example_data/example_
 
 # Usage
 
+For a summary of the various key bindings discussed below, press `h` (for help).
+
 ## Loading a file
 
 To load a file, simply use the `1D File` or `2D File` buttons corresponding to your case. The files should be in a standard `FITS` format.
