@@ -210,7 +210,6 @@ class MainWindow(QtWidgets.QMainWindow):
         spatial_width = float(self.textbox_for_extraction_width.text())
         self.roi = pg.ROI(pos=[self.data['wvlg_min'], self.data['arcsec_med']-spatial_width/2],
                           size=[self.data['wvlg_span'], spatial_width],
-                          maxBounds=self.rect,
                           pen=pg.mkPen('r', width=2),
                           hoverPen=pg.mkPen('r', width=5),
                           handlePen=pg.mkPen('r', width=2),
@@ -313,11 +312,11 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self.mode == '2D':
             # Load data into memory
             self.load_2D_data(wvlg, arcsec, flux, err)
-
             # Region of Interest
             self.set_up_ROI()
 
         self.draw_data()
+
         self.ax1D.setYRange(min=self.data['q025_1D'], max=self.data['q975_1D'])
 
         # Create appropriate labels
@@ -447,6 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rect = QtCore.QRectF(self.data['wvlg_2D_disp'][0], self.data['arcsec_disp'][0],
                                   self.data['wvlg_2D_disp'][-1] - self.data['wvlg_2D_disp'][0],
                                   self.data['arcsec_disp'][-1] - self.data['arcsec_disp'][0])
+        self.roi.maxBounds = self.rect
         self.flux_2D_img.setRect(self.rect)
         self.err_2D_img.setRect(self.rect)
         self.flux_2D_img.setZValue(8)
