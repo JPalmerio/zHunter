@@ -59,6 +59,20 @@ class SpecSystemModel(QtCore.QAbstractListModel):
     def rowCount(self, index):
         return len(self.specsystems)
 
+    def delete(self, index):
+        # Remove the item and refresh.
+        _, _sys = self.specsystems[index.row()]
+        log.debug("Received request to delete system at redshift %.5lf", _sys.redshift)
+        _sys.remove()
+        del self.specsystems[index.row()]
+        self.layoutChanged.emit()
+        self.sort(0)
+
+    def clear(self):
+        for _, specsys in self.specsystems:
+            specsys.remove()
+        self.specsystems = []
+
 
 class MainWindow(QtWidgets.QMainWindow):
 
@@ -79,12 +93,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fnames['line_ratio'] = ROOT_DIR/'line_lists/line_ratio.csv'
         self.load_line_lists(calc_ratio=False)
 
-        # Call reset to set general properties that will be used
-        self.reset_plot()
-
         # List of spectral systems
-        self.model = SpecSystemModel()
-        self.specsysView.setModel(self.model)
+        self.specsysModel = SpecSystemModel()
+        self.specsysView.setModel(self.specsysModel)
         self.specsysView.setStyleSheet("QListView{background-color: black;}")
         self.add_abs_button.clicked.connect(self.add_absorber)
         self.add_em_button.clicked.connect(self.add_emitter)
@@ -112,6 +123,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.reset_width_button.clicked.connect(self.reset_width)
         self.textbox_for_extraction_width.editingFinished.connect(self.set_extraction_width)
         self.graphLayout.setFocus()
+
+        # Call reset to set general properties that will be used
+        self.reset_plot()
 
     # Setting up of plotting items
     def set_up_plot(self):
@@ -210,22 +224,22 @@ class MainWindow(QtWidgets.QMainWindow):
         spatial_width = float(self.textbox_for_extraction_width.text())
         self.roi = pg.ROI(pos=[self.data['wvlg_min'], self.data['arcsec_med']-spatial_width/2],
                           size=[self.data['wvlg_span'], spatial_width],
-                          pen=pg.mkPen('r', width=2),
-                          hoverPen=pg.mkPen('r', width=5),
-                          handlePen=pg.mkPen('r', width=2),
-                          handleHoverPen=pg.mkPen('r', width=5))
+                          pen=pg.mkPen('g', width=2),
+                          hoverPen=pg.mkPen('g', width=5),
+                          handlePen=pg.mkPen('g', width=2),
+                          handleHoverPen=pg.mkPen('g', width=5))
         self.ax2D.addItem(self.roi)
         self.roi.setZValue(10)
         # Extend ROI visualization to side histogram
         self.ROI_y_hist_lower = pg.InfiniteLine(self.roi.pos()[1],
                                                 angle=0,
                                                 movable=False,
-                                                pen=pg.mkPen('r', width=2))
+                                                pen=pg.mkPen('g', width=2))
 
         self.ROI_y_hist_upper = pg.InfiniteLine(self.roi.pos()[1]+self.roi.size()[1],
                                                 angle=0,
                                                 movable=False,
-                                                pen=pg.mkPen('r', width=2))
+                                                pen=pg.mkPen('g', width=2))
 
         self.ax2D_sideview.addItem(self.ROI_y_hist_lower, ignoreBounds=True)
         self.ax2D_sideview.addItem(self.ROI_y_hist_upper, ignoreBounds=True)
@@ -423,6 +437,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data['arcsec_span'] = np.max(self.data['arcsec_disp'])-np.min(self.data['arcsec_disp'])
 
     def draw_data(self):
+        """
+            A wrapper function to draw data. Look at draw_1D_data and
+            draw_2D_data for more details.
+        """
         if self.mode == '2D':
             self.draw_2D_data()
             self.extract_and_plot_1D()
@@ -435,6 +453,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """
             Takes the 2D display data loaded and plots it on the interface.
         """
+
+        # Use the transpose here so that the wavelength and arcsec dimensions are in the right order
         self.flux_2D_img.setImage(self.data['flux_2D_disp'].T,
                                   levels=(self.data['q025_2D'], self.data['q975_2D']))
 
@@ -471,6 +491,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sidehist_2D.setData(y_dist, self.data['arcsec_disp'])
 
     def show_hide_error(self):
+        """
+            Show or hide the 1D error spectrum.
+        """
         if self.show_error_cb.isChecked():
             self.err_1D_spec.show()
         else:
@@ -478,6 +501,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # Events
     def eventFilter(self, widget, event):
+        """
+            General event catcher for keypresses.
+        """
         if (event.type() == QtCore.QEvent.KeyPress):
             if widget is self.ax1D:
                 crosshair = self.crosshair_x_1D
@@ -556,19 +582,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ROI
     def show_ROI_on_sidehist(self):
+        """
+            Show the extension of the Region Of Interest (ROI) on the
+            side histogram next to the 2D plot.
+        """
         self.ROI_y_hist_lower.setPos(self.roi.pos()[1])
         self.ROI_y_hist_upper.setPos(self.roi.pos()[1]+self.roi.size()[1])
 
     def extract_and_plot_1D(self):
+        """
+            Extract the 2D data within the ROI as 1D data, load it into
+            memory, apply smoothing if necessary and draw it on the 1D
+            plot.
+        """
         self.show_ROI_on_sidehist()
-        wvlg, flux, err = self.extract_1D_from_ROI()
+        wvlg, flux, err = self.get_data_from_ROI()
         self.load_1D_data(wvlg, flux, err)
         if int(self.textbox_for_smooth.text()) != 1:
             wvlg, flux, err = self.smooth()
         self.set_1D_displayed_data(wvlg, flux, err)
         self.draw_1D_data()
 
-    def extract_1D_from_ROI(self):
+    def get_data_from_ROI(self):
         """
             Return the mean of the flux and error in the area selected
             by the Region Of Interest widget.
@@ -605,6 +640,10 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "convertible to float")
 
     def reset_width(self):
+        """
+            Reset the ROI region's position and extraction width to
+            default values.
+        """
         self.ax2D.removeItem(self.roi)
         self.textbox_for_extraction_width.setText('1')
         self.set_up_ROI()
@@ -623,7 +662,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def select_file_and_plot(self):
         fname = select_file(self, self.fnames['data'], file_type='(*.fits *.dat *.txt *.csv)')
-        # self.fnames['data'], _ = QtWidgets.QFileDialog.getOpenFileName()
         if fname:
             self.fnames['data'] = Path(fname)
             if self.fnames['data'].exists():
@@ -632,6 +670,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.visualize_spec()
 
     def reset_plot(self):
+        """
+            Clear the plot, reset the data in memory, the various
+            corrections and the list of spectroscopic systems.
+        """
         self.graphLayout.clear()
         self.data = {}
         self.img_hist = None
@@ -639,12 +681,22 @@ class MainWindow(QtWidgets.QMainWindow):
                                  'to_vacuum':False,
                                  'heliocentric':False,
                                  'barycentric':False}
+        self.specsysModel.clear()
 
     def select_line_lists(self):
         SelectLineListsDialog(self)
 
     # Modify displayed data
     def smooth(self):
+        """
+            Get the number of pixels over which to smooth from the
+            corresponding textbox. Then apply it the original 1D data
+            loaded into memory.
+            This is applied to the data in memory and not the displayed
+            data, that way one can go back to lower values of smoothing.
+            Otherwise, smoothing degrades information and one cannot
+            "unsmooth" as that information is lost.
+        """
         smoothing = int(self.textbox_for_smooth.text())
         self.statusBar.showMessage("Smoothing by {} pixels".format(smoothing), 2000)
         log.info("Smoothing {} pixels".format(smoothing))
@@ -664,9 +716,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.textbox_for_smooth.blockSignals(False)
             return
         try:
-            x_sm, y_sm, err_sm = self.smooth()
+            wvlg_sm, flux_sm, err_sm = self.smooth()
             # if self.mode == '1D':
-            self.set_1D_displayed_data(x_sm, y_sm, err_sm)
+            self.set_1D_displayed_data(wvlg_sm, flux_sm, err_sm)
             self.calculate_1D_displayed_data_range()
             self.draw_1D_data()
             # TODO : implement 2D smoothing
@@ -688,18 +740,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def reset_smoothing(self):
         """
-            Display the original data the was read from the file.
+            Display the original data the was read from the file or
+            extracted from the 2D.
         """
         self.set_1D_displayed_data(wvlg=self.data['wvlg_1D'],
                                    flux=self.data['flux_1D'],
                                    err=self.data['err_1D'])
         self.calculate_1D_displayed_data_range()
-        # self.calculate_2D_displayed_data_range()
         self.draw_1D_data()
         self.textbox_for_smooth.setText('1')
         # TODO : implement 2D smoothing
 
     def wvlg_to_air(self):
+        """
+            Convert the wavelength, assumed to be in vacuum, to air.
+        """
         if self.wvlg_corrections['to_air']:
             QtWidgets.QMessageBox.information(self,
                                               "Invalid action",
@@ -715,6 +770,9 @@ class MainWindow(QtWidgets.QMainWindow):
             log.info("Converted wavelength from vacuum to air.")
 
     def wvlg_to_vacuum(self):
+        """
+            Convert the wavelength, assumed to be in air, to vacuum.
+        """
         if self.wvlg_corrections['to_vacuum']:
             QtWidgets.QMessageBox.information(self,
                                               "Invalid action",
@@ -736,6 +794,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wvlg_radial_correction(kind='heliocentric')
 
     def wvlg_radial_correction(self, kind):
+        """
+            Correct wavelength for barycentric or heliocentric motion.
+            This uses information found in the header about the time of
+            observation and the telescope location.
+        """
         if self.wvlg_corrections['barycentric'] or self.wvlg_corrections['heliocentric']:
             QtWidgets.QMessageBox.information(self,
                                               "Invalid action",
@@ -796,6 +859,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # Systems
     def add_specsys_from_ratio(self):
+        """
+            Add a spectroscopic system from a given selected line ratio.
+        """
         try:
             chosen_ratio = self.ratio_name_list.selectedItems()[0]
         except IndexError:
@@ -824,6 +890,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.add_specsys(z=z, sys_type='abs')
 
     def add_specsys_from_line(self):
+        """
+            Add a spectroscopic system from a specific chosen line name.
+        """
         chosen_line = str(self.textbox_for_line.text())
 
         if not chosen_line:
@@ -855,6 +924,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.add_specsys(z, sys_type='em')
 
     def add_specsys(self, z=None, sys_type='abs'):
+        """
+            Add a spectroscopic system at a given redshift and draw it
+            on the 1D plot.
+        """
         try:
             if not z:
                 log.debug("z is %s, reading from textbox for z", z)
@@ -874,8 +947,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
             abs_sys.draw(xmin=self.data['wvlg_min'], xmax=self.data['wvlg_max'])
             # Update model
-            self.model.specsystems.append((True, abs_sys))
-            self.model.layoutChanged.emit()
+            self.specsysModel.specsystems.append((True, abs_sys))
+            self.specsysModel.layoutChanged.emit()
             self.textbox_for_z.setText("")
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError:
@@ -889,15 +962,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if indexes:
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
-            # Remove the item and refresh.
-            _, _sys = self.model.specsystems[index.row()]
-            self.statusBar.showMessage("Removing system at redshift %.5lf" % _sys.redshift, 2000)
-            _sys.remove()
-            del self.model.specsystems[index.row()]
-            self.model.layoutChanged.emit()
+            self.specsysModel.delete(index)
             # Clear the selection (as it is no longer valid).
             self.specsysView.clearSelection()
-            self.model.sort(0)
 
     def check_line_name(self, l_name):
         # have to strip '*' or pandas doesnt work
