@@ -1,5 +1,6 @@
 import pyqtgraph as pg
 from PyQt5 import QtGui
+from PyQt5 import QtCore
 import pandas as pd
 import logging
 from pathlib import Path
@@ -67,3 +68,41 @@ class SpecSystem():
         for line in self.plotted_lines:
             self.pi.removeItem(line)
         log.info("Deleted %s System at redshift %.5lf", self.sys_type, self.redshift)
+
+
+class SpecSystemModel(QtCore.QAbstractListModel):
+    def __init__(self, *args, specsystems=None, **kwargs):
+        super(SpecSystemModel, self).__init__(*args, **kwargs)
+        self.specsystems = specsystems or []
+
+    def data(self, index, role):
+        if role == QtCore.Qt.DisplayRole:
+            # See below for the data structure.
+            status, specsys = self.specsystems[index.row()]
+            return "z = {:.5f} ({:s})".format(specsys.redshift,
+                                              specsys.sys_type)
+
+        if role == QtCore.Qt.ForegroundRole:
+            status, specsys = self.specsystems[index.row()]
+            return QtGui.QBrush(QtGui.QColor(specsys.color))
+
+        if role == QtCore.Qt.DecorationRole:
+            status, specsys = self.specsystems[index.row()]
+            return QtGui.QColor(specsys.color)
+
+    def rowCount(self, index):
+        return len(self.specsystems)
+
+    def delete(self, index):
+        # Remove the item and refresh.
+        _, _sys = self.specsystems[index.row()]
+        log.debug("Received request to delete system at redshift %.5lf", _sys.redshift)
+        _sys.remove()
+        del self.specsystems[index.row()]
+        self.layoutChanged.emit()
+        self.sort(0)
+
+    def clear(self):
+        for _, specsys in self.specsystems:
+            specsys.remove()
+        self.specsystems = []

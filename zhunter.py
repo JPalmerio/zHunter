@@ -6,7 +6,6 @@ from pathlib import Path
 from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
-from PyQt5 import QtGui
 
 import astropy.units as u
 from astropy.io import fits
@@ -17,7 +16,7 @@ import pyqtgraph as pg
 import pandas as pd
 import zhunter_io as io
 import spectral_functions as sf
-from spectroscopic_system import SpecSystem
+from spectroscopic_system import SpecSystem, SpecSystemModel
 from line_list_selection import SelectLineListsDialog, select_file
 from key_binding import KeyBindingHelpDialog
 from misc import create_line_ratios
@@ -34,44 +33,6 @@ ROOT_DIR = Path(__file__).parent.resolve()
 
 ABSORBER_COLORS = cycle(['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00',
                          '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'])
-
-
-class SpecSystemModel(QtCore.QAbstractListModel):
-    def __init__(self, *args, specsystems=None, **kwargs):
-        super(SpecSystemModel, self).__init__(*args, **kwargs)
-        self.specsystems = specsystems or []
-
-    def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole:
-            # See below for the data structure.
-            status, specsys = self.specsystems[index.row()]
-            return "z = {:.5f} ({:s})".format(specsys.redshift,
-                                              specsys.sys_type)
-
-        if role == QtCore.Qt.ForegroundRole:
-            status, specsys = self.specsystems[index.row()]
-            return QtGui.QBrush(QtGui.QColor(specsys.color))
-
-        if role == QtCore.Qt.DecorationRole:
-            status, specsys = self.specsystems[index.row()]
-            return QtGui.QColor(specsys.color)
-
-    def rowCount(self, index):
-        return len(self.specsystems)
-
-    def delete(self, index):
-        # Remove the item and refresh.
-        _, _sys = self.specsystems[index.row()]
-        log.debug("Received request to delete system at redshift %.5lf", _sys.redshift)
-        _sys.remove()
-        del self.specsystems[index.row()]
-        self.layoutChanged.emit()
-        self.sort(0)
-
-    def clear(self):
-        for _, specsys in self.specsystems:
-            specsys.remove()
-        self.specsystems = []
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -144,12 +105,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D = self.graphLayout.addPlot(row=1, col=0)
             self.ax1D = self.graphLayout.addPlot(row=2, col=0)
             self.ax2D_sideview = self.graphLayout.addPlot(row=1, col=1)
-            # Strech row 2 (where 1D plot is) to make it 2 times bigger in y than 2D plot
-            self.graphLayout.ci.layout.setRowStretchFactor(2, 2)
-            # Strech column 0 (where 1D and 2D plots are) to make it 5 times bigger in x than the side histograms
+            # Strech rows to make 1D bigger than 2D plot in y direction
+            self.graphLayout.ci.layout.setRowStretchFactor(1, 2)
+            self.graphLayout.ci.layout.setRowStretchFactor(2, 3)
+            # Strech column 0 (where 1D and 2D plots are) to make it bigger in x than the side histograms
             self.graphLayout.ci.layout.setColumnStretchFactor(0, 100)
 
-            # Remove padding so that panning preserves x and y range
+            # Remove padding so that panning with keyboard preserves x and y range
             self.ax2D.vb.setDefaultPadding(padding=0.00)
 
             # Link the side histograms to the central plots
@@ -967,6 +929,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.specsysView.clearSelection()
 
     def check_line_name(self, l_name):
+        """
+            Make sure line name exists in list of lines provided.
+        """
         # have to strip '*' or pandas doesnt work
         cond = self.abs_lines['name'].str.contains(l_name.strip('*'))
         if len(self.abs_lines[cond]) == 0:
