@@ -110,9 +110,14 @@ def read_fits_2D_spectrum(filename, verbose=False):
         A function to read data from a 2D spectrum.
         Returns wavelength in angstroms, spatial position in arcsec, flux and errors in erg/s/cm2/A.
     """
-    hdu_list = fits.open(filename)
-    data_index = hdu_list.index_of('FLUX')
-    data = fits.getdata(filename, ext=data_index)
+    try:
+        hdu_list = fits.open(filename)
+        data_index = hdu_list.index_of('FLUX')
+        data = fits.getdata(filename, ext=data_index)
+    except KeyError:
+        data_index = 0
+        data = fits.getdata(filename, ext=data_index)
+
     try:
         err_index = hdu_list.index_of('ERRS')
         error = fits.getdata(filename, ext=err_index)
@@ -124,14 +129,25 @@ def read_fits_2D_spectrum(filename, verbose=False):
     if verbose:
         print(repr(hdr))
 
-    wvlg_unit = u.Unit(hdr['CUNIT1'].strip())
+    # Check for wavelength units
+    try:
+        cunit1 = hdr['CUNIT1'].strip().lower()
+        if cunit1 == 'angstroms':
+            cunit1 = 'angstrom'
+        wvlg_unit = u.Unit(cunit1)
+    except KeyError:
+        log.warning("No unit found in header for wavelength, assuming angstroms")
+        wvlg_unit = u.AA
     wvlg_step = (hdr['CDELT1'] * wvlg_unit).to('AA').value  # Make sure units are Angstrom
     wvlg_init = (hdr['CRVAL1'] * wvlg_unit).to('AA').value  # Make sure units are Angstrom
     wvlg = np.array([wvlg_init + i*wvlg_step for i in range(data.shape[1])])
 
     # Assumes the units are arcseconds
+    try:
+        spatial_init = hdr['CRVAL2']
+    except KeyError:
+        spatial_init = 0
     spatial_step = hdr['CDELT2']
-    spatial_init = hdr['CRVAL2']
     spatial = np.array([spatial_init + i*spatial_step for i in range(data.shape[0])])
 
     return wvlg, spatial, data, error

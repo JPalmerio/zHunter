@@ -16,7 +16,7 @@ import pyqtgraph as pg
 import pandas as pd
 import zhunter_io as io
 import spectral_functions as sf
-from spectroscopic_system import SpecSystem, SpecSystemModel
+from spectroscopic_system import SpecSystem, SpecSystemModel, Telluric
 from line_list_selection import SelectLineListsDialog, select_file
 from key_binding import KeyBindingHelpDialog
 from misc import create_line_ratios
@@ -51,6 +51,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fnames['data'] = ROOT_DIR/'example_data/example_2D.fits'
         self.fnames['emission_lines'] = ROOT_DIR/'line_lists/emission_lines.csv'
         self.fnames['absorption_lines'] = ROOT_DIR/'line_lists/basic_line_list.csv'
+        self.fnames['fine_structure_lines'] = ROOT_DIR/'line_lists/fine_structure.csv'
         self.fnames['line_ratio'] = ROOT_DIR/'line_lists/line_ratio.csv'
         self.load_line_lists(calc_ratio=False)
 
@@ -71,6 +72,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Connect all signals and slots
         self.show_error_cb.stateChanged.connect(self.show_hide_error)
+        self.telluric_cb.stateChanged.connect(self.show_hide_telluric)
+        self.fine_structure_button.clicked.connect(self.show_hide_fine_structure)
         self.to_vacuum_button.clicked.connect(self.wvlg_to_vacuum)
         self.to_air_button.clicked.connect(self.wvlg_to_air)
         self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
@@ -208,7 +211,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
 
     def set_labels(self):
-        self.ax1D.setLabels(left="Flux (x 1e-18)", bottom="Wavelength")  # [erg/s/cm2/AA] and [AA]
+        if self.flux_factor:
+            flux_factor_str = '(x 1e-18)'
+        else:
+            flux_factor_str = ''
+
+        self.ax1D.setLabels(left="Flux "+flux_factor_str, bottom="Wavelength")  # [erg/s/cm2/AA] and [AA]
         self.ax1D.showGrid(x=True, y=True)
         if self.mode == '2D':
             self.ax2D.setLabel("left", "Arcseconds")  # [arcsec]
@@ -237,6 +245,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                             np.zeros(1),
                                             stepMode='center',
                                             pen=pg.mkPen(color='r'))
+        self.telluric_1D_spec = None
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.err_1D_spec)
 
@@ -324,14 +333,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.calculate_2D_displayed_data_range()
 
     def load_line_lists(self, calc_ratio):
-        self.abs_lines = pd.read_csv(self.fnames['absorption_lines'], sep=',', names=['name','wvlg'], comment='#')
+        """
+            Load the input line lists and check the format is ok.
+        """
+        self.abs_lines = pd.read_csv(self.fnames['absorption_lines'], sep=',', comment='#')
         log.debug('Read absorption lines from: {}'.format(self.fnames['absorption_lines']))
-        self.em_lines = pd.read_csv(self.fnames['emission_lines'], sep=',', names=['name','wvlg'], comment='#')
+        self.em_lines = pd.read_csv(self.fnames['emission_lines'], sep=',', comment='#')
         log.debug('Read emission lines from: {}'.format(self.fnames['emission_lines']))
+        self.fs_lines = pd.read_csv(self.fnames['fine_structure_lines'], sep=',', comment='#')
+        check = 'name' not in self.abs_lines.columns\
+                or 'wvlg' not in self.abs_lines.columns\
+                or 'name' not in self.em_lines.columns\
+                or 'wvlg' not in self.em_lines.columns\
+                or 'name' not in self.fs_lines.columns\
+                or 'wvlg' not in self.fs_lines.columns
+        if check:
+            QtWidgets.QMessageBox.information(self,
+                                              "Invalid line format",
+                                              "Column 'name' and 'wvlg' must exist. "
+                                              "Please specify them as the first uncommented "
+                                              "line of csv your file.")
+            return
+
         if calc_ratio:
             self.line_ratios = create_line_ratios(self.fnames['absorption_lines'])
         else:
-            self.line_ratios = pd.read_csv(self.fnames['line_ratio'], sep=',', names=['ratio','name'], comment='#')
+            self.line_ratios = pd.read_csv(self.fnames['line_ratio'], sep=',', comment='#')
             log.debug('Read line ratios: {}'.format(self.fnames['absorption_lines']))
 
     def set_2D_displayed_data(self, wvlg, flux, err, arcsec):
@@ -342,9 +369,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # Multiply flux and err by 1e18 to have it in reasonable units
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero) and to allow histograms to be nicer
+        if np.std(flux) >= 1:
+            log.debug("Standard deviation of flux is greater than one, not adding flux factor")
+            factor = 1
+            self.flux_factor = False
+        else:
+            log.debug("Standard deviation of flux is smaller than one, adding flux factor")
+            factor = 1e18
+            self.flux_factor = True
+
         self.data['wvlg_2D_disp'] = wvlg
-        self.data['flux_2D_disp'] = flux * 1e18
-        self.data['err_2D_disp'] = err * 1e18
+        self.data['flux_2D_disp'] = flux * factor
+        self.data['err_2D_disp'] = err * factor
         self.data['arcsec_disp'] = arcsec
 
     def set_1D_displayed_data(self, wvlg, flux, err):
@@ -357,10 +393,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # it to be zero)
         # Only do this in 1D mode because in 2D mode this is already
         # done on the flux_2D values from which the 1D is extracted
-        if self.mode == '1D':
+        if (self.mode == '1D') and (np.std(flux) <= 1):
             factor = 1e18
+            self.flux_factor = True
+        elif self.mode == '2D':
+            factor = 1
         else:
             factor = 1
+            self.flux_factor = False
         # Modify wvlg array to be of size len(flux)+1 by adding the right
         # edge of the last bin. This is to allow for visualization with
         # stepMode='center'
@@ -452,6 +492,13 @@ class MainWindow(QtWidgets.QMainWindow):
         y_dist = np.median(self.data['flux_2D_disp'], axis=1)
         self.sidehist_2D.setData(y_dist, self.data['arcsec_disp'])
 
+    def plot_telluric(self):
+        x_view, y_view = self.ax1D.vb.getState()['viewRange']
+        self.telluric_1D_spec = Telluric(PlotItem=self.ax1D)
+        self.telluric_1D_spec.draw(xmin=self.data['wvlg_min'],
+                                   xmax=self.data['wvlg_max'],
+                                   norm=y_view[1])
+
     def show_hide_error(self):
         """
             Show or hide the 1D error spectrum.
@@ -460,6 +507,35 @@ class MainWindow(QtWidgets.QMainWindow):
             self.err_1D_spec.show()
         else:
             self.err_1D_spec.hide()
+
+    def show_hide_telluric(self):
+        """
+            Show or hide telluric absorption on the 1D spectrum.
+        """
+        if self.telluric_1D_spec is None:
+            self.plot_telluric()
+        if self.telluric_cb.isChecked():
+            self.telluric_1D_spec.show()
+        else:
+            self.telluric_1D_spec.hide()
+
+    def show_hide_fine_structure(self):
+        """
+            Show or hide fine structure lines for the selected
+            spectroscopic system
+        """
+        indexes = self.specsysView.selectedIndexes()
+        if indexes:
+            # Indexes is a list of a single item in single-select mode.
+            index = indexes[0]
+            self.specsysModel.show_hide_fine_structure(index,
+                                                       bounds=[self.data['wvlg_min'],
+                                                               self.data['wvlg_max']])
+        else:
+            QtWidgets.QMessageBox.information(self,
+                                              "No spectroscopic system selected",
+                                              "Please select a spectroscopic system from the list "
+                                              "to show/hide the fine structure lines.")
 
     # Events
     def eventFilter(self, widget, event):
@@ -666,8 +742,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                        self.data['flux_1D'],
                                        err=self.data['err_1D'],
                                        smoothing=smoothing)
-        log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
-        log.debug('flux smoothed: {}'.format(y_sm))
+        # log.debug('wvlg smoothed: {}, size: {}'.format(x_sm, x_sm.shape))
+        # log.debug('flux smoothed: {}'.format(y_sm))
         return x_sm, y_sm, err_sm
 
     def apply_smoothing(self):
@@ -726,7 +802,8 @@ class MainWindow(QtWidgets.QMainWindow):
             wvlg = self.data[f'wvlg_{self.mode}_disp'] * u.AA
             wvlg_in_air = sf.vac_to_air(wvlg)
             self.data[f'wvlg_{self.mode}_disp'] = wvlg_in_air.to('AA').value
-            self.wvlg_corrections['to_air'] = True
+            if not self.wvlg_corrections['to_vacuum']:
+                self.wvlg_corrections['to_air'] = True
             self.wvlg_corrections['to_vacuum'] = False
             self.draw_data()
             log.info("Converted wavelength from vacuum to air.")
@@ -744,8 +821,9 @@ class MainWindow(QtWidgets.QMainWindow):
             wvlg = self.data[f'wvlg_{self.mode}_disp'] * u.AA
             wvlg_in_vac = sf.air_to_vac(wvlg)
             self.data[f'wvlg_{self.mode}_disp'] = wvlg_in_vac.to('AA').value
+            if not self.wvlg_corrections['to_air']:
+                self.wvlg_corrections['to_vacuum'] = True
             self.wvlg_corrections['to_air'] = False
-            self.wvlg_corrections['to_vacuum'] = True
             self.draw_data()
             log.info("Converted wavelength from air to vacuum.")
 
@@ -895,21 +973,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 log.debug("z is %s, reading from textbox for z", z)
                 z = float(self.textbox_for_z.text())
             if sys_type == 'abs':
-                lines = self.abs_lines
                 sys_type_str = 'absorber'
+                lines = pd.merge(self.abs_lines, self.fs_lines, how='outer')
             elif sys_type == 'em':
                 lines = self.em_lines
                 sys_type_str = 'emitter'
             color = next(ABSORBER_COLORS)
-            abs_sys = SpecSystem(z=z,
+            specsys = SpecSystem(z=z,
                                  sys_type=sys_type,
                                  PlotItem=self.ax1D,
                                  color=color,
-                                 lines=lines)
+                                 lines=lines,
+                                 show_fs=True)
             self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
-            abs_sys.draw(xmin=self.data['wvlg_min'], xmax=self.data['wvlg_max'])
+            specsys.draw(xmin=self.data['wvlg_min'], xmax=self.data['wvlg_max'])
             # Update model
-            self.specsysModel.specsystems.append((True, abs_sys))
+            self.specsysModel.specsystems.append((True, specsys))
             self.specsysModel.layoutChanged.emit()
             self.textbox_for_z.setText("")
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
