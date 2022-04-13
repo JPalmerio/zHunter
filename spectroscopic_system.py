@@ -96,7 +96,6 @@ class Telluric():
     def draw(self, xmin=None, xmax=None, norm=1):
         pen = pg.mkPen(self.color, width=1)
         brush = pg.mkBrush(color=self.color)
-        # print(self.lines)
         tellurics = pg.PlotCurveItem(self.lines['wvlg'].to_numpy(),
                                      norm*(1-self.lines['transmission'].to_numpy()),
                                      pen=pen)
@@ -109,30 +108,6 @@ class Telluric():
         self.plotted_items.append(tell_fill)
         self.pi.addItem(tellurics, zorder=5)
         self.pi.addItem(tell_fill, zorder=5)
-        # self.plotted_items.append(tell_fill)
-        # Add lines to plot
-        # for w_l, w_u, transm in zip(self.lines['wvlg_lower'],
-        #                             self.lines['wvlg_upper'],
-        #                             self.lines['transmission']):
-        #     gt_min = (xmin is None) or (w_l >= xmin)
-        #     lt_max = (xmax is None) or (w_u <= xmax)
-        #     if gt_min and lt_max:
-
-        #         line_l = pg.InfiniteLine(w_l,
-        #                                  span=(0.,1-transm),
-        #                                  pen=pen)
-        #         line_u = pg.InfiniteLine(w_u,
-        #                                  span=(0.,1-transm),
-        #                                  pen=pen)
-        #         fill_between = pg.BarGraphItem(x0=line_l,
-        #                                        x1=line_u,
-        #                                        brush=brush)
-        #         self.pi.addItem(line_l, zorder=5)
-        #         self.pi.addItem(line_u, zorder=5)
-        #         # self.pi.addItem(fill_between, zorder=5)
-        #         self.plotted_items.append(line_l)
-        #         self.plotted_items.append(line_u)
-        #         # self.plotted_items.append(fill_between)
 
     def undraw(self):
         for item in self.plotted_items:
