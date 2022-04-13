@@ -1,0 +1,22 @@
+#data partially from http://astronomy.nmsu.edu/drewski/tableofemissionlines.html
+#wavelength are in air except Lyalpha
+name,wvlg
+Lyalpha,1215.67
+OII_3726,3726.032
+OII_3729,3728.815
+NeIII_3869,3868.760
+HeI_3889,3888.647
+H_delta,4101.742
+H_gamma,4340.471
+OIII_4363,4363.210
+H_beta,4861.333
+OIIIa_4959,4958.911
+OIIIb_5007,5006.843
+HeI_5876,5875.624
+OI_6300,6300.304
+NII_6548,6548.050
+H_alpha,6562.819
+NII_6584,6583.460
+SII_6717,6716.440
+SII_6731,6730.810
+ArIII7135,7135.790
