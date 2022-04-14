@@ -31,8 +31,29 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
 
 ROOT_DIR = Path(__file__).parent.resolve()
 
-ABSORBER_COLORS = cycle(['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00',
-                         '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'])
+ABSORBER_COLORS = cycle(['#a6cee3',
+                         '#1f78b4',
+                         '#b2df8a',
+                         '#33a02c',
+                         '#fb9a99',
+                         '#e31a1c',
+                         '#fdbf6f',
+                         '#ff7f00',
+                         '#cab2d6',
+                         '#6a3d9a',
+                         '#ffff99',
+                         '#b15928'])
+ABSORBER_COLORS = cycle(['#4A9EBC',  # Lightblue
+                         '#C95D38',  # Orange
+                         '#ECCA54',   # Yellow
+                         '#92D754',  # Green
+                         '#BC271B',  # Rust
+                         '#66CBA0',  # Teal
+                         '#C72A70',  # Pink
+                         '#2D67EE',  # Blue
+                         '#B52EB0',  # Fuschia
+                         '#8218BB',  # Purple
+                         ])
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -978,11 +999,10 @@ class MainWindow(QtWidgets.QMainWindow):
             elif sys_type == 'em':
                 lines = self.em_lines
                 sys_type_str = 'emitter'
-            color = next(ABSORBER_COLORS)
             specsys = SpecSystem(z=z,
                                  sys_type=sys_type,
                                  PlotItem=self.ax1D,
-                                 color=color,
+                                 color=next(ABSORBER_COLORS),
                                  lines=lines,
                                  show_fs=True)
             self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
@@ -993,6 +1013,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.textbox_for_z.setText("")
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError:
+            log.error("Can't add system: z must be convertible to float")
             QtWidgets.QMessageBox.information(self,
                                               "Invalid spectral system",
                                               "Can't add system: z must be convertible to float")
