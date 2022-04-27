@@ -45,7 +45,7 @@ ABSORBER_COLORS = cycle(['#a6cee3',
                          '#b15928'])
 ABSORBER_COLORS = cycle(['#4A9EBC',  # Lightblue
                          '#C95D38',  # Orange
-                         '#ECCA54',   # Yellow
+                         '#ECCA54',  # Yellow
                          '#92D754',  # Green
                          '#BC271B',  # Rust
                          '#66CBA0',  # Teal
