@@ -359,7 +359,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.line_ratios = create_line_ratios(self.fnames['absorption_lines'])
         else:
             self.line_ratios = pd.read_csv(self.fnames['line_ratio'], sep=',', comment='#')
-            log.debug('Read line ratios: {}'.format(self.fnames['absorption_lines']))
+            log.debug('Read line ratios: {}'.format(self.fnames['line_ratio']))
 
     def set_2D_displayed_data(self, wvlg, flux, err, arcsec):
         """
