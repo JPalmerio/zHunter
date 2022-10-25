@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from PyQt5 import QtGui
 
 import astropy.units as u
 from astropy.io import fits
@@ -266,9 +267,23 @@ class MainWindow(QtWidgets.QMainWindow):
                                             np.zeros(1),
                                             stepMode='center',
                                             pen=pg.mkPen(color='r'))
+        self.lam1_line = pg.InfiniteLine(0,
+                                         span=(0.9,1.),
+                                         pen=pg.mkPen(color='w', width=2, style=QtCore.Qt.DashLine),
+                                         label='Lam1',
+                                         labelOpts={'color':QtGui.QColor('white'),
+                                                    'position':0.5})
+        self.lam2_line = pg.InfiniteLine(0,
+                                         span=(0.9,1.),
+                                         pen=pg.mkPen(color='w', width=2, style=QtCore.Qt.DashLine),
+                                         label='Lam2',
+                                         labelOpts={'color':QtGui.QColor('white'),
+                                                    'position':0.5})
         self.telluric_1D_spec = None
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.err_1D_spec)
+        self.ax1D.addItem(self.lam1_line)
+        self.ax1D.addItem(self.lam2_line)
 
         if self.mode == '2D':
             self.flux_2D_img = pg.ImageItem()
@@ -580,9 +595,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if key == QtCore.Qt.Key_Q:
                 self.statusBar.showMessage(f"Setting Lambda_1 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
+                self.lam1_line.setPos(x_pos)
             elif key == QtCore.Qt.Key_E:
                 self.statusBar.showMessage(f"Setting Lambda_2 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
+                self.lam2_line.setPos(x_pos)
             # Panning with keyboard
             # The value returned after setting the range is slightly
             # larger (because of padding) and this results in 'zooming out'
