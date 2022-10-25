@@ -703,6 +703,8 @@ class MainWindow(QtWidgets.QMainWindow):
             Reset the ROI region's position and extraction width to
             default values.
         """
+        self.ax2D_sideview.removeItem(self.ROI_y_hist_lower)
+        self.ax2D_sideview.removeItem(self.ROI_y_hist_upper)
         self.ax2D.removeItem(self.roi)
         self.textbox_for_extraction_width.setText('1')
         self.set_up_ROI()

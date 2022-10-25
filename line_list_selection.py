@@ -41,7 +41,7 @@ class SelectLineListsDialog(QtWidgets.QDialog):
         self.abs_line_file_select_button.clicked.connect(self.select_absorption)
 
         if self.exec() == QtWidgets.QDialog.Accepted:
-            log.info("Updated line lists")
+            log.info("Updated line lists.")
             self.parent.fnames['emission_lines'] = self.fname_em
             self.parent.fnames['absorption_lines'] = self.fname_abs
             self.parent.load_line_lists(calc_ratio=False)
