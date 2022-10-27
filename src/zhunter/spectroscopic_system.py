@@ -3,12 +3,11 @@ from PyQt5 import QtGui
 from PyQt5 import QtCore
 import pandas as pd
 import logging
-from pathlib import Path
 import numpy as np
+from zhunter import DIRS
 
 
 log = logging.getLogger(__name__)
-ROOT_DIR = Path(__file__).parent.resolve()
 
 
 class SpecSystem():
@@ -18,7 +17,7 @@ class SpecSystem():
     """
     def __init__(self, z, PlotItem, sys_type,
                  color=QtGui.QColor('blue'),
-                 fname=ROOT_DIR/'line_lists/basic_line_list.csv',
+                 fname=DIRS['LINES']/'basic_line_list.csv',
                  lines=None,
                  show_fs=False):
         self.redshift = z
@@ -82,10 +81,10 @@ class SpecSystem():
 
 class Telluric():
     def __init__(self, PlotItem,
-                 color=QtGui.QColor('blue'),
-                 fname=ROOT_DIR/'line_lists/tellurics.csv',
+                 color=QtGui.QColor('gray'),
+                 fname=DIRS['LINES']/'tellurics.csv',
                  lines=None):
-        self.color = QtGui.QColor('gray')
+        self.color = color
         if lines is None:
             self.lines = pd.read_csv(fname, sep=',', comment='#')
         else:
