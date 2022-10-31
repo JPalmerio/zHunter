@@ -1,1 +1,2 @@
-include src/zhunter/
+include src/zhunter/*
+include README_short.md

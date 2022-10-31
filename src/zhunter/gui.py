@@ -23,10 +23,8 @@ from zhunter.line_list_selection import SelectLineListsDialog, select_file
 from zhunter.key_binding import KeyBindingHelpDialog
 from zhunter.misc import create_line_ratios
 
-qt5_logger = logging.getLogger('PyQt5')
-mpl_logger = logging.getLogger('matplotlib')
-qt5_logger.setLevel(logging.INFO)
-mpl_logger.setLevel(logging.INFO)
+logging.getLogger('PyQt5').setLevel(logging.INFO)
+logging.getLogger('matplotlib').setLevel(logging.INFO)
 log = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
@@ -64,7 +62,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load the UI Page
         pg.setConfigOption('foreground', 'w')
-        uic.loadUi(DIRS['ui']/'main_frame.ui', self)
+        uic.loadUi(DIRS['UI']/'main_frame.ui', self)
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
 

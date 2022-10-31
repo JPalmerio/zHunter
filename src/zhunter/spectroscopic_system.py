@@ -17,7 +17,7 @@ class SpecSystem():
     """
     def __init__(self, z, PlotItem, sys_type,
                  color=QtGui.QColor('blue'),
-                 fname=DIRS['LINES']/'basic_line_list.csv',
+                 fname=DIRS['LINE']/'basic_line_list.csv',
                  lines=None,
                  show_fs=False):
         self.redshift = z
@@ -82,7 +82,7 @@ class SpecSystem():
 class Telluric():
     def __init__(self, PlotItem,
                  color=QtGui.QColor('gray'),
-                 fname=DIRS['LINES']/'tellurics.csv',
+                 fname=DIRS['LINE']/'tellurics.csv',
                  lines=None):
         self.color = color
         if lines is None:
