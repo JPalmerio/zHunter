@@ -1,2 +1,4 @@
-include src/zhunter/*
+include src/zhunter/ui/*.ui
+include src/zhunter/lines/*.csv
+include src/zhunter/lines/*.txt
 include README_short.md
