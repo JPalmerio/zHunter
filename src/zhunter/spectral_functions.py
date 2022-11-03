@@ -1,4 +1,4 @@
-import zhunter_io as io
+import zhunter.io as io
 import numpy as np
 import astropy.constants as cst
 import astropy.units as u

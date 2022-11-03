@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt5 import uic
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from PyQt5 import QtGui
 
 import astropy.units as u
 from astropy.io import fits
@@ -14,22 +15,20 @@ import astropy.constants as cst
 import numpy as np
 import pyqtgraph as pg
 import pandas as pd
-import zhunter_io as io
-import spectral_functions as sf
-from spectroscopic_system import SpecSystem, SpecSystemModel, Telluric
-from line_list_selection import SelectLineListsDialog, select_file
-from key_binding import KeyBindingHelpDialog
-from misc import create_line_ratios
+from zhunter import DIRS
+import zhunter.io as io
+import zhunter.spectral_functions as sf
+from zhunter.spectroscopic_system import SpecSystem, SpecSystemModel, Telluric
+from zhunter.line_list_selection import SelectLineListsDialog, select_file
+from zhunter.key_binding import KeyBindingHelpDialog
+from zhunter.misc import create_line_ratios
 
-qt5_logger = logging.getLogger('PyQt5')
-mpl_logger = logging.getLogger('matplotlib')
-qt5_logger.setLevel(logging.INFO)
-mpl_logger.setLevel(logging.INFO)
+logging.getLogger('PyQt5').setLevel(logging.INFO)
+logging.getLogger('matplotlib').setLevel(logging.INFO)
 log = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 
-ROOT_DIR = Path(__file__).parent.resolve()
 
 ABSORBER_COLORS = cycle(['#a6cee3',
                          '#1f78b4',
@@ -63,17 +62,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load the UI Page
         pg.setConfigOption('foreground', 'w')
-        uic.loadUi(ROOT_DIR/'main_frame.ui', self)
+        uic.loadUi(DIRS['UI']/'main_frame.ui', self)
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
 
         # Load the line lists
         self.fnames = {}
-        self.fnames['data'] = ROOT_DIR/'example_data/example_2D.fits'
-        self.fnames['emission_lines'] = ROOT_DIR/'line_lists/emission_lines.csv'
-        self.fnames['absorption_lines'] = ROOT_DIR/'line_lists/basic_line_list.csv'
-        self.fnames['fine_structure_lines'] = ROOT_DIR/'line_lists/fine_structure.csv'
-        self.fnames['line_ratio'] = ROOT_DIR/'line_lists/line_ratio.csv'
+        self.fnames['data'] = DIRS['ROOT']/'example_data/example_2D.fits'
+        self.fnames['emission_lines'] = DIRS['LINE']/'emission_lines.csv'
+        self.fnames['absorption_lines'] = DIRS['LINE']/'basic_line_list.csv'
+        self.fnames['fine_structure_lines'] = DIRS['LINE']/'fine_structure.csv'
+        self.fnames['line_ratio'] = DIRS['LINE']/'line_ratio.csv'
         self.load_line_lists(calc_ratio=False)
 
         # List of spectral systems
@@ -266,9 +265,23 @@ class MainWindow(QtWidgets.QMainWindow):
                                             np.zeros(1),
                                             stepMode='center',
                                             pen=pg.mkPen(color='r'))
+        self.lam1_line = pg.InfiniteLine(0,
+                                         span=(0.9,1.),
+                                         pen=pg.mkPen(color='w', width=2, style=QtCore.Qt.DashLine),
+                                         label='Lam1',
+                                         labelOpts={'color':QtGui.QColor('white'),
+                                                    'position':0.5})
+        self.lam2_line = pg.InfiniteLine(0,
+                                         span=(0.9,1.),
+                                         pen=pg.mkPen(color='w', width=2, style=QtCore.Qt.DashLine),
+                                         label='Lam2',
+                                         labelOpts={'color':QtGui.QColor('white'),
+                                                    'position':0.5})
         self.telluric_1D_spec = None
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.err_1D_spec)
+        self.ax1D.addItem(self.lam1_line)
+        self.ax1D.addItem(self.lam2_line)
 
         if self.mode == '2D':
             self.flux_2D_img = pg.ImageItem()
@@ -580,9 +593,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if key == QtCore.Qt.Key_Q:
                 self.statusBar.showMessage(f"Setting Lambda_1 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
+                self.lam1_line.setPos(x_pos)
             elif key == QtCore.Qt.Key_E:
                 self.statusBar.showMessage(f"Setting Lambda_2 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
+                self.lam2_line.setPos(x_pos)
             # Panning with keyboard
             # The value returned after setting the range is slightly
             # larger (because of padding) and this results in 'zooming out'
@@ -703,6 +718,8 @@ class MainWindow(QtWidgets.QMainWindow):
             Reset the ROI region's position and extraction width to
             default values.
         """
+        self.ax2D_sideview.removeItem(self.ROI_y_hist_lower)
+        self.ax2D_sideview.removeItem(self.ROI_y_hist_upper)
         self.ax2D.removeItem(self.roi)
         self.textbox_for_extraction_width.setText('1')
         self.set_up_ROI()
