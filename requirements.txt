@@ -1,8 +1,8 @@
 PyQt5>=5.15
-matplotlib>=3.1
-numpy>=1.21
-pyqtgraph>=0.12.4
-pandas>=1.4
+matplotlib>=3.6.0
+numpy>=1.22
+pyqtgraph>=0.13.1
+pandas>=1.5
 spectres>=2.1
 pathlib
-astropy>=5.0
+astropy>=5.1
