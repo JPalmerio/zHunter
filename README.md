@@ -7,27 +7,27 @@ It uses [`Python 3.8`](https://www.python.org/downloads/release/python-383/) and
 
 # Installation
 
-Clone the git repository:
-```
-$ git clone https://github.com/JPalmerio/zHunter.git
-$ cd zHunter
-```
-
-
 If you use a virtual environment manager for python (which we recommend), you can create an environment specific for *z*Hunter with:
 
 ```
 $ conda create -n zHunter python=3.8.3
-$ pip install -r requirements.txt
 ```
 
-
-There is no installation yet, just clone the repository and launch the code by running:
+## Using pip
 
 ```
-$ python zhunter.py
+$ pip install zhunter
+```
+*Note:* sometimes the pip installation of PyQt5 fails, in this case try to install PyQt5 with conda:
+```
+$ conda install pyqt
 ```
 
+## Launching the GUI
+If the installation went smoothly, you can launch the GUI by simply typing in your terminal:
+```
+$ zhunter
+```
 You can make sure the code works by loading the 2D file `./example_data/example_2D.fits` (*hint*: GRB redshift is around 6.3).
 
 # Usage
