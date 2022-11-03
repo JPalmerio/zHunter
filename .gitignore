@@ -1,5 +1,5 @@
 *.ipynb
-base_window.py
+src/zhunter/base_window.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

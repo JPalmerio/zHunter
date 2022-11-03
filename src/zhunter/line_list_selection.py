@@ -3,9 +3,10 @@ from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from pathlib import Path
 import logging
+from zhunter import DIRS
+
 
 log = logging.getLogger(__name__)
-ROOT_DIR = Path(__file__).parent.resolve()
 
 
 def select_file(parent, fname, file_type):
@@ -30,7 +31,7 @@ class SelectLineListsDialog(QtWidgets.QDialog):
         super(SelectLineListsDialog, self).__init__(parent)
         self.setWindowTitle("Select line lists files")
         self.parent = parent
-        uic.loadUi(ROOT_DIR/'line_list_selection_dialog.ui', self)
+        uic.loadUi(DIRS['UI']/'line_list_selection_dialog.ui', self)
 
         self.emission_textbox.setText(str(parent.fnames['emission_lines']))
         self.absorption_textbox.setText(str(parent.fnames['absorption_lines']))
