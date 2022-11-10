@@ -162,6 +162,10 @@ class SpecSystemModel(QtCore.QAbstractListModel):
             specsys.undraw()
         self.specsystems = []
 
+    def get_color(self, index):
+        _, _sys = self.specsystems[index.row()]
+        return _sys.color
+
     def show_hide_fine_structure(self, index, bounds):
         _, _sys = self.specsystems[index.row()]
         fs_shown = _sys.show_fs

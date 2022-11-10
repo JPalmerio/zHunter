@@ -4,5 +4,4 @@ numpy>=1.22
 pyqtgraph>=0.13.1
 pandas>=1.5
 spectres>=2.1
-pathlib
 astropy>=5.1

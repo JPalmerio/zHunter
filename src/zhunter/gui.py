@@ -30,29 +30,30 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 
 
-ABSORBER_COLORS = cycle(['#a6cee3',
-                         '#1f78b4',
-                         '#b2df8a',
-                         '#33a02c',
-                         '#fb9a99',
-                         '#e31a1c',
-                         '#fdbf6f',
-                         '#ff7f00',
-                         '#cab2d6',
-                         '#6a3d9a',
-                         '#ffff99',
-                         '#b15928'])
-ABSORBER_COLORS = cycle(['#4A9EBC',  # Lightblue
-                         '#C95D38',  # Orange
-                         '#ECCA54',  # Yellow
-                         '#92D754',  # Green
-                         '#BC271B',  # Rust
-                         '#66CBA0',  # Teal
-                         '#C72A70',  # Pink
-                         '#2D67EE',  # Blue
-                         '#B52EB0',  # Fuschia
-                         '#8218BB',  # Purple
-                         ])
+ABSORBER_COLORS = ['#a6cee3',
+                   '#1f78b4',
+                   '#b2df8a',
+                   '#33a02c',
+                   '#fb9a99',
+                   '#e31a1c',
+                   '#fdbf6f',
+                   '#ff7f00',
+                   '#cab2d6',
+                   '#6a3d9a',
+                   '#ffff99',
+                   '#b15928'
+                   ]
+ABSORBER_COLORS = ['#4A9EBC',  # Lightblue
+                   '#B52EB0',  # Fuschia
+                   '#C95D38',  # Orange
+                   '#ECCA54',  # Yellow
+                   '#92D754',  # Green
+                   '#BC271B',  # Rust
+                   '#66CBA0',  # Teal
+                   '#C72A70',  # Pink
+                   '#2D67EE',  # Blue
+                   '#8218BB',  # Purple
+                   ]
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -172,6 +173,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Create empty objects that will hold the data to be displayed
         self._create_placeholders()
+        self._reset_colors()
 
     def set_up_crosshairs(self):
         """
@@ -295,6 +297,35 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D.addItem(self.flux_2D_img)
             self.ax2D.addItem(self.err_2D_img)
             self.ax2D_sideview.addItem(self.sidehist_2D)
+
+    # Colors
+    def _reset_colors(self):
+        """
+        Reset the color palet.
+        """
+        self.available_colors = ABSORBER_COLORS.copy()
+        self.available_colors_cycler = cycle(self.available_colors)
+
+    def get_color(self):
+        """
+        Get the next color from the list of available colors.
+        If all colors have been used, reset the color cycler.
+        """
+        try:
+            color = next(self.available_colors_cycler)
+        except StopIteration:
+            log.info("Exhausted all colors, resetting color cycler.")
+            self._reset_colors()
+            color = next(self.available_colors_cycler)
+        log.debug("There are %d unused colors left", len(self.available_colors))
+        return color
+
+    def clear_color_from_available_list(self, color):
+        """
+        Remove the color from the pool of available colors.
+        """
+        self.available_colors.remove(color)
+        self.available_colors_cycler = cycle(self.available_colors)
 
     def visualize_spec(self):
         """
@@ -1016,10 +1047,11 @@ class MainWindow(QtWidgets.QMainWindow):
             elif sys_type == 'em':
                 lines = self.em_lines
                 sys_type_str = 'emitter'
+            color = self.get_color()
             specsys = SpecSystem(z=z,
                                  sys_type=sys_type,
                                  PlotItem=self.ax1D,
-                                 color=next(ABSORBER_COLORS),
+                                 color=color,
                                  lines=lines,
                                  show_fs=True)
             self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
@@ -1028,6 +1060,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.specsysModel.specsystems.append((True, specsys))
             self.specsysModel.layoutChanged.emit()
             self.textbox_for_z.setText("")
+            self.clear_color_from_available_list(color)
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError:
             log.error("Can't add system: z must be convertible to float")
@@ -1041,6 +1074,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if indexes:
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
+            # Re-add the color to the available pool
+            self.available_colors.append(self.specsysModel.get_color(index))
             self.specsysModel.delete(index)
             # Clear the selection (as it is no longer valid).
             self.specsysView.clearSelection()
