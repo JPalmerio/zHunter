@@ -1058,6 +1058,7 @@ class MainWindow(QtWidgets.QMainWindow):
             specsys.draw(xmin=self.data['wvlg_min'], xmax=self.data['wvlg_max'])
             # Update model
             self.specsysModel.specsystems.append((True, specsys))
+            self.specsysModel.sort()
             self.specsysModel.layoutChanged.emit()
             self.textbox_for_z.setText("")
             self.clear_color_from_available_list(color)
@@ -1077,6 +1078,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Re-add the color to the available pool
             self.available_colors.append(self.specsysModel.get_color(index))
             self.specsysModel.delete(index)
+            self.specsysModel.sort()
             # Clear the selection (as it is no longer valid).
             self.specsysView.clearSelection()
 

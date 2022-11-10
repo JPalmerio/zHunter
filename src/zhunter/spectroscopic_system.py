@@ -31,6 +31,22 @@ class SpecSystem():
         self.pi = PlotItem
         self.show_fs = show_fs
 
+    # Used for allowing sorting
+    def __lt__(self, obj):
+        return ((self.redshift) < (obj.redshift))
+
+    def __gt__(self, obj):
+        return ((self.redshift) > (obj.redshift))
+
+    def __le__(self, obj):
+        return ((self.redshift) <= (obj.redshift))
+
+    def __ge__(self, obj):
+        return ((self.redshift) >= (obj.redshift))
+
+    def __eq__(self, obj):
+        return (self.redshift == obj.redshift)
+
     def draw(self, xmin=None, xmax=None):
         pen = pg.mkPen(self.color, width=3)
         # Make background for the rectangle on which to print line names
@@ -144,6 +160,9 @@ class SpecSystemModel(QtCore.QAbstractListModel):
         if role == QtCore.Qt.DecorationRole:
             status, specsys = self.specsystems[index.row()]
             return QtGui.QColor(specsys.color)
+
+    def sort(self):
+        self.specsystems.sort(reverse=True)
 
     def rowCount(self, index):
         return len(self.specsystems)
