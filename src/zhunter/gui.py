@@ -721,8 +721,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                self.err_2D_img,
                                                returnMappedCoords=True)
 
-        flux_1D = flux_selected[0].mean(axis=1)
-        err_1D = err_selected[0].mean(axis=1)
+        flux_1D = flux_selected[0].sum(axis=1)
+        err_1D = np.sqrt((err_selected[0]**2).sum(axis=1))
         wvlg_1D = flux_selected[1][0,:,0]
 
         return wvlg_1D, flux_1D, err_1D
