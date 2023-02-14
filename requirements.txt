@@ -1,7 +1,7 @@
 pyqt5>=5.15
 matplotlib>=3.6.0
-numpy>=1.22
+numpy>=1.24
 pyqtgraph>=0.13.1
 pandas>=1.5
 spectres>=2.1
-astropy>=5.1
+astropy>=5.2

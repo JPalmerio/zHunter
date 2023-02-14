@@ -1,0 +1,24 @@
+name: zhunter_dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy=1.24
+  - matplotlib=3.6
+  - pandas=1.5
+  - astropy=5.2
+  - scipy=1.10
+  - pyqtgraph>=0.13.1
+  - pyqt>=5.15
+  - jupyter
+  - pytest
+  - pylint
+  - coverage
+  - sphinx
+  - pip
+  - pip:
+    - black
+    - mplcyberpunk
+    - cmasher
+    - spectres
