@@ -11,7 +11,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def smooth(wvlg, flux, err=None, smoothing=3):
+def smooth(wvlg, flux, unc=None, smoothing=3):
     """
     A function to smooth a spectrum.
     """
@@ -23,18 +23,18 @@ def smooth(wvlg, flux, err=None, smoothing=3):
         new_wavs=wvlg_regrid,
         spec_wavs=wvlg,
         spec_fluxes=flux,
-        spec_errs=err,
+        spec_errs=unc,
         fill=0,
         verbose=False,
     )
-    if err is None:
+    if unc is None:
         flux_sm = output
-        err_sm = None
+        unc_sm = None
     else:
         flux_sm = output[0]
-        err_sm = output[1]
+        unc_sm = output[1]
 
-    return wvlg_regrid, flux_sm, err_sm
+    return wvlg_regrid, flux_sm, unc_sm
 
 
 def correct_lambda_for_radial_velocity(fname, kind="barycentric", mode="1D"):

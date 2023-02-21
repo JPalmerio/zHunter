@@ -70,7 +70,7 @@
          <number>13</number>
         </property>
         <item>
-         <widget class="QCheckBox" name="show_error_cb">
+         <widget class="QCheckBox" name="show_uncertainty_cb">
           <property name="text">
            <string>Show error</string>
           </property>
