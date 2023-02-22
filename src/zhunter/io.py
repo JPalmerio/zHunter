@@ -162,7 +162,7 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     return spectrum
 
 
-def read_fits_2D_spectrum(filename, verbose=False):
+def read_fits_2D_spectrum(fname, verbose=False):
     """
     A function to read data from a 2D spectrum.
     First looks for a HDU with a name containing 'FLUX'.
@@ -177,7 +177,7 @@ def read_fits_2D_spectrum(filename, verbose=False):
 
     log.debug(f"Attempting to read file: {fname}")
 
-    with fits.open(filename) as hdulist:
+    with fits.open(fname) as hdulist:
         hdu_names = [hdu.name for hdu in hdulist]
 
         flux_hdu_name = __find_column_name(
