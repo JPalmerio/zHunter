@@ -10,7 +10,11 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-ergscm2AA = u.Unit("erg s^-1 cm^-2 AA^-1")
+ergscm2AA = u.def_unit(
+    s='ergscm2AA',
+    represents=u.Unit('erg s^-1 cm^-2 AA^-1'),
+    format={'latex': r'\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}'},
+)
 ERROR_KEYS = ["ERR", "NOISE", "SIGMA", "UNC"]
 WAVE_KEYS = ["WAVE", "AWAV", "WVLG", "LAM"]
 FLUX_KEYS = ["FLUX"]
@@ -49,15 +53,19 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     """Ignores line starting with '#'
     Expects the following format:
         # this is a comment in the file which will be ignored
-        wave, flux, (error/uncertainty)
-        1, 10, (0.1)
-        2, 10, (0.1)
-        3, 10, (0.1)
-        4, 10, (0.1)
+        wave, flux, error/uncertainty
+        1, 10, 0.1
+        2, 10, 0.1
+        3, 10, 0.1
+        4, 10, 0.1
 
-    Where the parenthesis indicate the error/uncertainty column is optional.
+    The error/uncertainty column is optional.
     The name of the columns should be the first uncommented line, with
     the same separator as the columns.
+    You can specify the units of the column by directly following the
+    column name with the unit in parenthesis:
+
+        wave(AA), flux(erg/s/cm2/AA)
 
     Args:
         fname (TYPE): Description
@@ -68,25 +76,17 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         TYPE: Description
     """
 
+    log.debug(f"Attempting to read file: {fname}")
+
     waveobs = None
     flux = None
     uncertainty = None
-
-    # Default units if no units were specified
-    if wave_unit is None:
-        wave_unit = u.Unit()
-        log.info("No units specified for wave.")
-    if flux_unit is None:
-        flux_unit = u.Unit()
-        log.info("No units specified for flux.")
 
     df = pd.read_csv(
         fname,
         comment="#",
         dtype=float,
     )
-
-    # If no column names, assume wave, flux, error/uncertainty
 
     column_names = list(df.columns)
 
@@ -106,6 +106,13 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         possible_names=ERROR_KEYS,
     )
 
+    # Try to get units from the column name
+    if wave_key is not None:
+        wave_unit = __parse_units_from_column_name(wave_key)
+    if flux_key is not None:
+        flux_unit = __parse_units_from_column_name(flux_key)
+
+    # If no column names, assume wave, flux, error/uncertainty
     if any(k is None for k in [wave_key, flux_key]):
         log.info(
             f"Could not find any reasonable column names for file {fname}."
@@ -121,6 +128,7 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
             dtype=float,
         )
 
+    # Have to turn to numpy because using pandas series
     if wave_key is not None:
         waveobs = df[wave_key].to_numpy()
     if flux_key is not None:
@@ -130,6 +138,14 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         # If the column didn't exist, pandas fills with NaNs by default
         if all(np.isnan(uncertainty)):
             uncertainty = None
+
+    # Default units if no units were specified
+    if wave_unit is None:
+        wave_unit = u.Unit('AA')
+        log.info("No units specified for wave, assuming Angstrom.")
+    if flux_unit is None:
+        flux_unit = u.Unit('adu')
+        log.info("No units specified for flux, assuming ADU.")
 
     if flux is not None and waveobs is not None:
         # Create the spectrum object
@@ -159,6 +175,8 @@ def read_fits_2D_spectrum(filename, verbose=False):
     the header of the HDU where it found the flux.
     """
 
+    log.debug(f"Attempting to read file: {fname}")
+
     with fits.open(filename) as hdulist:
         hdu_names = [hdu.name for hdu in hdulist]
 
@@ -186,7 +204,7 @@ def read_fits_2D_spectrum(filename, verbose=False):
                         log.debug(f"Found HDU: {hdu.name} which contains a 2D array")
                         break
 
-        if flux is None:
+        if flux is None or len(flux.shape) != 2:
             raise Exception("Could not find a 2D flux array in this fits file.")
 
         # Error/uncertainty
@@ -253,13 +271,17 @@ def read_fits_1D_spectrum(fname):
     returns a Spectrum1D object
     """
 
+    log.debug(f"Attempting to read file: {fname}")
+
     with fits.open(fname) as hdulist:
         # By default start with PRIMARY HDU
         data = hdulist["PRIMARY"].data
         hdr = hdulist["PRIMARY"].header
 
         waveobs = None
+        wave_unit = None
         flux = None
+        flux_unit = None
         uncertainty = None
 
         if data is not None and (
@@ -394,6 +416,26 @@ def read_fits_1D_spectrum(fname):
         raise Exception("Unknown FITS file format")
 
 
+def __parse_units_from_column_name(col_name):
+    """Look for units in the name of a column by searching for a format
+    as: wave(nm)
+
+    Args:
+        col_name (str): column name to search
+
+    Returns:
+        astropy.Unit: The unit found or None.
+    """
+    try:
+        units_str = col_name.split('(')[1].strip(')')
+        units = u.Unit(units_str)
+        log.debug(f"Parsed unit {units_str} from column name '{col_name}'")
+    except Exception:
+        units = None
+        log.debug(f"No unit could be parsed from column name '{col_name}'")
+    return units
+
+
 def __get_units(header, axis=2, default_units=None):
     # Check for flux units
     try:
@@ -447,7 +489,7 @@ def __get_wavelength_units(header, waxis=1, default_units=u.AA):
         log.info(
             f"No unit found in header for wavelength (axis {waxis}), assuming {default_units}"
         )
-        wave_unit = u.AA
+        wave_unit = default_units
     return wave_unit
 
 

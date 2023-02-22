@@ -65,7 +65,7 @@ def _quantity_to_at_least_1D_array(x):
 
 def set_up_linked_vb(pi):
     """
-    Take a PlotItem and create a new ViewBox by the x axiss
+    Take a PlotItem and create a new ViewBox by the x axis
     """
     new_vb = pg.ViewBox()
     pi.scene().addItem(new_vb)

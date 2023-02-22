@@ -33,7 +33,7 @@ ABSORBER_COLORS = [
 ]
 
 
-def get_gradient(color):
+def get_gradient(color, reverse=False):
     """Summary
 
     Parameters
@@ -49,6 +49,10 @@ def get_gradient(color):
     lighter_color = QtGui.QColor(color.name())
     lighter_color.setAlpha(64)  # out of 255
     grad = QtGui.QLinearGradient(0, 0, 0, 1)
-    grad.setColorAt(1.0, pg.mkColor(lighter_color))
-    grad.setColorAt(0.0, pg.mkColor(color))
+    if reverse:
+        grad.setColorAt(0.0, pg.mkColor(lighter_color))
+        grad.setColorAt(1.0, pg.mkColor(color))
+    else:
+        grad.setColorAt(1.0, pg.mkColor(lighter_color))
+        grad.setColorAt(0.0, pg.mkColor(color))
     return grad

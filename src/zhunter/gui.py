@@ -17,7 +17,7 @@ import pandas as pd
 from zhunter import DIRS
 import zhunter.io as io
 import zhunter.spectral_functions as sf
-from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric
+from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric, SkyBackground
 from .line_list_selection import SelectLineListsDialog, select_file
 from .key_binding import KeyBindingHelpDialog
 from .misc import create_line_ratios, set_up_linked_vb, check_flux_scale
@@ -46,10 +46,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load the line lists
         self.fnames = {}
         self.fnames["data"] = None
-        self.fnames["emission_lines"] = DIRS["LINE"] / "emission_lines.csv"
-        self.fnames["absorption_lines"] = DIRS["LINE"] / "basic_line_list.csv"
-        self.fnames["fine_structure_lines"] = DIRS["LINE"] / "fine_structure.csv"
-        self.fnames["line_ratio"] = DIRS["LINE"] / "line_ratio.csv"
+        self.fnames["emission_lines"] = DIRS["DATA"] / "lines/emission_lines.csv"
+        self.fnames["absorption_lines"] = DIRS["DATA"] / "lines/basic_line_list.csv"
+        self.fnames["fine_structure_lines"] = DIRS["DATA"] / "lines/fine_structure.csv"
+        self.fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
+        self.fnames["tellurics"] = DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz"
+        self.fnames["sky_bkg"] = DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz"
         self.load_line_lists(calc_ratio=False)
 
         # List of spectral systems
@@ -70,6 +72,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect all signals and slots
         self.show_uncertainty_cb.stateChanged.connect(self.show_hide_uncertainty)
         self.telluric_cb.stateChanged.connect(self.show_hide_telluric)
+        self.sky_bkg_cb.stateChanged.connect(self.show_hide_sky_bkg)
         self.fine_structure_button.clicked.connect(self.show_hide_fine_structure)
         self.to_vacuum_button.clicked.connect(self.wvlg_to_vacuum)
         self.to_air_button.clicked.connect(self.wvlg_to_air)
@@ -104,7 +107,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # Define PlotItem as ax1D and ax2D (subclass of GraphicsItem) on wich to plot stuff
             self.ax2D = self.graphLayout.addPlot(row=1, col=0)
             self.ax1D = self.graphLayout.addPlot(row=2, col=0)
-            self.ax2D_sideview = self.graphLayout.addPlot(row=1, col=1)
+            self.ax2D_side_vb = self.graphLayout.addViewBox(row=1, col=1)
+            self.img_colorbar = pg.HistogramLUTItem(gradientPosition="left")
+            self.graphLayout.addItem(self.img_colorbar, row=2, col=1)
             # Strech rows to make 1D bigger than 2D plot in y direction
             self.graphLayout.ci.layout.setRowStretchFactor(1, 2)
             self.graphLayout.ci.layout.setRowStretchFactor(2, 3)
@@ -116,22 +121,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # Link the side histograms to the central plots
             self.ax1D.vb.setXLink(self.ax2D.vb)
-            self.ax2D_sideview.vb.setYLink(self.ax2D.vb)
+            self.ax2D_side_vb.setYLink(self.ax2D.vb)
 
             # Hide the axis to make the plot prettier and more compact
             self.ax2D.hideAxis("bottom")
-            self.ax2D_sideview.hideAxis("bottom")
-            self.ax2D_sideview.hideAxis("left")
 
             # Change all the widths to be equal so things are aligned
             self.ax2D.getAxis("left").setWidth(60)
 
             # Remove mouse interactions on side histogram
-            self.ax2D_sideview.setMouseEnabled(x=False, y=True)
+            self.ax2D_side_vb.setMouseEnabled(x=False, y=True)
+
+            # Add the PlotItems to the list of active items
+            # self.active_plot_items.append(self.ax2D)
+            # self.active_plot_items.append(self.ax2D_side_vb)
 
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis("left").setWidth(60)
         self.ax1D.getAxis("bottom").setHeight(30)
+        # self.active_plot_items.append(self.ax1D)
 
         # Remove padding so that panning preserves x and y range
         self.ax1D.vb.setDefaultPadding(padding=0.00)
@@ -142,7 +150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # ViewBox for Tellurics
         self.telluric_vb = set_up_linked_vb(self.ax1D)
         # ViewBox for sky background
-        self.skybkg_vb = set_up_linked_vb(self.ax1D)
+        self.sky_bkg_vb = set_up_linked_vb(self.ax1D)
 
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
@@ -168,27 +176,23 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == "2D":
             self.crosshair_x_2D = pg.InfiniteLine(angle=90, movable=False)
             self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
-            self.crosshair_y_2D_sideview = pg.InfiniteLine(angle=0, movable=False)
+            self.crosshair_y_2D_side = pg.InfiniteLine(angle=0, movable=False)
             self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
             self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
-            self.ax2D_sideview.addItem(self.crosshair_y_2D_sideview, ignoreBounds=True)
+            self.ax2D_side_vb.addItem(self.crosshair_y_2D_side, ignoreBounds=True)
             self.crosshair_x_2D.setZValue(9)  # To make sure crosshair is on top
             self.crosshair_y_2D.setZValue(9)  # To make sure crosshair is on top
             self.ax2D.scene().sigMouseMoved.connect(self.move_crosshair)
-            self.ax2D_sideview.scene().sigMouseMoved.connect(self.move_crosshair)
+            self.ax2D_side_vb.scene().sigMouseMoved.connect(self.move_crosshair)
 
-    def set_up_img_hist(self):
-        if self.img_hist is not None:
-            self.graphLayout.removeItem(self.img_hist)
-        self.img_hist = pg.HistogramLUTItem(self.flux_2D_img, gradientPosition="left")
-        self.graphLayout.addItem(self.img_hist, row=2, col=1)
-        self.img_hist.fillHistogram(False)
-        self.img_hist.setHistogramRange(
+    def set_up_img_colobar(self):
+        self.img_colorbar.setImageItem(self.flux_2D_img)
+        self.img_colorbar.setHistogramRange(
             self.data["q025_2D"].value, self.data["q975_2D"].value
         )
-        self.img_hist.setLevels(self.data["q025_2D"].value, self.data["q975_2D"].value)
+        self.img_colorbar.setLevels(self.data["q025_2D"].value, self.data["q975_2D"].value)
         cmap = pg.colormap.get("afmhot", source="matplotlib")
-        self.img_hist.gradient.setColorMap(cmap)
+        self.img_colorbar.gradient.setColorMap(cmap)
 
     def set_up_ROI(self):
         spatial_width = float(self.textbox_for_extraction_width.text())
@@ -217,8 +221,8 @@ class MainWindow(QtWidgets.QMainWindow):
             pen=pg.mkPen("g", width=2),
         )
 
-        self.ax2D_sideview.addItem(self.ROI_y_hist_lower, ignoreBounds=True)
-        self.ax2D_sideview.addItem(self.ROI_y_hist_upper, ignoreBounds=True)
+        self.ax2D_side_vb.addItem(self.ROI_y_hist_lower, ignoreBounds=True)
+        self.ax2D_side_vb.addItem(self.ROI_y_hist_upper, ignoreBounds=True)
         self.roi.sigRegionChanged.connect(self.extract_and_plot_1D)
 
     def set_labels(self):
@@ -232,14 +236,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ax1D.setLabel(
             "bottom",
             "Observed wavelength" + f" ({self.data['wvlg'].unit})",
-            # units=f"{self.data['wvlg'].unit}"
         )
         self.ax1D.showGrid(x=True, y=True)
         if self.mode == "2D":
             self.ax2D.setLabel(
                 "left",
                 "Spatial" + f" ({self.data['spat'].unit})",
-                # units=f"{self.data['spat'].unit}"
             )
 
     def set_ViewBox_limits(self):
@@ -253,7 +255,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 yMin=self.data["spat_min"].value,
                 yMax=self.data["spat_max"].value,
             )
-            self.ax2D_sideview.vb.setLimits(
+            self.ax2D_side_vb.setLimits(
                 yMin=self.data["spat_min"].value, yMax=self.data["spat_max"].value
             )
 
@@ -283,6 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
             labelOpts={"color": QtGui.QColor("white"), "position": 0.5},
         )
         self.telluric_1D_spec = None
+        self.sky_bkg_1D_spec = None
         self.ax1D.addItem(self.flux_1D_spec)
         self.ax1D.addItem(self.unc_1D_spec)
         self.ax1D.addItem(self.lam1_line)
@@ -300,7 +303,7 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             self.ax2D.addItem(self.flux_2D_img)
             self.ax2D.addItem(self.unc_2D_img)
-            self.ax2D_sideview.addItem(self.sidehist_2D)
+            self.ax2D_side_vb.addItem(self.sidehist_2D)
 
     # Colors
     def _reset_colors(self):
@@ -365,10 +368,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.reset_plot()
             return
 
-        try:
-            self.data["header"] = fits.getheader(self.fnames["data"])
-        except OSError:
-            log.warning("No header loaded.")
+        if '.fit' in str(self.fnames["data"].stem):
+            try:
+                self.data["header"] = fits.getheader(self.fnames["data"])
+            except OSError:
+                log.warning(f"No header could be loaded for file {self.fnames['data']}.")
+                self.data["header"] = None
+        else:
+            log.info("Not a fits file, no header loaded.")
             self.data["header"] = None
 
         if self.mode == "1D":
@@ -396,6 +403,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Plot telluric
         if self.telluric_cb.isChecked():
             self.plot_telluric()
+        # Plot sky background
+        if self.sky_bkg_cb.isChecked():
+            self.plot_sky_bkg()
 
     def load_1D_data(self, wvlg, flux, unc):
         """
@@ -581,7 +591,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unc_2D_img.hide()
 
         # Add the side histogram of the pixel intensities
-        self.set_up_img_hist()
+        self.set_up_img_colobar()
         # Add the side histogram fo the flux values as a function of spatial position
         self.plot_2D_sidehist()
 
@@ -601,10 +611,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sidehist_2D.setData(y_dist.value, self.data["spat_disp"].value)
 
     def plot_telluric(self):
-        x_view, y_view = self.ax1D.vb.getState()["viewRange"]
-        self.telluric_1D_spec = Telluric(PlotItem=self.telluric_vb)
+        self.telluric_1D_spec = Telluric(vb=self.telluric_vb)
         self.telluric_1D_spec.load_spectrum()
         self.telluric_1D_spec.draw(
+            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+        )
+
+    def plot_sky_bkg(self):
+        self.sky_bkg_1D_spec = SkyBackground(vb=self.sky_bkg_vb)
+        self.sky_bkg_1D_spec.load_spectrum()
+        self.sky_bkg_1D_spec.draw(
             xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
         )
 
@@ -627,6 +643,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.telluric_1D_spec.show()
         else:
             self.telluric_1D_spec.hide()
+
+    def show_hide_sky_bkg(self):
+        """
+        Show or hide sky background emission on the 1D spectrum.
+        """
+        if self.sky_bkg_1D_spec is None:
+            self.plot_sky_bkg()
+        if self.sky_bkg_cb.isChecked():
+            self.sky_bkg_1D_spec.show()
+        else:
+            self.sky_bkg_1D_spec.hide()
 
     def show_hide_fine_structure(self):
         """
@@ -703,11 +730,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Move 1D crosshair
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
-            self.statusBar.showMessage(
-                f"Wavelength = {mousePoint.x():0.3f} {self.data['wvlg_1D'].unit}, "
-                f"Flux = {mousePoint.y():0.3f} {self.data['flux_1D'].unit}"
-                # f"Flux = {mousePoint.y()*1e-18:0.3e} erg/s/cm2/AA"
-            )
+            # Avoid the case where wvlg_1D is not defined because something crashed
+            if self.data.get('wvlg_1D') is not None:
+                self.statusBar.showMessage(
+                    f"Wavelength = {mousePoint.x():0.3f} {self.data['wvlg_1D'].unit}, "
+                    f"Flux = {mousePoint.y():0.3f} {self.data['flux_1D'].unit}"
+                )
             self.crosshair_x_1D.setPos(mousePoint.x())
             self.crosshair_y_1D.setPos(mousePoint.y())
             if self.mode == "2D":
@@ -719,14 +747,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.crosshair_x_2D.setPos(mousePoint.x())
                 self.crosshair_y_2D.setPos(mousePoint.y())
                 self.crosshair_x_1D.setPos(mousePoint.x())
-                self.crosshair_y_2D_sideview.setPos(mousePoint.y())
-            elif self.ax2D_sideview.sceneBoundingRect().contains(pos):
-                mousePoint = self.ax2D_sideview.vb.mapSceneToView(pos)
+                self.crosshair_y_2D_side.setPos(mousePoint.y())
+            elif self.ax2D_side_vb.sceneBoundingRect().contains(pos):
+                mousePoint = self.ax2D_side_vb.mapSceneToView(pos)
                 self.statusBar.showMessage(
                     f"Spatial = {mousePoint.y():0.3f} {self.data['spat'].unit}"
                 )
                 self.crosshair_y_2D.setPos(mousePoint.y())
-                self.crosshair_y_2D_sideview.setPos(mousePoint.y())
+                self.crosshair_y_2D_side.setPos(mousePoint.y())
 
     def image_hover_event(self, event):
         """
@@ -816,8 +844,8 @@ class MainWindow(QtWidgets.QMainWindow):
         Reset the ROI region's position and extraction width to
         default values.
         """
-        self.ax2D_sideview.removeItem(self.ROI_y_hist_lower)
-        self.ax2D_sideview.removeItem(self.ROI_y_hist_upper)
+        self.ax2D_side_vb.removeItem(self.ROI_y_hist_lower)
+        self.ax2D_side_vb.removeItem(self.ROI_y_hist_upper)
         self.ax2D.removeItem(self.roi)
         self.textbox_for_extraction_width.setText("1")
         self.set_up_ROI()
@@ -850,14 +878,27 @@ class MainWindow(QtWidgets.QMainWindow):
         Clear the plot, reset the data in memory, the various
         corrections and the list of spectroscopic systems.
         """
+
+        # Clear the individual active plot items
+        # try:
+        #     for item in self.active_plot_items:
+        #         item.clear()
+        # except AttributeError:
+        #     pass
+        # self.active_plot_items = []
+
+        # Clear the main layout
         self.graphLayout.clear()
+
+        # Clear the additional ViewBoxes used for telluric and sky background
         try:
             self.telluric_vb.clear()
+            self.sky_bkg_vb.clear()
         except AttributeError:
             pass
 
         self.data = {}
-        self.img_hist = None
+        self.img_colorbar = None
         self.wvlg_corrections = {
             "to_air": False,
             "to_vacuum": False,

@@ -7,7 +7,7 @@ import numpy as np
 from zhunter import DIRS
 from spectres import spectres
 from .colors import get_gradient
-
+from zhunter import io
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class SpecSystem:
         PlotItem,
         sys_type,
         color=QtGui.QColor("blue"),
-        fname=DIRS["LINE"] / "basic_line_list.csv",
+        fname=DIRS["DATA"] / "lines/basic_line_list.csv",
         lines=None,
         show_fs=False,
     ):
@@ -116,63 +116,63 @@ class SpecSystem:
 class Telluric:
 
     """Telluric data is in vacuum from iSpec in the optical
-    and Gemini Observatory in the NIR.
-    
+    (https://github.com/marblestation/iSpec)
+    and Gemini Observatory in the NIR
+    (https://www.gemini.edu/observing/telescopes-and-sites/sites#SkyBackground)
+
     Attributes
     ----------
-    color : TYPE
-        Description
-    fname : TYPE
-        Description
-    pi : TYPE
-        Description
+    color : QColor
+        Color used when plotting telluric spectrum
+    fname : str or Path
+        Name of the file containing the telluric spectrum
+    vb : ViewBox
+        ViewBox on which to plot the telluric spectrum
     plotted_items : list
-        Description
-    spectrum : TYPE
-        Description
-    spectrum_full_res : dict
-        Description
+        List of items plotted by this class
+    spectrum : Spectrum1D
+        Spectrum used for plotting
+    spectrum_full_res : Spectrum1D
+        Full resolution spectrum, saved in memory in case a lower
+        resolution spectrum is plotted
     """
-    
+
     def __init__(
         self,
-        PlotItem,
+        vb,
         color=QtGui.QColor("gray"),
-        fname=DIRS["LINE"] / "tellurics/Synth.Tellurics.350_1100nm.txt.gz",
+        fname=DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz",
     ):
         self.color = color
         self.plotted_items = []
-        self.pi = PlotItem
+        self.vb = vb
         self.fname = fname
-        self.spectrum_full_res = {}
+        self.spectrum_full_res = None
 
     def load_spectrum(self, fname=None, sep="\t", **args):
         if fname is None:
             fname = self.fname
-        df = pd.read_csv(fname, sep=sep, **args)
-        self.spectrum_full_res["awav"] = (
-            10 * df["waveobs"].to_numpy()
-        )  # because nanometers into Angstrom
-        self.spectrum_full_res["flux"] = df["flux"].to_numpy()
+        self.spectrum_full_res = io.read_generic_1D_spectrum(fname)
         self.spectrum = self.spectrum_full_res
 
-    def draw(self, xmin=None, xmax=None, norm=1):
-
-        imin = self.spectrum['awav'].searchsorted(xmin)
-        imax = self.spectrum['awav'].searchsorted(xmax)
+    def draw(self, xmin=None, xmax=None):
+        log.debug(f"Attempting to draw telluric spectrum from {xmin} to {xmax}")
+        wave_unit = xmin.unit
+        imin = self.spectrum.spectral_axis.searchsorted(xmin)
+        imax = self.spectrum.spectral_axis.searchsorted(xmax)
         tellurics = pg.PlotCurveItem(
-            self.spectrum["awav"][imin:imax],
-            norm * self.spectrum["flux"][imin:imax],
-            pen=pg.mkPen(self.color, width=1),
+            self.spectrum.spectral_axis[imin:imax].to(wave_unit).value,
+            self.spectrum.flux[imin:imax].value,
+            pen=pg.mkPen(self.color, width=0.3),
             brush=QtGui.QBrush(get_gradient(self.color)),
             fillLevel=1,
         )
         self.plotted_items.append(tellurics)
-        self.pi.addItem(tellurics)
+        self.vb.addItem(tellurics)
 
     def undraw(self):
         for item in self.plotted_items:
-            self.pi.removeItem(item)
+            self.vb.removeItem(item)
 
     def show(self):
         for item in self.plotted_items:
@@ -186,25 +186,130 @@ class Telluric:
         self.undraw()
         self.draw(xmin=xmin, xmax=xmax)
 
-    def lower_resolution(self, dlam=0.2):
-        """Summary
-        
+    def lower_resolution(self, dlam):
+        """Degrade the spectrum to the desired pixel size.
+
         Parameters
         ----------
-        dlam : float, optional
-            pixel size in angstrom
+        dlam : astropy Quantity
+            pixel size
         """
-        if (self.spectrum['awav'][1]-self.spectrum['awav'][0]) == dlam:
-            log.info("The telluric specturm is already at the requested resolution. Ignoring.")
+        if (self.spectrum.spectral_axis[1] - self.spectrum.spectral_axis[0]) == dlam:
+            log.info(
+                "The telluric specturm is already at the requested resolution. Ignoring."
+            )
             return
         self.spectrum = self.spectrum_full_res.copy()
-        awav_low_res = np.arange(self.spectrum['awav'].min(), self.spectrum['awav'].max(), dlam)
-        self.spectrum['flux'] = spectres(
+        awav_low_res = np.arange(
+            self.spectrum.spectral_axis.min().value,
+            self.spectrum.spectral_axis.max().value,
+            dlam.value
+        )
+        self.spectrum.flux = spectres(
             awav_low_res,
-            self.spectrum['awav'],
-            self.spectrum['flux'],
-            fill=1)
-        self.spectrum['awav'] = awav_low_res
+            self.spectrum.spectral_axis.value,
+            self.spectrum.flux.value,
+            fill=1
+        )
+        self.spectrum.spectral_axis = awav_low_res * self.spectrum.spectral_axis.unit
+
+
+class SkyBackground:
+
+    """Sky background
+
+    Attributes
+    ----------
+    color : QColor
+        Color used when plotting telluric spectrum
+    fname : str or Path
+        Name of the file containing the telluric spectrum
+    vb : ViewBox
+        ViewBox on which to plot the telluric spectrum
+    plotted_items : list
+        List of items plotted by this class
+    spectrum : Spectrum1D
+        Spectrum used for plotting
+    spectrum_full_res : Spectrum1D
+        Full resolution spectrum, saved in memory in case a lower
+        resolution spectrum is plotted
+    """
+
+    def __init__(
+        self,
+        vb,
+        color=QtGui.QColor("purple"),
+        fname=DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz",
+    ):
+        self.color = color
+        self.plotted_items = []
+        self.vb = vb
+        self.fname = fname
+        self.spectrum_full_res = None
+
+    def load_spectrum(self, fname=None, sep="\t", **args):
+        if fname is None:
+            fname = self.fname
+        self.spectrum_full_res = io.read_generic_1D_spectrum(fname)
+        self.spectrum = self.spectrum_full_res
+
+    def draw(self, xmin=None, xmax=None):
+        log.debug(f"Attempting to draw sky background spectrum from {xmin} to {xmax}")
+        wave_unit = xmin.unit
+        imin = self.spectrum.spectral_axis.searchsorted(xmin)
+        imax = self.spectrum.spectral_axis.searchsorted(xmax)
+        tellurics = pg.PlotCurveItem(
+            self.spectrum.spectral_axis[imin:imax].to(wave_unit).value,
+            np.log10(self.spectrum.flux[imin:imax].value),
+            pen=pg.mkPen(self.color, width=0.3),
+            brush=QtGui.QBrush(get_gradient(self.color, reverse=True)),
+            fillLevel=0,
+        )
+        self.plotted_items.append(tellurics)
+        self.vb.addItem(tellurics)
+
+    def undraw(self):
+        for item in self.plotted_items:
+            self.vb.removeItem(item)
+
+    def show(self):
+        for item in self.plotted_items:
+            item.show()
+
+    def hide(self):
+        for item in self.plotted_items:
+            item.hide()
+
+    def redraw(self, xmin=None, xmax=None):
+        self.undraw()
+        self.draw(xmin=xmin, xmax=xmax)
+
+    def lower_resolution(self, dlam):
+        """Degrade the spectrum to the desired pixel size.
+
+        Parameters
+        ----------
+        dlam : astropy Quantity
+            pixel size
+        """
+        if (self.spectrum.spectral_axis[1] - self.spectrum.spectral_axis[0]) == dlam:
+            log.info(
+                "The telluric specturm is already at the requested resolution. Ignoring."
+            )
+            return
+        self.spectrum = self.spectrum_full_res.copy()
+        awav_low_res = np.arange(
+            self.spectrum.spectral_axis.min().value,
+            self.spectrum.spectral_axis.max().value,
+            dlam.value
+        )
+        self.spectrum.flux = spectres(
+            awav_low_res,
+            self.spectrum.spectral_axis.value,
+            self.spectrum.flux.value,
+            fill=1
+        )
+        self.spectrum.spectral_axis = awav_low_res * self.spectrum.spectral_axis.unit
 
 
 class SpecSystemModel(QtCore.QAbstractListModel):
