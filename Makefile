@@ -1,4 +1,4 @@
-VERSION = "0.9.6"
+VERSION = "0.9.7"
 version:
 	@echo 'Using version value defined in Makefile'
 	@echo 'Updating to version ${VERSION} in following files:'
