@@ -94,9 +94,9 @@ class SpecSystem:
 
         pen = pg.mkPen(self.color, width=3)
         # Make background for the rectangle on which to print line names
-        black = QtGui.QColor("k")
-        black.setAlpha(200)
-        brush = pg.mkBrush(color=black)
+        # black = QtGui.QColor("k")
+        # black.setAlpha(200)
+        # brush = pg.mkBrush(color=black)
         # Add lines to plot
         log.debug("Drawing %s System at redshift : %.5lf", self.sys_type, self.redshift)
         for w, n in zip(Quantity(self.lines[self.wave_key]), self.lines["name"]):
@@ -117,7 +117,7 @@ class SpecSystem:
                         label=n,
                         labelOpts={
                             "color": self.color,
-                            "fill": brush,
+                            # "fill": brush,
                             "angle": 45,
                             "position": 1,
                         },
@@ -200,7 +200,7 @@ class Telluric:
             self.spectrum.spectral_axis[imin:imax].to(wave_unit).value,
             self.spectrum.flux[imin:imax].value,
             pen=pg.mkPen(self.color, width=0.3),
-            brush=QtGui.QBrush(get_gradient(self.color)),
+            brush=QtGui.QBrush(get_gradient(QtGui.QColor(self.color))),
             fillLevel=1,
         )
         self.plotted_items.append(tellurics)
@@ -298,7 +298,7 @@ class SkyBackground:
             self.spectrum.spectral_axis[imin:imax].to(wave_unit).value,
             np.log10(self.spectrum.flux[imin:imax].value),
             pen=pg.mkPen(self.color, width=0.3),
-            brush=QtGui.QBrush(get_gradient(self.color, reverse=True)),
+            brush=QtGui.QBrush(get_gradient(QtGui.QColor(self.color), reverse=True)),
             fillLevel=0,
         )
         self.plotted_items.append(tellurics)

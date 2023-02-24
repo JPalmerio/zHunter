@@ -23,7 +23,7 @@ from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric, SkyBack
 from .line_list_selection import SelectLineListsDialog, select_file
 from .key_binding import KeyBindingHelpDialog
 from .misc import create_line_ratios, set_up_linked_vb, check_flux_scale
-from .colors import ABSORBER_COLORS
+from .colors import COLORS
 
 logging.getLogger("PyQt5").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.INFO)
@@ -39,8 +39,18 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
+        # Define color style
+        # Have to do this before loading UI for it to work
+        # self.color_style = "old"
+        # self.color_style = "cyberpunk"
+        self.color_style = 'kraken'
+        # self.color_style = "cvd"
+        self.colors = COLORS[self.color_style]
+        pg.setConfigOption("foreground", self.colors["foreground"])
+        pg.setConfigOption("background", self.colors["background"])
+
         # Load the UI Page
-        pg.setConfigOption("foreground", "w")
+        # pg.setConfigOption("foreground", "w")
         uic.loadUi(DIRS["UI"] / "main_frame.ui", self)
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
@@ -60,17 +70,12 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.load_line_lists(calc_ratio=False)
 
-        # Define color style
-        self.color_style = 'kraken'
-        self.colors = COLORS[self.color_style]
-        pg.setConfigOption("foreground", self.colors['foreground'])
-
         # List of spectral systems
         self.specsysModel = SpecSystemModel()
         self.specsysView.setModel(self.specsysModel)
         self.specsysView.setStyleSheet(
             f"QListView{{background-color: {self.colors['background']};}}"
-            )
+        )
         self.add_abs_button.clicked.connect(self.add_absorber)
         self.add_em_button.clicked.connect(self.add_emitter)
         self.del_specsys_button.clicked.connect(self.delete_specsys)
@@ -181,15 +186,25 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Set up the crosshairs to be displayed on both 1D and 2D
         """
-        self.crosshair_x_1D = pg.InfiniteLine(angle=90, movable=False)
-        self.crosshair_y_1D = pg.InfiniteLine(angle=0, movable=False)
+        self.crosshair_x_1D = pg.InfiniteLine(
+            angle=90, movable=False, pen=pg.mkPen(color=self.colors["crosshair"])
+        )
+        self.crosshair_y_1D = pg.InfiniteLine(
+            angle=0, movable=False, pen=pg.mkPen(color=self.colors["crosshair"])
+        )
         self.ax1D.addItem(self.crosshair_x_1D, ignoreBounds=True)
         self.ax1D.addItem(self.crosshair_y_1D, ignoreBounds=True)
         self.ax1D.scene().sigMouseMoved.connect(self.move_crosshair)
         if self.mode == "2D":
-            self.crosshair_x_2D = pg.InfiniteLine(angle=90, movable=False)
-            self.crosshair_y_2D = pg.InfiniteLine(angle=0, movable=False)
-            self.crosshair_y_2D_side = pg.InfiniteLine(angle=0, movable=False)
+            self.crosshair_x_2D = pg.InfiniteLine(
+                angle=90, movable=False, pen=pg.mkPen(color=self.colors["crosshair"])
+            )
+            self.crosshair_y_2D = pg.InfiniteLine(
+                angle=0, movable=False, pen=pg.mkPen(color=self.colors["crosshair"])
+            )
+            self.crosshair_y_2D_side = pg.InfiniteLine(
+                angle=0, movable=False, pen=pg.mkPen(color=self.colors["crosshair"])
+            )
             self.ax2D.addItem(self.crosshair_x_2D, ignoreBounds=True)
             self.ax2D.addItem(self.crosshair_y_2D, ignoreBounds=True)
             self.ax2D_side_vb.addItem(self.crosshair_y_2D_side, ignoreBounds=True)
@@ -217,23 +232,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.data["spat_med"].value - spatial_width / 2,
             ],
             size=[self.data["wvlg_span"].value, spatial_width],
-            pen=pg.mkPen("g", width=2),
-            hoverPen=pg.mkPen("g", width=5),
-            handlePen=pg.mkPen("g", width=2),
-            handleHoverPen=pg.mkPen("g", width=5),
+            pen=pg.mkPen(self.colors["roi"], width=2),
+            hoverPen=pg.mkPen(self.colors["roi"], width=5),
+            handlePen=pg.mkPen(self.colors["roi"], width=2),
+            handleHoverPen=pg.mkPen(self.colors["roi"], width=5),
         )
         self.ax2D.addItem(self.roi)
         self.roi.setZValue(10)
         # Extend ROI visualization to side histogram
         self.ROI_y_hist_lower = pg.InfiniteLine(
-            self.roi.pos()[1], angle=0, movable=False, pen=pg.mkPen("g", width=2)
+            self.roi.pos()[1],
+            angle=0,
+            movable=False,
+            pen=pg.mkPen(self.colors["roi"], width=2),
         )
 
         self.ROI_y_hist_upper = pg.InfiniteLine(
             self.roi.pos()[1] + self.roi.size()[1],
             angle=0,
             movable=False,
-            pen=pg.mkPen("g", width=2),
+            pen=pg.mkPen(self.colors["roi"], width=2),
         )
 
         self.ax2D_side_vb.addItem(self.ROI_y_hist_lower, ignoreBounds=True)
@@ -252,7 +270,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "bottom",
             "Observed wavelength" + f" ({self.data['wvlg'].unit})",
         )
-        self.ax1D.showGrid(x=True, y=True)
+        # self.ax1D.showGrid(x=True, y=True)
         if self.mode == "2D":
             self.ax2D.setLabel(
                 "left",
@@ -280,24 +298,40 @@ class MainWindow(QtWidgets.QMainWindow):
         to be displayed.
         """
         self.flux_1D_spec = pg.PlotCurveItem(
-            np.zeros(2), np.zeros(1), stepMode="center", pen=pg.mkPen(color="w")
+            np.zeros(2),
+            np.zeros(1),
+            stepMode="center",
+            pen=pg.mkPen(color=self.colors["spec"]),
         )
         self.unc_1D_spec = pg.PlotCurveItem(
-            np.zeros(2), np.zeros(1), stepMode="center", pen=pg.mkPen(color="r")
+            np.zeros(2),
+            np.zeros(1),
+            stepMode="center",
+            pen=pg.mkPen(color=self.colors["unc"]),
         )
         self.lam1_line = pg.InfiniteLine(
             0,
             span=(0.9, 1.0),
-            pen=pg.mkPen(color="w", width=2, style=QtCore.Qt.DashLine),
+            pen=pg.mkPen(
+                color=self.colors["foreground"], width=2, style=QtCore.Qt.DashLine
+            ),
             label="Lam1",
-            labelOpts={"color": QtGui.QColor("white"), "position": 0.5},
+            labelOpts={
+                "color": QtGui.QColor(self.colors["foreground"]),
+                "position": 0.5,
+            },
         )
         self.lam2_line = pg.InfiniteLine(
             0,
             span=(0.9, 1.0),
-            pen=pg.mkPen(color="w", width=2, style=QtCore.Qt.DashLine),
+            pen=pg.mkPen(
+                color=self.colors["foreground"], width=2, style=QtCore.Qt.DashLine
+            ),
             label="Lam2",
-            labelOpts={"color": QtGui.QColor("white"), "position": 0.5},
+            labelOpts={
+                "color": QtGui.QColor(self.colors["foreground"]),
+                "position": 0.5,
+            },
         )
         self.telluric_1D_spec = None
         self.sky_bkg_1D_spec = None
@@ -314,7 +348,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.flux_2D_img.hoverEvent = self.image_hover_event
             self.unc_2D_img = pg.ImageItem()
             self.sidehist_2D = pg.PlotCurveItem(
-                np.zeros(1), np.zeros(1), pen=pg.mkPen(color="w")
+                np.zeros(1), np.zeros(1), pen=pg.mkPen(color=self.colors["foreground"])
             )
             self.ax2D.addItem(self.flux_2D_img)
             self.ax2D.addItem(self.unc_2D_img)
@@ -325,7 +359,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Reset the color palet.
         """
-        self.available_colors = COLORS[color_style]['specsys'].copy()
+        self.available_colors = self.colors["specsys"].copy()
         self.available_colors_cycler = cycle(self.available_colors)
 
     def get_color(self):
@@ -337,7 +371,7 @@ class MainWindow(QtWidgets.QMainWindow):
             color = next(self.available_colors_cycler)
         except StopIteration:
             log.info("Exhausted all colors, resetting color cycler.")
-            self._reset_colors()
+            self.__reset_colors()
             color = next(self.available_colors_cycler)
         log.debug("There are %d unused colors left", len(self.available_colors))
         return color
@@ -622,14 +656,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sidehist_2D.setData(y_dist.value, self.data["spat_disp"].value)
 
     def plot_telluric(self):
-        self.telluric_1D_spec = Telluric(vb=self.telluric_vb)
+        self.telluric_1D_spec = Telluric(vb=self.telluric_vb, color=self.colors["sky"])
         self.telluric_1D_spec.load_spectrum()
         self.telluric_1D_spec.draw(
             xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
         )
 
     def plot_sky_bkg(self):
-        self.sky_bkg_1D_spec = SkyBackground(vb=self.sky_bkg_vb)
+        self.sky_bkg_1D_spec = SkyBackground(
+            vb=self.sky_bkg_vb, color=self.colors["sky"]
+        )
         self.sky_bkg_1D_spec.load_spectrum()
         self.sky_bkg_1D_spec.draw(
             xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
