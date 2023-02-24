@@ -3,10 +3,10 @@ import logging
 import sys
 from pathlib import Path
 
-from PyQt5 import uic
-from PyQt5 import QtWidgets
-from PyQt5 import QtCore
-from PyQt5 import QtGui
+from PyQt6 import uic
+from PyQt6 import QtWidgets
+from PyQt6 import QtCore
+from PyQt6 import QtGui
 
 from astropy.io import fits
 from astropy.io.ascii import read as ascii_read
@@ -25,7 +25,7 @@ from .key_binding import KeyBindingHelpDialog
 from .misc import create_line_ratios, set_up_linked_vb, check_flux_scale
 from .colors import COLORS
 
-logging.getLogger("PyQt5").setLevel(logging.INFO)
+logging.getLogger("PyQt6").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.INFO)
 log = logging.getLogger(__name__)
 logging.basicConfig(
@@ -85,7 +85,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Help
         self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
-        self.actionKey_Bindings.setShortcut(QtCore.Qt.Key_H)
+        self.actionKey_Bindings.setShortcut(QtCore.Qt.Key.Key_H)
 
         # Connect all signals and slots
         self.show_uncertainty_cb.stateChanged.connect(self.show_hide_uncertainty)
@@ -172,11 +172,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # To catch the key presses from the PlotItem
         self.ax1D.installEventFilter(self)
-        self.ax1D.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.ax1D.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         if self.mode == "2D":
             # Install also on 2D PlotItem
             self.ax2D.installEventFilter(self)
-            self.ax2D.setFocusPolicy(QtCore.Qt.StrongFocus)
+            self.ax2D.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
 
         # Create empty objects that will hold the data to be displayed
         self.__create_placeholders()
@@ -313,7 +313,7 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.DashLine
+                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
             ),
             label="Lam1",
             labelOpts={
@@ -325,7 +325,7 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.DashLine
+                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
             ),
             label="Lam2",
             labelOpts={
@@ -727,7 +727,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         General event catcher for keypresses.
         """
-        if event.type() == QtCore.QEvent.KeyPress:
+        if event.type() == QtCore.QEvent.Type.KeyPress:
             if widget is self.ax1D:
                 crosshair = self.crosshair_x_1D
             elif widget is self.ax2D:
@@ -741,11 +741,11 @@ class MainWindow(QtWidgets.QMainWindow):
             x_view, y_view = vb.getState()["viewRange"]
 
             # Setting lambda 1 and 2
-            if key == QtCore.Qt.Key_Q:
+            if key == QtCore.Qt.Key.Key_Q:
                 self.statusBar.showMessage(f"Setting Lambda_1 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
                 self.lam1_line.setPos(x_pos)
-            elif key == QtCore.Qt.Key_E:
+            elif key == QtCore.Qt.Key.Key_E:
                 self.statusBar.showMessage(f"Setting Lambda_2 at {x_pos:0.5f} AA", 2000)
                 self.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
                 self.lam2_line.setPos(x_pos)
@@ -754,19 +754,19 @@ class MainWindow(QtWidgets.QMainWindow):
             # larger (because of padding) and this results in 'zooming out'
             # after multiple key presses... Had to force padding to 0 when
             # defining the viewBox to remove this effect
-            elif key == QtCore.Qt.Key_D:
+            elif key == QtCore.Qt.Key.Key_D:
                 vb.setRange(
                     xRange=np.array(x_view) + 0.15 * np.abs(x_view[1] - x_view[0])
                 )
-            elif key == QtCore.Qt.Key_A:
+            elif key == QtCore.Qt.Key.Key_A:
                 vb.setRange(
                     xRange=np.array(x_view) - 0.15 * np.abs(x_view[1] - x_view[0])
                 )
-            elif key == QtCore.Qt.Key_W:
+            elif key == QtCore.Qt.Key.Key_W:
                 vb.setRange(
                     yRange=np.array(y_view) + 0.15 * np.abs(y_view[1] - y_view[0])
                 )
-            elif key == QtCore.Qt.Key_S:
+            elif key == QtCore.Qt.Key.Key_S:
                 vb.setRange(
                     yRange=np.array(y_view) - 0.15 * np.abs(y_view[1] - y_view[0])
                 )

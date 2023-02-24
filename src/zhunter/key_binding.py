@@ -1,5 +1,5 @@
-from PyQt5 import uic
-from PyQt5 import QtWidgets
+from PyQt6 import uic
+from PyQt6 import QtWidgets
 from zhunter import DIRS
 
 

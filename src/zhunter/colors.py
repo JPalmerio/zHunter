@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from PyQt5 import QtGui
+from PyQt6 import QtGui
 import logging
 from zhunter import DIRS
 
@@ -89,7 +89,8 @@ KRAKEN = {
     "crosshair": "#C6C6C6",
     "background": "#000000",
     "foreground": "#C6C6C6",
-    "roi": "#3E8D26",  # green
+    "roi": "g",
+    # "roi": "#3E8D26",  # green
 }
 
 

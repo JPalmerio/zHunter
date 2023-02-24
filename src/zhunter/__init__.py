@@ -1,7 +1,7 @@
 from pathlib import Path
 import logging
 
-__version__ = "0.9.6"
+__version__ = "0.10.0"
 
 log = logging.getLogger(__name__)
 

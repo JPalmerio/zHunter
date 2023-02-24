@@ -1,6 +1,6 @@
 import pyqtgraph as pg
-from PyQt5 import QtGui
-from PyQt5 import QtCore
+from PyQt6 import QtGui
+from PyQt6 import QtCore
 import logging
 import numpy as np
 from astropy.units.quantity import Quantity
@@ -354,16 +354,16 @@ class SpecSystemModel(QtCore.QAbstractListModel):
         self.specsystems = specsystems or []
 
     def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.ItemDataRole.DisplayRole:
             # See below for the data structure.
             status, specsys = self.specsystems[index.row()]
             return "z = {:.5f} ({:s})".format(specsys.redshift, specsys.sys_type)
 
-        if role == QtCore.Qt.ForegroundRole:
+        if role == QtCore.Qt.ItemDataRole.ForegroundRole:
             status, specsys = self.specsystems[index.row()]
             return QtGui.QBrush(QtGui.QColor(specsys.color))
 
-        if role == QtCore.Qt.DecorationRole:
+        if role == QtCore.Qt.ItemDataRole.DecorationRole:
             status, specsys = self.specsystems[index.row()]
             return QtGui.QColor(specsys.color)
 
