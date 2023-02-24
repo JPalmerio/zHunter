@@ -9,11 +9,13 @@ from PyQt5 import QtCore
 from PyQt5 import QtGui
 
 from astropy.io import fits
+from astropy.io.ascii import read as ascii_read
+from astropy.units.quantity import Quantity
 import astropy.constants as cst
+from astropy.table import join
 
 import numpy as np
 import pyqtgraph as pg
-import pandas as pd
 from zhunter import DIRS
 import zhunter.io as io
 import zhunter.spectral_functions as sf
@@ -46,18 +48,29 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load the line lists
         self.fnames = {}
         self.fnames["data"] = None
-        self.fnames["emission_lines"] = DIRS["DATA"] / "lines/emission_lines.csv"
-        self.fnames["absorption_lines"] = DIRS["DATA"] / "lines/basic_line_list.csv"
-        self.fnames["fine_structure_lines"] = DIRS["DATA"] / "lines/fine_structure.csv"
+        self.fnames["emission_lines"] = DIRS["DATA"] / "lines/emission_lines.ecsv"
+        self.fnames["absorption_lines"] = DIRS["DATA"] / "lines/basic_line_list.ecsv"
+        self.fnames["fine_structure_lines"] = DIRS["DATA"] / "lines/fine_structure.ecsv"
         self.fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
-        self.fnames["tellurics"] = DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz"
-        self.fnames["sky_bkg"] = DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz"
+        self.fnames["tellurics"] = (
+            DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz"
+        )
+        self.fnames["sky_bkg"] = (
+            DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz"
+        )
         self.load_line_lists(calc_ratio=False)
+
+        # Define color style
+        self.color_style = 'kraken'
+        self.colors = COLORS[self.color_style]
+        pg.setConfigOption("foreground", self.colors['foreground'])
 
         # List of spectral systems
         self.specsysModel = SpecSystemModel()
         self.specsysView.setModel(self.specsysModel)
-        self.specsysView.setStyleSheet("QListView{background-color: black;}")
+        self.specsysView.setStyleSheet(
+            f"QListView{{background-color: {self.colors['background']};}}"
+            )
         self.add_abs_button.clicked.connect(self.add_absorber)
         self.add_em_button.clicked.connect(self.add_emitter)
         self.del_specsys_button.clicked.connect(self.delete_specsys)
@@ -161,8 +174,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         # Create empty objects that will hold the data to be displayed
-        self._create_placeholders()
-        self._reset_colors()
+        self.__create_placeholders()
+        self.__reset_colors()
 
     def set_up_crosshairs(self):
         """
@@ -190,7 +203,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.img_colorbar.setHistogramRange(
             self.data["q025_2D"].value, self.data["q975_2D"].value
         )
-        self.img_colorbar.setLevels(self.data["q025_2D"].value, self.data["q975_2D"].value)
+        self.img_colorbar.setLevels(
+            self.data["q025_2D"].value, self.data["q975_2D"].value
+        )
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
 
@@ -259,7 +274,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 yMin=self.data["spat_min"].value, yMax=self.data["spat_max"].value
             )
 
-    def _create_placeholders(self):
+    def __create_placeholders(self):
         """
         Create empty objects that will hold the 1D and 2D data
         to be displayed.
@@ -306,11 +321,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ax2D_side_vb.addItem(self.sidehist_2D)
 
     # Colors
-    def _reset_colors(self):
+    def __reset_colors(self):
         """
         Reset the color palet.
         """
-        self.available_colors = ABSORBER_COLORS.copy()
+        self.available_colors = COLORS[color_style]['specsys'].copy()
         self.available_colors_cycler = cycle(self.available_colors)
 
     def get_color(self):
@@ -368,11 +383,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.reset_plot()
             return
 
-        if '.fit' in str(self.fnames["data"].stem):
+        if ".fit" in str(self.fnames["data"].stem):
             try:
                 self.data["header"] = fits.getheader(self.fnames["data"])
             except OSError:
-                log.warning(f"No header could be loaded for file {self.fnames['data']}.")
+                log.warning(
+                    f"No header could be loaded for file {self.fnames['data']}."
+                )
                 self.data["header"] = None
         else:
             log.info("Not a fits file, no header loaded.")
@@ -453,30 +470,26 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Load the input line lists and check the format is ok.
         """
-        self.abs_lines = pd.read_csv(
-            self.fnames["absorption_lines"], sep=",", comment="#"
-        )
-        log.debug(
-            "Read absorption lines from: {}".format(self.fnames["absorption_lines"])
-        )
-        self.em_lines = pd.read_csv(self.fnames["emission_lines"], sep=",", comment="#")
-        log.debug("Read emission lines from: {}".format(self.fnames["emission_lines"]))
-        self.fs_lines = pd.read_csv(
-            self.fnames["fine_structure_lines"], sep=",", comment="#"
-        )
+        self.abs_lines = ascii_read(self.fnames["absorption_lines"])
+        log.debug(f"Read absorption lines from: {self.fnames['absorption_lines']}")
+
+        self.em_lines = ascii_read(self.fnames["emission_lines"])
+        log.debug(f"Read emission lines from: {self.fnames['emission_lines']}")
+
+        self.fs_lines = ascii_read(self.fnames["fine_structure_lines"])
         check = (
             "name" not in self.abs_lines.columns
-            or "wvlg" not in self.abs_lines.columns
+            or "wave" not in self.abs_lines.columns
             or "name" not in self.em_lines.columns
-            or "wvlg" not in self.em_lines.columns
+            or "awav" not in self.em_lines.columns
             or "name" not in self.fs_lines.columns
-            or "wvlg" not in self.fs_lines.columns
+            or "wave" not in self.fs_lines.columns
         )
         if check:
             QtWidgets.QMessageBox.information(
                 self,
                 "Invalid line format",
-                "Column 'name' and 'wvlg' must exist. "
+                "Column 'name' and 'wave' must exist. "
                 "Please specify them as the first uncommented "
                 "line of csv your file.",
             )
@@ -485,10 +498,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if calc_ratio:
             self.line_ratios = create_line_ratios(self.fnames["absorption_lines"])
         else:
-            self.line_ratios = pd.read_csv(
-                self.fnames["line_ratio"], sep=",", comment="#"
-            )
-            log.debug("Read line ratios: {}".format(self.fnames["line_ratio"]))
+            self.line_ratios = ascii_read(self.fnames["line_ratio"])
+            log.debug(f"Read line ratios: {self.fnames['line_ratio']}")
 
     def set_2D_displayed_data(self, wvlg, flux, unc, spat):
         """
@@ -731,7 +742,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.ax1D.sceneBoundingRect().contains(pos):
             mousePoint = self.ax1D.vb.mapSceneToView(pos)
             # Avoid the case where wvlg_1D is not defined because something crashed
-            if self.data.get('wvlg_1D') is not None:
+            if self.data.get("wvlg_1D") is not None:
                 self.statusBar.showMessage(
                     f"Wavelength = {mousePoint.x():0.3f} {self.data['wvlg_1D'].unit}, "
                     f"Flux = {mousePoint.y():0.3f} {self.data['flux_1D'].unit}"
@@ -1113,32 +1124,30 @@ class MainWindow(QtWidgets.QMainWindow):
         except IndexError:
             log.debug("Empty ratio list")
             return
-        log.debug("Chosen ratio is: {}".format(chosen_ratio.text()))
+        log.debug(f"Chosen ratio is: {chosen_ratio.text()}")
         if chosen_ratio:
             l_name = chosen_ratio.text().split("/")[0].strip()
-            log.debug("Line name to search for is: {}".format(l_name))
+            log.debug(f"Line name to search for is: {l_name}")
 
             cond = self.check_line_name(l_name)
-            l_wvlg_rest = float(self.abs_lines[cond]["wvlg"].item())
-            log.debug("Found corresponding wavelength: {}".format(l_wvlg_rest))
+            l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
+            log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
             try:
-                l_wvlg_obs = np.max(
-                    [
-                        float(self.textbox_for_wvlg1.text()),
-                        float(self.textbox_for_wvlg2.text()),
-                    ]
-                )
-            except ValueError:
+                l1 = Quantity(str(self.textbox_for_wvlg1.text()))
+                l2 = Quantity(str(self.textbox_for_wvlg2.text()))
+                # Have to create Quantity of a list of Quantites
+                l_wvlg_obs = Quantity([l1, l2]).max()
+            except Exception:
                 QtWidgets.QMessageBox.information(
                     self,
                     "Invalid spectral system",
-                    "Lambda 1 and Lambda 2 must be convertible to float",
+                    "Lambda 1 and Lambda 2 must be convertible to Quantity or float",
                 )
                 self.textbox_for_wvlg1.setFocus()
                 return
-            log.debug("Collecting observed wavelength: {}".format(l_wvlg_obs))
+            log.debug(f"Collecting observed wavelength: {l_wvlg_obs}")
             z = l_wvlg_obs / l_wvlg_rest - 1.0
-            log.debug("Calculated corresponding redshift: {}".format(z))
+            log.debug(f"Calculated corresponding redshift: {z}")
             self.add_specsys(z=z, sys_type="abs")
 
     def add_specsys_from_line(self):
@@ -1151,28 +1160,26 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("Empty line textbox.")
             return
         else:
-            log.debug("Chosen line is: {}".format(chosen_line))
+            log.debug(f"Chosen line is: {chosen_line}")
             cond = self.check_line_name(chosen_line)
             if cond is not None:
-                l_wvlg_rest = float(self.abs_lines[cond]["wvlg"].item())
-                log.debug("Found corresponding wavelength: {}".format(l_wvlg_rest))
+                l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
+                log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
                 try:
-                    l_wvlg_obs = float(self.textbox_for_wvlg1.text())
-                except ValueError:
+                    l_wvlg_obs = Quantity(str(self.textbox_for_wvlg1.text()))
+                    if l_wvlg_obs.unit is None:
+                        l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
+                except Exception:
                     QtWidgets.QMessageBox.information(
                         self,
                         "Invalid spectral system",
-                        "Lambda 1 must be convertible to float",
+                        "Lambda 1 must be convertible to Quantity or float",
                     )
                     self.textbox_for_wvlg1.setFocus()
                     return
-                log.debug(
-                    "Collecting observed wavelength from Lambda 1: {}".format(
-                        l_wvlg_obs
-                    )
-                )
+                log.debug(f"Collecting observed wavelength from Lambda 1: {l_wvlg_obs}")
                 z = l_wvlg_obs / l_wvlg_rest - 1.0
-                log.debug("Calculated corresponding redshift: {}".format(z))
+                log.debug(f"Calculated corresponding redshift: {z}")
                 self.add_specsys(z=z, sys_type="abs")
 
     def add_absorber(self, z=None):
@@ -1192,7 +1199,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 z = float(self.textbox_for_z.text())
             if sys_type == "abs":
                 sys_type_str = "absorber"
-                lines = pd.merge(self.abs_lines, self.fs_lines, how="outer")
+                lines = join(self.abs_lines, self.fs_lines, join_type="outer")
             elif sys_type == "em":
                 lines = self.em_lines
                 sys_type_str = "emitter"
@@ -1206,7 +1213,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 show_fs=True,
             )
             self.statusBar.showMessage("Adding system at redshift %.5lf" % z, 2000)
-            specsys.draw(xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"])
+            specsys.draw(
+                xmin=self.data["wvlg_min"],
+                xmax=self.data["wvlg_max"],
+            )
             # Update model
             self.specsysModel.specsystems.append((True, specsys))
             self.specsysModel.sort()
@@ -1214,8 +1224,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.textbox_for_z.setText("")
             self.clear_color_from_available_list(color)
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
-        except ValueError:
-            log.error("Can't add system: z must be convertible to float")
+        except ValueError as e:
+            log.error(f"Can't add system: z must be convertible to float. Error : {e}")
             QtWidgets.QMessageBox.information(
                 self,
                 "Invalid spectral system",
@@ -1239,8 +1249,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Make sure line name exists in list of lines provided.
         """
-        # have to strip '*' or pandas doesnt work
-        cond = self.abs_lines["name"].str.contains(l_name.strip("*"))
+        cond = [i for i, name in enumerate(self.abs_lines["name"]) if l_name in name]
+
         if len(self.abs_lines[cond]) == 0:
             QtWidgets.QMessageBox.information(
                 self,
@@ -1259,7 +1269,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.textbox_for_line.setFocus()
             return None
         else:
-            log.debug("Found line : {}".format(self.abs_lines[cond]["name"].item()))
+            log.debug(f"Found line: {self.abs_lines[cond]['name'][0]}")
             return cond
 
 

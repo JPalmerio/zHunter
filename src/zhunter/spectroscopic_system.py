@@ -1,9 +1,10 @@
 import pyqtgraph as pg
 from PyQt5 import QtGui
 from PyQt5 import QtCore
-import pandas as pd
 import logging
 import numpy as np
+from astropy.units.quantity import Quantity
+from astropy.io.ascii import read as ascii_read
 from zhunter import DIRS
 from spectres import spectres
 from .colors import get_gradient
@@ -23,23 +24,28 @@ class SpecSystem:
         z,
         PlotItem,
         sys_type,
-        color=QtGui.QColor("blue"),
-        fname=DIRS["DATA"] / "lines/basic_line_list.csv",
+        color=QtGui.QColor("cyan"),
+        fname=DIRS["DATA"] / "lines/basic_line_list.ecsv",
         lines=None,
         show_fs=False,
     ):
         self.redshift = z
         self.color = color
         self.sys_type = sys_type
+
         if lines is None:
-            self.lines = pd.read_csv(
-                fname, sep=",", names=["name", "wvlg"], comment="#"
-            )
+            self.lines = ascii_read(fname)
         else:
             self.lines = lines
         self.plotted_lines = []
         self.pi = PlotItem
         self.show_fs = show_fs
+        if self.sys_type == "em":
+            self.wave_key = "awav"
+        elif self.sys_type == "abs":
+            self.wave_key = "wave"
+        else:
+            raise ValueError
 
     # Used for allowing sorting
     def __lt__(self, obj):
@@ -57,7 +63,35 @@ class SpecSystem:
     def __eq__(self, obj):
         return self.redshift == obj.redshift
 
-    def draw(self, xmin=None, xmax=None):
+    def draw(self, xmin=None, xmax=None, units=None):
+        """Draw the lines of the system that are within xmin and xmax.
+        If no units are provided with either xmin as a Quantity or with
+        the units argument, will use the default units of the line list.
+
+        Parameters
+        ----------
+        xmin : Quantity or float, optional
+            Mininum range of the axis, line wavelengths below this will
+            not be displayed. Also used if a Quantity and units is None
+            to infer the units of the axis.
+        xmax : Quantity or float, optional
+            Maxinum range of the axis, line wavelengths above this will
+            not be displayed. Also used if a Quantity and units is None
+            to infer the units of the axis.
+        units : astropy Units, optional
+            Units of the axis on which to plot the lines, can be used to
+            override units of xmin and xmax.
+        """
+        if units is None:
+            if isinstance(xmin, Quantity):
+                units = xmin.unit
+            else:
+                log.warning(
+                    "No units specified through xmin as Quantity"
+                    " or units argument, using units of the line list."
+                )
+                units = self.lines[self.wave_key].unit
+
         pen = pg.mkPen(self.color, width=3)
         # Make background for the rectangle on which to print line names
         black = QtGui.QColor("k")
@@ -65,19 +99,21 @@ class SpecSystem:
         brush = pg.mkBrush(color=black)
         # Add lines to plot
         log.debug("Drawing %s System at redshift : %.5lf", self.sys_type, self.redshift)
-        for w, n in zip(self.lines["wvlg"], self.lines["name"]):
+        for w, n in zip(Quantity(self.lines[self.wave_key]), self.lines["name"]):
             if ("*" in n) and not self.show_fs:
                 # If this is a fine structure line but show_fs is false, skip
                 continue
-            gt_min = (xmin is None) or (w * (1 + self.redshift) >= xmin)
-            lt_max = (xmax is None) or (w * (1 + self.redshift) <= xmax)
+            wave_obs = w * (1 + self.redshift)
+            gt_min = (xmin is None) or (wave_obs >= xmin)
+            lt_max = (xmax is None) or (wave_obs <= xmax)
+            # If line observed wavelength is within the data range
             if gt_min and lt_max:
                 if self.sys_type == "abs":
                     line = pg.InfiniteLine(
-                        w * (1 + self.redshift),
+                        wave_obs.to(units).value,
                         span=(0.0, 0.8),
                         pen=pen,
-                        name="z={:.5f}".format(self.redshift),
+                        # name="z={:.5f}".format(self.redshift),
                         label=n,
                         labelOpts={
                             "color": self.color,
@@ -88,10 +124,10 @@ class SpecSystem:
                     )  # ,movable=True)
                 elif self.sys_type == "em":
                     line = pg.InfiniteLine(
-                        w * (1 + self.redshift),
+                        wave_obs.to(units).value,
                         span=(0.2, 1.0),
                         pen=pen,
-                        name="z={:.5f}".format(self.redshift),
+                        # name="z={:.5f}".format(self.redshift),
                         label=n,
                         labelOpts={
                             "color": self.color,
@@ -108,9 +144,9 @@ class SpecSystem:
             self.pi.removeItem(line)
         log.info("Deleted %s System at redshift %.5lf", self.sys_type, self.redshift)
 
-    def redraw(self, xmin=None, xmax=None):
+    def redraw(self, xmin=None, xmax=None, units=None):
         self.undraw()
-        self.draw(xmin=xmin, xmax=xmax)
+        self.draw(xmin=xmin, xmax=xmax, units=units)
 
 
 class Telluric:
@@ -203,13 +239,13 @@ class Telluric:
         awav_low_res = np.arange(
             self.spectrum.spectral_axis.min().value,
             self.spectrum.spectral_axis.max().value,
-            dlam.value
+            dlam.value,
         )
         self.spectrum.flux = spectres(
             awav_low_res,
             self.spectrum.spectral_axis.value,
             self.spectrum.flux.value,
-            fill=1
+            fill=1,
         )
         self.spectrum.spectral_axis = awav_low_res * self.spectrum.spectral_axis.unit
 
@@ -301,13 +337,13 @@ class SkyBackground:
         awav_low_res = np.arange(
             self.spectrum.spectral_axis.min().value,
             self.spectrum.spectral_axis.max().value,
-            dlam.value
+            dlam.value,
         )
         self.spectrum.flux = spectres(
             awav_low_res,
             self.spectrum.spectral_axis.value,
             self.spectrum.flux.value,
-            fill=1
+            fill=1,
         )
         self.spectrum.spectral_axis = awav_low_res * self.spectrum.spectral_axis.unit
 

@@ -1,4 +1,5 @@
 from astropy.io import fits
+from astropy.io.ascii import read as ascii_read
 from astropy.table import Table
 import astropy.units as u
 from astropy.nddata import StdDevUncertainty
@@ -11,10 +12,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 ergscm2AA = u.def_unit(
-    s='ergscm2AA',
-    represents=u.Unit('erg s^-1 cm^-2 AA^-1'),
-    format={'latex': r'\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}'},
+    s="ergscm2AA",
+    represents=u.Unit("erg s^-1 cm^-2 AA^-1"),
+    format={"latex": r"\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}"},
 )
+GREEK_LETTERS = ["alpha", "beta", "gamma", "delta"]
 ERROR_KEYS = ["ERR", "NOISE", "SIGMA", "UNC"]
 WAVE_KEYS = ["WAVE", "AWAV", "WVLG", "LAM"]
 FLUX_KEYS = ["FLUX"]
@@ -50,7 +52,9 @@ def read_1D_data(fname):
 
 
 def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
-    """Ignores line starting with '#'
+    """
+    Can read ECSV format.
+    Ignores line starting with '#'
     Expects the following format:
         # this is a comment in the file which will be ignored
         wave, flux, error/uncertainty
@@ -78,17 +82,25 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
 
     log.debug(f"Attempting to read file: {fname}")
 
+    if not isinstance(fname, Path):
+        fname = Path(fname)
+
     waveobs = None
     flux = None
     uncertainty = None
 
-    df = pd.read_csv(
-        fname,
-        comment="#",
-        dtype=float,
-    )
+    if fname.suffix == ".ecsv":
+        tab = ascii_read(fname)
+        pandas = False
+    else:
+        pandas = True
+        tab = pd.read_csv(
+            fname,
+            comment="#",
+            dtype=float,
+        )
 
-    column_names = list(df.columns)
+    column_names = list(tab.columns)
 
     # Wavelength
     wave_key = __find_column_name(
@@ -106,12 +118,6 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         possible_names=ERROR_KEYS,
     )
 
-    # Try to get units from the column name
-    if wave_key is not None:
-        wave_unit = __parse_units_from_column_name(wave_key)
-    if flux_key is not None:
-        flux_unit = __parse_units_from_column_name(flux_key)
-
     # If no column names, assume wave, flux, error/uncertainty
     if any(k is None for k in [wave_key, flux_key]):
         log.info(
@@ -121,30 +127,47 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
 
         wave_key, flux_key, uncertainty_key = ("wave", "flux", "uncertainty")
 
-        df = pd.read_csv(
+        tab = pd.read_csv(
             fname,
             names=[wave_key, flux_key, uncertainty_key],
             comment="#",
             dtype=float,
         )
 
+    # Try to get units from the column name
+    if wave_key is not None:
+        wave_unit = __parse_units_from_column_name(wave_key)
+    if flux_key is not None:
+        flux_unit = __parse_units_from_column_name(flux_key)
+
     # Have to turn to numpy because using pandas series
     if wave_key is not None:
-        waveobs = df[wave_key].to_numpy()
+        if pandas:
+            waveobs = tab[wave_key].to_numpy()
+        else:
+            waveobs = tab[wave_key]
+            wave_unit = waveobs.unit
     if flux_key is not None:
-        flux = df[flux_key].to_numpy()
+        if pandas:
+            flux = tab[flux_key].to_numpy()
+        else:
+            flux = tab[flux_key]
+            flux_unit = flux.unit
     if uncertainty_key is not None:
-        uncertainty = df[uncertainty_key].to_numpy()
-        # If the column didn't exist, pandas fills with NaNs by default
-        if all(np.isnan(uncertainty)):
-            uncertainty = None
+        if pandas:
+            uncertainty = tab[uncertainty_key].to_numpy()
+            # If the column didn't exist, pandas fills with NaNs by default
+            if all(np.isnan(uncertainty)):
+                uncertainty = None
+        else:
+            uncertainty = tab[uncertainty_key]
 
     # Default units if no units were specified
     if wave_unit is None:
-        wave_unit = u.Unit('AA')
+        wave_unit = u.Unit("AA")
         log.info("No units specified for wave, assuming Angstrom.")
     if flux_unit is None:
-        flux_unit = u.Unit('adu')
+        flux_unit = u.Unit("adu")
         log.info("No units specified for flux, assuming ADU.")
 
     if flux is not None and waveobs is not None:
@@ -158,7 +181,7 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         else:
             log.warning(f"No error/uncertainty found in file {fname}.")
     else:
-        raise Exception("Unknown text file format")
+        raise Exception("Unknown file format")
     return spectrum
 
 
@@ -416,6 +439,74 @@ def read_fits_1D_spectrum(fname):
         raise Exception("Unknown FITS file format")
 
 
+def convert_to_ecsv(fname, delimiter=" ", units=None):
+    """Convert an ascii file to ECSV format which stores meta data
+    like units. You can specify the units of each column with the
+    units argument. For more information about this recommended format
+    see https://docs.astropy.org/en/stable/io/ascii/ecsv.html
+
+    Args:
+        fname (str or Path): Name of the file
+        delimiter (str, optional): Can be ',' or ' '
+        units (list, optional): List of units or strings representing
+        valid units. For columns that don't have units, use ''.
+    """
+
+    # Make sure fname is a Path instance
+    if not isinstance(fname, Path):
+        fname = Path(fname)
+
+    tab = ascii_read(fname)
+    if units is not None:
+        if len(units) != len(tab.columns):
+            log.error("Please specify as many units as there are columns")
+        else:
+            for col, unit in zip(tab.columns, units):
+                tab[col].unit = u.Unit(unit)
+    log.info(f"Converting file {fname} to ecsv format")
+    tab.write(fname.with_suffix(".ecsv"), delimiter=delimiter, overwrite=True)
+
+
+def convert_line_name_to_latex(lname):
+    if any(greek.lower() in lname.lower() for greek in GREEK_LETTERS):
+        elem, wave = lname.split("_")
+        latex_string = elem + rf"$\{wave}$"
+        return latex_string
+    else:
+        n_fine_struct = lname.count("*")
+        rad, wave = lname.strip("*").split("_")
+
+        # Strip blank spaces
+        rad = rad.strip()
+        wave = wave.strip()
+
+        elem = None
+        for roman in ["I", "V"]:
+            if roman in rad:
+                # If element is Iodine (I) or Vanadium (V)
+                if roman in rad[0]:
+                    elem = rad[0]
+                    ion = rad[1:]
+                else:
+                    elem = rad.split(roman)[0]
+                    ion = rad.strip(elem)
+                break
+
+        if elem is None:
+            log.error(f"Could not parse line name {lname} to convert to latex")
+            return lname
+
+        latex_string = (
+            r"\hbox{"
+            + elem
+            + rf"\,\textsc{{{ion.lower()}}}"
+            + n_fine_struct * "*"
+            + rf"$\lambda{wave}$"
+            + "}"
+        )
+        return latex_string
+
+
 def __parse_units_from_column_name(col_name):
     """Look for units in the name of a column by searching for a format
     as: wave(nm)
@@ -427,7 +518,7 @@ def __parse_units_from_column_name(col_name):
         astropy.Unit: The unit found or None.
     """
     try:
-        units_str = col_name.split('(')[1].strip(')')
+        units_str = col_name.split("(")[1].strip(")")
         units = u.Unit(units_str)
         log.debug(f"Parsed unit {units_str} from column name '{col_name}'")
     except Exception:
@@ -460,9 +551,13 @@ def __get_flux_units(header, axis=2, default_units=None):
     bunit = header.get("BUNIT")
 
     if cunit2:
+        if cunit2 == "ADU":
+            cunit2 = "adu"
         log.debug(f"Using CUNIT: {cunit2} for flux units")
         flux_units = u.Unit(cunit2)
     elif bunit:
+        if bunit == "ADU":
+            bunit = "adu"
         log.debug(f"Using BUNIT: {bunit} for flux units")
         flux_units = u.Unit(bunit)
     elif default_units:

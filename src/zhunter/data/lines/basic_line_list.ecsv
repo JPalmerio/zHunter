@@ -1,0 +1,53 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: name, unit: '', datatype: string}
+# - {name: wave, unit: Angstrom, datatype: float64}
+# - {name: latex_name, datatype: string}
+# meta: !!omap
+# - comments: ['CI_1560,1560.3092', 'CI_1613,1613.4', 'CI_1657,1656.9284', 'SI_1807,1807.3113', 'CrII_2056,2056.25693', 'CrII_2066,2066.2',
+#     'ZnII_2063,2062.66045', 'ZnII_2026,2026.13709', 'MnII_2606,2606.462', 'MnII_2594,2594.499', 'MnII_2577,2576.877', 'NiII_1742,1741.5531',
+#     'NiII_1710,1709.6042', 'NiII_2166*,2166.2', 'NiII_2170*,2169.8', 'NiII_2175*,2175.4', 'NiII_2217*,2217.2', 'NiII_2317*,2316.7']
+# schema: astropy-2.0
+name wave latex_name
+Ly_alpha 1215.6701 Ly$\alpha$
+Ly_beta 1025.7223 Ly$\beta$
+Ly_gamma 972.5368 Ly$\gamma$
+Ly_delta 949.7431 Ly$\delta$
+Ly_limit 911.7633 Ly_{\textrm{limit}}
+CII_1334 1334.5323 \hbox{C\,\textsc{ii}$\lambda1334$}
+CII_1335* 1335.7077 \hbox{C\,\textsc{ii}*$\lambda1335$}
+CIV_1548 1548.2049 \hbox{C\,\textsc{iv}$\lambda1548$}
+CIV_1550 1550.77845 \hbox{C\,\textsc{iv}$\lambda1550$}
+NV_1239 1238.821 \hbox{N\,\textsc{v}$\lambda1239$}
+NV_1243 1242.804 \hbox{N\,\textsc{v}$\lambda1243$}
+OI_1302 1302.1685 \hbox{O\,\textsc{i}$\lambda1302$}
+OI_1305* 1304.8576 \hbox{O\,\textsc{i}*$\lambda1305$}
+OI_1306** 1306.0286 \hbox{O\,\textsc{i}**$\lambda1306$}
+NaI_5892 5891.5833 \hbox{Na\,\textsc{i}$\lambda5892$}
+NaI_5898 5897.5581 \hbox{Na\,\textsc{i}$\lambda5898$}
+MgI_2026 2026.4768 \hbox{Mg\,\textsc{i}$\lambda2026$}
+MgII_2796 2796.3542699 \hbox{Mg\,\textsc{ii}$\lambda2796$}
+MgII_2804 2803.5314853 \hbox{Mg\,\textsc{ii}$\lambda2804$}
+AlII_1671 1670.7886 \hbox{Al\,\textsc{ii}$\lambda1671$}
+AlIII_1863 1862.79113 \hbox{Al\,\textsc{iii}$\lambda1863$}
+AlIII_1855 1854.71829 \hbox{Al\,\textsc{iii}$\lambda1855$}
+SiII_1527 1526.70698 \hbox{Si\,\textsc{ii}$\lambda1527$}
+SiII_1304 1304.3702 \hbox{Si\,\textsc{ii}$\lambda1304$}
+SiII_1260 1260.4221 \hbox{Si\,\textsc{ii}$\lambda1260$}
+SiII_1309* 1309.2757 \hbox{Si\,\textsc{ii}*$\lambda1309$}
+SiII_1533* 1533.4316 \hbox{Si\,\textsc{ii}*$\lambda1533$}
+SiIV_1394 1393.76018 \hbox{Si\,\textsc{iv}$\lambda1394$}
+SiIV_1403 1402.77291 \hbox{Si\,\textsc{iv}$\lambda1403$}
+CaII_3935 3934.775 \hbox{Ca\,\textsc{ii}$\lambda3935$}
+CaII_3970 3969.5901 \hbox{Ca\,\textsc{ii}$\lambda3970$}
+FeII_2600 2600.1724835 \hbox{Fe\,\textsc{ii}$\lambda2600$}
+FeII_2587 2586.6495659 \hbox{Fe\,\textsc{ii}$\lambda2587$}
+FeII_2383 2382.7641781 \hbox{Fe\,\textsc{ii}$\lambda2383$}
+FeII_2374 2374.4603294 \hbox{Fe\,\textsc{ii}$\lambda2374$}
+FeII_2344 2344.2129601 \hbox{Fe\,\textsc{ii}$\lambda2344$}
+FeII_1608 1608.45085 \hbox{Fe\,\textsc{ii}$\lambda1608$}
+FeII_2389* 2389.35664 \hbox{Fe\,\textsc{ii}*$\lambda2389$}
+FeII_2396* 2396.35462 \hbox{Fe\,\textsc{ii}*$\lambda2396$}
+FeII_2411* 2411.3 \hbox{Fe\,\textsc{ii}*$\lambda2411$}
+FeII_2613* 2612.7 \hbox{Fe\,\textsc{ii}*$\lambda2613$}
