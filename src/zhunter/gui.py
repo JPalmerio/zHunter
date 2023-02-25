@@ -867,36 +867,38 @@ class MainWindow(QtWidgets.QMainWindow):
         return wvlg_1D, flux_1D, unc_1D
 
     def set_extraction_width(self):
-        try:
-            ext_width = float(self.textbox_for_extraction_width.text())
-            if ext_width >= self.data["spat_span"]:
+        if self.mode == '2D':
+            try:
+                ext_width = float(self.textbox_for_extraction_width.text())
+                if ext_width >= self.data["spat_span"]:
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "Invalid extraction width",
+                        "Can't change extraction width: it must be "
+                        "smaller than the spatial width spanned by the "
+                        "spectrum",
+                    )
+                    return
+                self.roi.setSize([self.data["wvlg_span"], ext_width])
+            except ValueError:
                 QtWidgets.QMessageBox.information(
                     self,
                     "Invalid extraction width",
-                    "Can't change extraction width: it must be "
-                    "smaller than the spatial width spanned by the "
-                    "spectrum",
+                    "Can't change extraction width: it must be " "convertible to float",
                 )
-                return
-            self.roi.setSize([self.data["wvlg_span"], ext_width])
-        except ValueError:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Invalid extraction width",
-                "Can't change extraction width: it must be " "convertible to float",
-            )
 
     def reset_width(self):
         """
         Reset the ROI region's position and extraction width to
         default values.
         """
-        self.ax2D_side_vb.removeItem(self.ROI_y_hist_lower)
-        self.ax2D_side_vb.removeItem(self.ROI_y_hist_upper)
-        self.ax2D.removeItem(self.roi)
-        self.textbox_for_extraction_width.setText("1")
-        self.set_up_ROI()
-        self.extract_and_plot_1D()
+        if self.mode == '2D':
+            self.ax2D_side_vb.removeItem(self.ROI_y_hist_lower)
+            self.ax2D_side_vb.removeItem(self.ROI_y_hist_upper)
+            self.ax2D.removeItem(self.roi)
+            self.textbox_for_extraction_width.setText("1")
+            self.set_up_ROI()
+            self.extract_and_plot_1D()
 
     # File selection
     def select_1D_file(self):

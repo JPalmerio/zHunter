@@ -25,7 +25,7 @@ class SpecSystem:
         PlotItem,
         sys_type,
         color=QtGui.QColor("cyan"),
-        fname=DIRS["DATA"] / "lines/basic_line_list.ecsv",
+        fname=None,
         lines=None,
         show_fs=False,
     ):
@@ -34,12 +34,18 @@ class SpecSystem:
         self.sys_type = sys_type
 
         if lines is None:
+            if fname is None:
+                if sys_type == 'em':
+                    fname = DIRS["DATA"] / "lines/emission_lines.ecsv"
+                elif sys_type == 'abs':
+                    fname = DIRS["DATA"] / "lines/basic_line_list.ecsv"
             self.lines = ascii_read(fname)
         else:
             self.lines = lines
         self.plotted_lines = []
         self.pi = PlotItem
         self.show_fs = show_fs
+        self.plot_unit = None
         if self.sys_type == "em":
             self.wave_key = "awav"
         elif self.sys_type == "abs":
@@ -63,36 +69,46 @@ class SpecSystem:
     def __eq__(self, obj):
         return self.redshift == obj.redshift
 
-    def draw(self, xmin=None, xmax=None, units=None):
+    def draw(self, xmin=None, xmax=None, unit=None):
         """Draw the lines of the system that are within xmin and xmax.
         If no units are provided with either xmin as a Quantity or with
-        the units argument, will use the default units of the line list.
+        the unit argument, will use the default units of the line list.
 
         Parameters
         ----------
         xmin : Quantity or float, optional
             Mininum range of the axis, line wavelengths below this will
-            not be displayed. Also used if a Quantity and units is None
+            not be displayed. Also used if a Quantity and unit is None
             to infer the units of the axis.
         xmax : Quantity or float, optional
             Maxinum range of the axis, line wavelengths above this will
-            not be displayed. Also used if a Quantity and units is None
+            not be displayed. Also used if a Quantity and unit is None
             to infer the units of the axis.
-        units : astropy Units, optional
+        unit : astropy Unit, optional
             Units of the axis on which to plot the lines, can be used to
             override units of xmin and xmax.
         """
-        if units is None:
-            if isinstance(xmin, Quantity):
-                units = xmin.unit
+        if isinstance(xmin, Quantity):
+            if unit is None:
+                unit = xmin.unit
             else:
+                xmin = xmin.to(unit)
+                xmax = xmax.to(unit)
+        else:
+            if unit is None:
                 log.warning(
                     "No units specified through xmin as Quantity"
-                    " or units argument, using units of the line list."
+                    " or unit argument, using units of the line list."
                 )
-                units = self.lines[self.wave_key].unit
+                unit = self.lines[self.wave_key].unit
+                xmin = xmin * unit
+                xmax = xmax * unit
+            else:
+                xmin = xmin * unit
+                xmax = xmax * unit
 
-        pen = pg.mkPen(self.color, width=3)
+        self.plot_unit = unit
+
         # Make background for the rectangle on which to print line names
         # black = QtGui.QColor("k")
         # black.setAlpha(200)
@@ -110,32 +126,37 @@ class SpecSystem:
             if gt_min and lt_max:
                 if self.sys_type == "abs":
                     line = pg.InfiniteLine(
-                        wave_obs.to(units).value,
-                        span=(0.0, 0.8),
-                        pen=pen,
-                        # name="z={:.5f}".format(self.redshift),
+                        wave_obs.to(unit).value,
+                        span=(0.0, 0.85),
+                        pen=pg.mkPen(self.color, width=3),
+                        hoverPen=pg.mkPen(self.color, width=6),
+                        name=n,
                         label=n,
                         labelOpts={
                             "color": self.color,
-                            # "fill": brush,
                             "angle": 45,
                             "position": 1,
                         },
-                    )  # ,movable=True)
+                        movable=True,
+                    )
                 elif self.sys_type == "em":
                     line = pg.InfiniteLine(
-                        wave_obs.to(units).value,
+                        wave_obs.to(unit).value,
                         span=(0.2, 1.0),
-                        pen=pen,
-                        # name="z={:.5f}".format(self.redshift),
+                        pen=pg.mkPen(self.color, width=3),
+                        hoverPen=pg.mkPen(self.color, width=6),
+                        name=n,
                         label=n,
                         labelOpts={
                             "color": self.color,
-                            "fill": brush,
                             "angle": -45,
                             "position": 0,
                         },
-                    )  # ,movable=True)
+                        movable=True,
+                    )
+
+                line.sigPositionChangeFinished.connect(self.update_redshift)
+
                 self.pi.addItem(line)
                 self.plotted_lines.append(line)
 
@@ -144,9 +165,26 @@ class SpecSystem:
             self.pi.removeItem(line)
         log.info("Deleted %s System at redshift %.5lf", self.sys_type, self.redshift)
 
-    def redraw(self, xmin=None, xmax=None, units=None):
+    def redraw(self, xmin=None, xmax=None, unit=None):
         self.undraw()
-        self.draw(xmin=xmin, xmax=xmax, units=units)
+        self.draw(xmin=xmin, xmax=xmax, unit=unit)
+
+    def update_redshift(self, line):
+        """ Because signal from InfiniteLine sends also the line object
+        that emitted it, recover it as the second argument.
+        """
+        new_wave = line.getXPos() * self.plot_unit
+        lname = line.name()
+        rest_wave = [w for w, n in zip(self.lines[self.wave_key], self.lines['name']) if n in lname]
+        if len(rest_wave) == 1:
+            rest_wave = rest_wave[0] * self.lines[self.wave_key].unit
+        else:
+            raise ValueError(f"Line name {lname} found more (or less) than one corresponding wavelength : {rest_wave}. Can't calculate a redshift.")
+        new_z = new_wave/rest_wave - 1
+        self.undraw()
+        self.redshift = new_z.value
+        xmin, xmax = self.pi.vb.getState()['limits']['xLimits']
+        self.draw(xmin=xmin, xmax=xmax, unit=self.plot_unit)
 
 
 class Telluric:
