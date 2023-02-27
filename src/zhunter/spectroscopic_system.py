@@ -13,11 +13,15 @@ from zhunter import io
 log = logging.getLogger(__name__)
 
 
-class SpecSystem:
+class SpecSystem(QtCore.QObject):
     """
     A class to represent a spectroscopic system, either in emission
     or in absorption.
     """
+    # define a custom signal to emit
+    # for this to work, the object has to be a QObject
+    # and need to call super().__init__() in the __init__()
+    edited = QtCore.pyqtSignal()
 
     def __init__(
         self,
@@ -29,6 +33,7 @@ class SpecSystem:
         lines=None,
         show_fs=False,
     ):
+        super().__init__()
         self.redshift = z
         self.color = QtGui.QColor(color)
         self.sys_type = sys_type
@@ -195,6 +200,8 @@ class SpecSystem:
         self.redshift = new_z.value
         xmin, xmax = self.pi.vb.getState()['limits']['xLimits']
         self.draw(xmin=xmin, xmax=xmax, unit=self.plot_unit)
+        log.info(f"Updated redshift of system to: {self.redshift:.4f}")
+        self.edited.emit()
 
 
 class Telluric:

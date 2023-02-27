@@ -1267,10 +1267,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 xmin=self.data["wvlg_min"],
                 xmax=self.data["wvlg_max"],
             )
-            # Update model
+            # Store the spectroscopic system in the model
             self.specsysModel.specsystems.append((True, specsys))
             self.specsysModel.sort()
             self.specsysModel.layoutChanged.emit()
+            # Connect the custom signal 'edited' of the spectroscipic system
+            # in order to update the model as soon as it receives the signal
+            specsys.edited.connect(self.specsysModel.layoutChanged.emit)
             self.textbox_for_z.setText("")
             self.clear_color_from_available_list(color)
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
