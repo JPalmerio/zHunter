@@ -116,12 +116,8 @@ class SpecSystem(QtCore.QObject):
 
         self.plot_unit = unit
 
-        # Make background for the rectangle on which to print line names
-        # black = QtGui.QColor("k")
-        # black.setAlpha(200)
-        # brush = pg.mkBrush(color=black)
         # Add lines to plot
-        log.debug("Drawing %s System at redshift : %.5lf", self.sys_type, self.redshift)
+        log.debug("Drawing %s system at redshift : %.5lf", self.sys_type, self.redshift)
         for w, n in zip(Quantity(self.lines[self.wave_key]), self.lines["name"]):
             if ("*" in n) and not self.show_fs:
                 # If this is a fine structure line but show_fs is false, skip
@@ -167,18 +163,16 @@ class SpecSystem(QtCore.QObject):
                 self.pi.addItem(line)
                 self.plotted_lines.append(line)
 
-        # Remove item doesn't raise error if item isn't in legend for some
-        # reason
-        self.pi.legend.removeItem(self.leg_ref)
         self.pi.legend.addItem(
             self.leg_ref,
             name=f'<p style="color:{self.color.name()};">z={self.redshift:.4f} </p>'
             )
 
     def undraw(self):
+        self.pi.legend.removeItem(self.leg_ref)
         for line in self.plotted_lines:
             self.pi.removeItem(line)
-        log.info("Deleted %s System at redshift %.5lf", self.sys_type, self.redshift)
+        log.debug("Removed %s system at redshift %.5lf from plot", self.sys_type, self.redshift)
 
     def redraw(self, xmin=None, xmax=None, unit=None):
         self.undraw()
@@ -196,11 +190,10 @@ class SpecSystem(QtCore.QObject):
         else:
             raise ValueError(f"Line name {lname} found more (or less) than one corresponding wavelength : {rest_wave}. Can't calculate a redshift.")
         new_z = new_wave/rest_wave - 1
-        self.undraw()
         self.redshift = new_z.value
         xmin, xmax = self.pi.vb.getState()['limits']['xLimits']
-        self.draw(xmin=xmin, xmax=xmax, unit=self.plot_unit)
-        log.info(f"Updated redshift of system to: {self.redshift:.4f}")
+        self.redraw(xmin=xmin, xmax=xmax, unit=self.plot_unit)
+        log.info(f"Updated redshift of {self.sys_type} system to: {self.redshift:.4f}")
         self.edited.emit()
 
 
@@ -435,7 +428,7 @@ class SpecSystemModel(QtCore.QAbstractListModel):
         _sys.undraw()
         del self.specsystems[index.row()]
         self.layoutChanged.emit()
-        self.sort(0)
+        self.sort()
 
     def clear(self):
         for _, specsys in self.specsystems:
