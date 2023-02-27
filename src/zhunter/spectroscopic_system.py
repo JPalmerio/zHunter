@@ -30,7 +30,7 @@ class SpecSystem:
         show_fs=False,
     ):
         self.redshift = z
-        self.color = color
+        self.color = QtGui.QColor(color)
         self.sys_type = sys_type
 
         if lines is None:
@@ -46,6 +46,8 @@ class SpecSystem:
         self.pi = PlotItem
         self.show_fs = show_fs
         self.plot_unit = None
+        # Empty PlotDataItem to use for the legend entry
+        self.leg_ref = pg.PlotDataItem(pen=self.color)
         if self.sys_type == "em":
             self.wave_key = "awav"
         elif self.sys_type == "abs":
@@ -159,6 +161,14 @@ class SpecSystem:
 
                 self.pi.addItem(line)
                 self.plotted_lines.append(line)
+
+        # Remove item doesn't raise error if item isn't in legend for some
+        # reason
+        self.pi.legend.removeItem(self.leg_ref)
+        self.pi.legend.addItem(
+            self.leg_ref,
+            name=f'<p style="color:{self.color.name()};">z={self.redshift:.4f} </p>'
+            )
 
     def undraw(self):
         for line in self.plotted_lines:

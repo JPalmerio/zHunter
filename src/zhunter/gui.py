@@ -154,6 +154,16 @@ class MainWindow(QtWidgets.QMainWindow):
             # self.active_plot_items.append(self.ax2D)
             # self.active_plot_items.append(self.ax2D_side_vb)
 
+        # Set up the legend (empty for now)
+        legend = pg.LegendItem(
+            offset=(-10, 1),
+            colCount=2,
+            horSpacing=20,
+            verSpacing=-5,
+            )
+        legend.setParentItem(self.ax1D)
+        self.ax1D.legend = legend
+
         # Fix the size of left axis so the center panels align vertically
         self.ax1D.getAxis("left").setWidth(60)
         self.ax1D.getAxis("bottom").setHeight(30)
@@ -1175,6 +1185,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 l2 = Quantity(str(self.textbox_for_wvlg2.text()))
                 # Have to create Quantity of a list of Quantites
                 l_wvlg_obs = Quantity([l1, l2]).max()
+                if l_wvlg_obs.unit is None:
+                    l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
             except Exception:
                 QtWidgets.QMessageBox.information(
                     self,
