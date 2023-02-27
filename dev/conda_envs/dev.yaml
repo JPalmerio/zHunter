@@ -11,7 +11,7 @@ dependencies:
   - scipy=1.10
   - specutils>=1.9
   - pyqtgraph>=0.13.1
-  - pyqt>=5.15
+  - pyqt>=6.4
   - jupyter
   - pytest
   - pylint

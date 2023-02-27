@@ -75,14 +75,14 @@ KRAKEN = {
     "unc": "#BC271B",
     "specsys": [
         "#4A9EBC",  # Lightblue
-        "#B52EB0",  # Fuschia
-        "#C95D38",  # Orange
         "#ECCA54",  # Yellow
+        "#C72A70",  # Pink
+        "#C95D38",  # Orange
         "#92D754",  # Green
         "#8218BB",  # Purple
         # "#BC271B",  # Rust
         "#66CBA0",  # Teal
-        "#C72A70",  # Pink
+        "#B52EB0",  # Fuschia
         "#2D67EE",  # Blue
     ],
     "sky": "#696969",

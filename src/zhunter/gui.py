@@ -880,7 +880,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.mode == '2D':
             try:
                 ext_width = float(self.textbox_for_extraction_width.text())
-                if ext_width >= self.data["spat_span"]:
+                if ext_width >= self.data["spat_span"].value:
                     QtWidgets.QMessageBox.information(
                         self,
                         "Invalid extraction width",
@@ -889,7 +889,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         "spectrum",
                     )
                     return
-                self.roi.setSize([self.data["wvlg_span"], ext_width])
+                self.roi.setSize([self.data["wvlg_span"].value, ext_width])
             except ValueError:
                 QtWidgets.QMessageBox.information(
                     self,

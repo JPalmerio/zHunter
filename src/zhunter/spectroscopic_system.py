@@ -130,7 +130,7 @@ class SpecSystem(QtCore.QObject):
                 if self.sys_type == "abs":
                     line = pg.InfiniteLine(
                         wave_obs.to(unit).value,
-                        span=(0.0, 0.85),
+                        span=(0.0, 0.8),
                         pen=pg.mkPen(self.color, width=3),
                         hoverPen=pg.mkPen(self.color, width=6),
                         name=n,
