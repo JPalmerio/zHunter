@@ -17,7 +17,8 @@ def check_flux_scale(flux, unc):
     """
     exponent = int(f"{np.std(flux).value:e}".split("e")[-1])
     if exponent >= 0 and exponent <= 2:
-        log.debug("Flux units are reasonable, no need to rescale to make them usable")
+        # log.debug("Flux units are reasonable, no need to rescale to make them usable")
+        pass
     else:
         log.debug(
             f"Flux and uncertainty need to be rescaled (exponent: {exponent}), rescaling them."

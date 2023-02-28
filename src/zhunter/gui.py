@@ -1174,6 +1174,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         log.debug(f"Chosen ratio is: {chosen_ratio.text()}")
         if chosen_ratio:
+            # Choose the first line name with [0]
             l_name = chosen_ratio.text().split("/")[0].strip()
             log.debug(f"Line name to search for is: {l_name}")
 
@@ -1181,12 +1182,12 @@ class MainWindow(QtWidgets.QMainWindow):
             l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
             log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
             try:
-                l1 = Quantity(str(self.textbox_for_wvlg1.text()))
-                l2 = Quantity(str(self.textbox_for_wvlg2.text()))
-                # Have to create Quantity of a list of Quantites
-                l_wvlg_obs = Quantity([l1, l2]).max()
-                if l_wvlg_obs.unit is None:
-                    l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
+                l1 = float(self.textbox_for_wvlg1.text())
+                l2 = float(self.textbox_for_wvlg2.text())
+                l_wvlg_obs = np.max([l1, l2])
+                # Use the max wavelength because we chose the first
+                # of the line names
+                l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
             except Exception:
                 QtWidgets.QMessageBox.information(
                     self,
@@ -1196,6 +1197,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.textbox_for_wvlg1.setFocus()
                 return
             log.debug(f"Collecting observed wavelength: {l_wvlg_obs}")
+            l_wvlg_rest = l_wvlg_rest.to(l_wvlg_obs.unit)
             z = l_wvlg_obs / l_wvlg_rest - 1.0
             log.debug(f"Calculated corresponding redshift: {z}")
             self.add_specsys(z=z, sys_type="abs")
@@ -1216,9 +1218,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
                 log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
                 try:
-                    l_wvlg_obs = Quantity(str(self.textbox_for_wvlg1.text()))
-                    if l_wvlg_obs.unit is None:
-                        l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
+                    l_wvlg_obs = float(self.textbox_for_wvlg1.text())
+                    l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
                 except Exception:
                     QtWidgets.QMessageBox.information(
                         self,
@@ -1228,7 +1229,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.textbox_for_wvlg1.setFocus()
                     return
                 log.debug(f"Collecting observed wavelength from Lambda 1: {l_wvlg_obs}")
-                z = l_wvlg_obs / l_wvlg_rest - 1.0
+                l_wvlg_rest = l_wvlg_rest.to(l_wvlg_obs.unit)
+                z = (l_wvlg_obs / l_wvlg_rest).value - 1.0
                 log.debug(f"Calculated corresponding redshift: {z}")
                 self.add_specsys(z=z, sys_type="abs")
 
@@ -1244,7 +1246,7 @@ class MainWindow(QtWidgets.QMainWindow):
         on the 1D plot.
         """
         try:
-            if not z:
+            if z is None:
                 log.debug("z is %s, reading from textbox for z", z)
                 z = float(self.textbox_for_z.text())
             if sys_type == "abs":
