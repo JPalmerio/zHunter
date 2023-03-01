@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # name = "zhunter"
 # description = "A Python-based visualization tool for finding redshifts and manipulating astronomical spectra. "
 # readme = "README_short.md"
-# requires-python = ">=3.8"
+# requires-python = ">=3.9"
 # keywords = ["one", "two"]
 # license = {text = "GNU General Public License v3 (GPLv3)"}
 # classifiers = [

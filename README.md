@@ -10,7 +10,7 @@ It uses [`Python 3.8`](https://www.python.org/downloads/release/python-383/) and
 If you use a virtual environment manager for python (which we recommend), you can create an environment specific for *z*Hunter with:
 
 ```
-$ conda create -n zHunter python=3.8.3
+$ conda env create -f zhunter_conda_env.yaml
 ```
 
 ## Using pip
@@ -18,6 +18,12 @@ $ conda create -n zHunter python=3.8.3
 ```
 $ pip install zhunter
 ```
+
+If you want the latest development you can switch to the `dev` branch and to
+```
+$ pip install .
+```
+
 *Note:* sometimes the pip installation of PyQt5 fails, in this case try to install PyQt5 with conda:
 ```
 $ conda install pyqt
@@ -40,7 +46,7 @@ To load a file, simply use the `1D File` or `2D File` buttons corresponding to y
 
 ## Hunting for a redshift
 
-Once you've loaded a file, the hunt begins. You can move around the spectrum by left-clicking and dragging or by right-clicking and zooming.
+Once you've loaded a file, the hunt begins. You can move around the spectrum by left-clicking and dragging, by right-clicking and zooming or with the keys `a`, `s`, `d` and `w`.
 
 ### From 2D to 1D: extracting the trace
 
@@ -65,4 +71,4 @@ Finally, if you are confident you have identified the correct transitions, you c
 This process is illustrated below.
 ![](./images/add_absorber.png)
 
-Note: you can also add an absorber manually with the button on the top right. The `Save absorbers` button is not implemented for now.
+Note: you can also add an absorber manually with the button on the top right.
