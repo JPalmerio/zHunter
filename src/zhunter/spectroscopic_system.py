@@ -18,6 +18,7 @@ class SpecSystem(QtCore.QObject):
     A class to represent a spectroscopic system, either in emission
     or in absorption.
     """
+
     # define a custom signal to emit
     # for this to work, the object has to be a QObject
     # and need to call super().__init__() in the __init__()
@@ -40,9 +41,9 @@ class SpecSystem(QtCore.QObject):
 
         if lines is None:
             if fname is None:
-                if sys_type == 'em':
+                if sys_type == "em":
                     fname = DIRS["DATA"] / "lines/emission_lines.ecsv"
-                elif sys_type == 'abs':
+                elif sys_type == "abs":
                     fname = DIRS["DATA"] / "lines/basic_line_list.ecsv"
             self.lines = ascii_read(fname)
         else:
@@ -165,33 +166,43 @@ class SpecSystem(QtCore.QObject):
 
         self.pi.legend.addItem(
             self.leg_ref,
-            name=f'<p style="color:{self.color.name()};">z={self.redshift:.4f} </p>'
-            )
+            name=f'<p style="color:{self.color.name()};">z={self.redshift:.4f} </p>',
+        )
 
     def undraw(self):
         self.pi.legend.removeItem(self.leg_ref)
         for line in self.plotted_lines:
             self.pi.removeItem(line)
-        log.debug("Removed %s system at redshift %.5lf from plot", self.sys_type, self.redshift)
+        log.debug(
+            "Removed %s system at redshift %.5lf from plot",
+            self.sys_type,
+            self.redshift,
+        )
 
     def redraw(self, xmin=None, xmax=None, unit=None):
         self.undraw()
         self.draw(xmin=xmin, xmax=xmax, unit=unit)
 
     def update_redshift(self, line):
-        """ Because signal from InfiniteLine sends also the line object
+        """Because signal from InfiniteLine sends also the line object
         that emitted it, recover it as the second argument.
         """
         new_wave = line.getXPos() * self.plot_unit
         lname = line.name()
-        rest_wave = [w for w, n in zip(self.lines[self.wave_key], self.lines['name']) if n in lname]
+        rest_wave = [
+            w
+            for w, n in zip(self.lines[self.wave_key], self.lines["name"])
+            if n in lname
+        ]
         if len(rest_wave) == 1:
             rest_wave = rest_wave[0] * self.lines[self.wave_key].unit
         else:
-            raise ValueError(f"Line name {lname} found more (or less) than one corresponding wavelength : {rest_wave}. Can't calculate a redshift.")
-        new_z = new_wave/rest_wave - 1
+            raise ValueError(
+                f"Line name {lname} found more (or less) than one corresponding wavelength : {rest_wave}. Can't calculate a redshift."
+            )
+        new_z = new_wave / rest_wave - 1
         self.redshift = new_z.value
-        xmin, xmax = self.pi.vb.getState()['limits']['xLimits']
+        xmin, xmax = self.pi.vb.getState()["limits"]["xLimits"]
         self.redraw(xmin=xmin, xmax=xmax, unit=self.plot_unit)
         log.info(f"Updated redshift of {self.sys_type} system to: {self.redshift:.4f}")
         self.edited.emit()

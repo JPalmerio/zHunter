@@ -43,7 +43,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Have to do this before loading UI for it to work
         # self.color_style = "old"
         # self.color_style = "cyberpunk"
-        self.color_style = 'kraken'
+        self.color_style = "kraken"
         # self.color_style = "cvd"
         self.colors = COLORS[self.color_style]
         pg.setConfigOption("foreground", self.colors["foreground"])
@@ -160,7 +160,7 @@ class MainWindow(QtWidgets.QMainWindow):
             colCount=2,
             horSpacing=20,
             verSpacing=-5,
-            )
+        )
         legend.setParentItem(self.ax1D)
         self.ax1D.legend = legend
 
@@ -323,7 +323,9 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
+                color=self.colors["foreground"],
+                width=2,
+                style=QtCore.Qt.PenStyle.DashLine,
             ),
             label="Lam1",
             labelOpts={
@@ -335,7 +337,9 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
+                color=self.colors["foreground"],
+                width=2,
+                style=QtCore.Qt.PenStyle.DashLine,
             ),
             label="Lam2",
             labelOpts={
@@ -877,7 +881,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return wvlg_1D, flux_1D, unc_1D
 
     def set_extraction_width(self):
-        if self.mode == '2D':
+        if self.mode == "2D":
             try:
                 ext_width = float(self.textbox_for_extraction_width.text())
                 if ext_width >= self.data["spat_span"].value:
@@ -902,7 +906,7 @@ class MainWindow(QtWidgets.QMainWindow):
         Reset the ROI region's position and extraction width to
         default values.
         """
-        if self.mode == '2D':
+        if self.mode == "2D":
             self.ax2D_side_vb.removeItem(self.ROI_y_hist_lower)
             self.ax2D_side_vb.removeItem(self.ROI_y_hist_upper)
             self.ax2D.removeItem(self.roi)
