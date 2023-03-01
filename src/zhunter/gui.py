@@ -21,6 +21,7 @@ import zhunter.io as io
 import zhunter.spectral_functions as sf
 from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric, SkyBackground
 from .line_list_selection import SelectLineListsDialog, select_file
+from .velocity_plot import VelocityPlot
 from .key_binding import KeyBindingHelpDialog
 from .misc import create_line_ratios, set_up_linked_vb, check_flux_scale
 from .colors import COLORS
@@ -43,7 +44,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Have to do this before loading UI for it to work
         # self.color_style = "old"
         # self.color_style = "cyberpunk"
-        self.color_style = 'kraken'
+        self.color_style = "kraken"
         # self.color_style = "cvd"
         self.colors = COLORS[self.color_style]
         pg.setConfigOption("foreground", self.colors["foreground"])
@@ -76,12 +77,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.specsysView.setStyleSheet(
             f"QListView{{background-color: {self.colors['background']};}}"
         )
+        # Signals and slots of spectral systems
         self.add_abs_button.clicked.connect(self.add_absorber)
         self.add_em_button.clicked.connect(self.add_emitter)
         self.del_specsys_button.clicked.connect(self.delete_specsys)
         self.file_1D_button.clicked.connect(self.select_1D_file)
         self.file_2D_button.clicked.connect(self.select_2D_file)
         self.file_line_list_button.clicked.connect(self.select_line_lists)
+        self.velocity_plot_button.clicked.connect(self.velocity_plot)
 
         # Help
         self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
@@ -160,7 +163,7 @@ class MainWindow(QtWidgets.QMainWindow):
             colCount=2,
             horSpacing=20,
             verSpacing=-5,
-            )
+        )
         legend.setParentItem(self.ax1D)
         self.ax1D.legend = legend
 
@@ -323,7 +326,9 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
+                color=self.colors["foreground"],
+                width=2,
+                style=QtCore.Qt.PenStyle.DashLine,
             ),
             label="Lam1",
             labelOpts={
@@ -335,7 +340,9 @@ class MainWindow(QtWidgets.QMainWindow):
             0,
             span=(0.9, 1.0),
             pen=pg.mkPen(
-                color=self.colors["foreground"], width=2, style=QtCore.Qt.PenStyle.DashLine
+                color=self.colors["foreground"],
+                width=2,
+                style=QtCore.Qt.PenStyle.DashLine,
             ),
             label="Lam2",
             labelOpts={
@@ -685,6 +692,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Show or hide the 1D uncertaintyspectrum.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if self.show_uncertainty_cb.isChecked():
             self.unc_1D_spec.show()
         else:
@@ -694,6 +705,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Show or hide telluric absorption on the 1D spectrum.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if self.telluric_1D_spec is None:
             self.plot_telluric()
         if self.telluric_cb.isChecked():
@@ -705,6 +720,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Show or hide sky background emission on the 1D spectrum.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if self.sky_bkg_1D_spec is None:
             self.plot_sky_bkg()
         if self.sky_bkg_cb.isChecked():
@@ -717,6 +736,10 @@ class MainWindow(QtWidgets.QMainWindow):
         Show or hide fine structure lines for the selected
         spectroscopic system
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         indexes = self.specsysView.selectedIndexes()
         if indexes:
             # Indexes is a list of a single item in single-select mode.
@@ -877,7 +900,11 @@ class MainWindow(QtWidgets.QMainWindow):
         return wvlg_1D, flux_1D, unc_1D
 
     def set_extraction_width(self):
-        if self.mode == '2D':
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
+        if self.mode == "2D":
             try:
                 ext_width = float(self.textbox_for_extraction_width.text())
                 if ext_width >= self.data["spat_span"].value:
@@ -902,13 +929,23 @@ class MainWindow(QtWidgets.QMainWindow):
         Reset the ROI region's position and extraction width to
         default values.
         """
-        if self.mode == '2D':
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
+        if self.mode == "2D":
             self.ax2D_side_vb.removeItem(self.ROI_y_hist_lower)
             self.ax2D_side_vb.removeItem(self.ROI_y_hist_upper)
             self.ax2D.removeItem(self.roi)
             self.textbox_for_extraction_width.setText("1")
             self.set_up_ROI()
             self.extract_and_plot_1D()
+        elif self.mode == "1D":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Wrong mode",
+                "This feature can only be used in 2D mode.",
+            )
 
     # File selection
     def select_1D_file(self):
@@ -969,6 +1006,31 @@ class MainWindow(QtWidgets.QMainWindow):
     def select_line_lists(self):
         SelectLineListsDialog(self)
 
+    def velocity_plot(self):
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
+        indexes = self.specsysView.selectedIndexes()
+        if indexes:
+            # Indexes is a list of a single item in single-select mode.
+            index = indexes[0]
+            specsys = self.specsysModel.get_specsys(index)
+            self.velocityWidget = VelocityPlot(
+                self,
+                z=specsys.redshift,
+                lines=specsys.lines,
+            )
+            self.velocityWidget.show()
+            # self.velocityWidget.plot_velocities()
+        else:
+            QtWidgets.QMessageBox.information(
+                self,
+                "No spectroscopic system selected",
+                "Please select a spectroscopic system from the list "
+                "to show the velocity plot.",
+            )
+
     # Modify displayed data
     def smooth(self):
         """
@@ -995,14 +1057,11 @@ class MainWindow(QtWidgets.QMainWindow):
         return wvlg_sm, flux_sm, unc_sm
 
     def apply_smoothing(self):
-        self.statusBar.showMessage("Smoothing...")
-        if "wvlg" not in self.data.keys():
-            self.textbox_for_smooth.blockSignals(True)
-            QtWidgets.QMessageBox.information(
-                self, "No Spectrum", "Please provide a spectrum before smoothing"
-            )
-            self.textbox_for_smooth.blockSignals(False)
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
             return
+
+        self.statusBar.showMessage("Smoothing...")
         try:
             wvlg_sm, flux_sm, unc_sm = self.smooth()
             # if self.mode == '1D':
@@ -1035,6 +1094,10 @@ class MainWindow(QtWidgets.QMainWindow):
         Display the original data the was read from the file or
         extracted from the 2D.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         self.set_1D_displayed_data(
             wvlg=self.data["wvlg_1D"],
             flux=self.data["flux_1D"],
@@ -1049,6 +1112,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Convert the wavelength, assumed to be in vacuum, to air.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if self.wvlg_corrections["to_air"]:
             QtWidgets.QMessageBox.information(
                 self,
@@ -1069,6 +1136,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Convert the wavelength, assumed to be in air, to vacuum.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if self.wvlg_corrections["to_vacuum"]:
             QtWidgets.QMessageBox.information(
                 self,
@@ -1097,6 +1168,10 @@ class MainWindow(QtWidgets.QMainWindow):
         This uses information found in the header about the time of
         observation and the telescope location.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         if (
             self.wvlg_corrections["barycentric"]
             or self.wvlg_corrections["heliocentric"]
@@ -1167,11 +1242,16 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Add a spectroscopic system from a given selected line ratio.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         try:
             chosen_ratio = self.ratio_name_list.selectedItems()[0]
         except IndexError:
             log.debug("Empty ratio list")
             return
+
         log.debug(f"Chosen ratio is: {chosen_ratio.text()}")
         if chosen_ratio:
             # Choose the first line name with [0]
@@ -1206,11 +1286,16 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Add a spectroscopic system from a specific chosen line name.
         """
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+
         chosen_line = str(self.textbox_for_line.text())
 
         if not chosen_line:
             log.debug("Empty line textbox.")
             return
+
         else:
             log.debug(f"Chosen line is: {chosen_line}")
             cond = self.check_line_name(chosen_line)
@@ -1234,21 +1319,44 @@ class MainWindow(QtWidgets.QMainWindow):
                 log.debug(f"Calculated corresponding redshift: {z}")
                 self.add_specsys(z=z, sys_type="abs")
 
-    def add_absorber(self, z=None):
-        self.add_specsys(z, sys_type="abs")
+    def add_absorber(self):
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+        try:
+            z = self.textbox_for_z.text()
+            log.debug("z is %s, reading from textbox for z", z)
+            z = float(z)
+            self.add_specsys(z, sys_type="abs")
+        except ValueError:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Invalid spectral system",
+                "Can't add system: z must be convertible to float",
+            )
 
-    def add_emitter(self, z=None):
-        self.add_specsys(z, sys_type="em")
+    def add_emitter(self):
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
+        try:
+            z = self.textbox_for_z.text()
+            log.debug("z is %s, reading from textbox for z", z)
+            z = float(z)
+            self.add_specsys(z, sys_type="em")
+        except ValueError:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Invalid spectral system",
+                "Can't add system: z must be convertible to float",
+            )
 
-    def add_specsys(self, z=None, sys_type="abs"):
+    def add_specsys(self, z, sys_type="abs"):
         """
         Add a spectroscopic system at a given redshift and draw it
         on the 1D plot.
         """
         try:
-            if z is None:
-                log.debug("z is %s, reading from textbox for z", z)
-                z = float(self.textbox_for_z.text())
             if sys_type == "abs":
                 sys_type_str = "absorber"
                 lines = join(self.abs_lines, self.fs_lines, join_type="outer")
@@ -1281,14 +1389,12 @@ class MainWindow(QtWidgets.QMainWindow):
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError as e:
             log.error(f"Can't add system: z must be convertible to float. Error : {e}")
-            QtWidgets.QMessageBox.information(
-                self,
-                "Invalid spectral system",
-                "Can't add system: z must be convertible to float",
-            )
             self.textbox_for_z.setFocus()
 
     def delete_specsys(self):
+        if not self.data:
+            log.debug("You pushed a button but did not load any data. Ignoring.")
+            return
         indexes = self.specsysView.selectedIndexes()
         if indexes:
             # Indexes is a list of a single item in single-select mode.

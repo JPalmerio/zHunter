@@ -48,13 +48,17 @@ class SelectLineListsDialog(QtWidgets.QDialog):
             self.parent.load_line_lists(calc_ratio=False)
 
     def select_emission(self):
-        fname = select_file(self, self.fname_em, file_type="(*.csv *.txt *.dat)")
+        fname = select_file(
+            self, self.fname_em, file_type="(*.csv *.txt *.dat *.ecsv *gz)"
+        )
         if fname:
             self.fname_em = Path(fname)
             self.emission_textbox.setText(str(self.fname_em))
 
     def select_absorption(self):
-        fname = select_file(self, self.fname_abs, file_type="(*.csv *.txt *.dat)")
+        fname = select_file(
+            self, self.fname_abs, file_type="(*.csv *.txt *.dat *.ecsv *gz)"
+        )
         if fname:
             self.fname_abs = Path(fname)
             self.absorption_textbox.setText(str(self.fname_abs))
