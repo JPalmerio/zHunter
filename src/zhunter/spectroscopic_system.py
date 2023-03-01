@@ -450,6 +450,14 @@ class SpecSystemModel(QtCore.QAbstractListModel):
         _, _sys = self.specsystems[index.row()]
         return _sys.color
 
+    def get_redshift(self, index):
+        _, _sys = self.specsystems[index.row()]
+        return _sys.redshift
+
+    def get_specsys(self, index):
+        _, _sys = self.specsystems[index.row()]
+        return _sys
+
     def show_hide_fine_structure(self, index, bounds):
         _, _sys = self.specsystems[index.row()]
         fs_shown = _sys.show_fs
