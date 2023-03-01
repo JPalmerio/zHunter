@@ -1238,21 +1238,38 @@ class MainWindow(QtWidgets.QMainWindow):
                 log.debug(f"Calculated corresponding redshift: {z}")
                 self.add_specsys(z=z, sys_type="abs")
 
-    def add_absorber(self, z=None):
-        self.add_specsys(z, sys_type="abs")
+    def add_absorber(self):
+        try:
+            z = self.textbox_for_z.text()
+            log.debug("z is %s, reading from textbox for z", z)
+            z = float(z)
+            self.add_specsys(z, sys_type="abs")
+        except ValueError:
+            QtWidgets.QMessageBox.information(
+                    self,
+                    "Invalid spectral system",
+                    "Can't add system: z must be convertible to float",
+                )
 
-    def add_emitter(self, z=None):
-        self.add_specsys(z, sys_type="em")
+    def add_emitter(self):
+        try:
+            z = self.textbox_for_z.text()
+            log.debug("z is %s, reading from textbox for z", z)
+            z = float(z)
+            self.add_specsys(z, sys_type="em")
+        except ValueError:
+            QtWidgets.QMessageBox.information(
+                    self,
+                    "Invalid spectral system",
+                    "Can't add system: z must be convertible to float",
+                )
 
-    def add_specsys(self, z=None, sys_type="abs"):
+    def add_specsys(self, z, sys_type="abs"):
         """
         Add a spectroscopic system at a given redshift and draw it
         on the 1D plot.
         """
         try:
-            if z is None:
-                log.debug("z is %s, reading from textbox for z", z)
-                z = float(self.textbox_for_z.text())
             if sys_type == "abs":
                 sys_type_str = "absorber"
                 lines = join(self.abs_lines, self.fs_lines, join_type="outer")
@@ -1285,11 +1302,6 @@ class MainWindow(QtWidgets.QMainWindow):
             log.info("Added %s at redshift %.5lf", sys_type_str, z)
         except ValueError as e:
             log.error(f"Can't add system: z must be convertible to float. Error : {e}")
-            QtWidgets.QMessageBox.information(
-                self,
-                "Invalid spectral system",
-                "Can't add system: z must be convertible to float",
-            )
             self.textbox_for_z.setFocus()
 
     def delete_specsys(self):
