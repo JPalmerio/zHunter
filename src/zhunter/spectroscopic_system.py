@@ -333,7 +333,7 @@ class SkyBackground:
     def __init__(
         self,
         vb,
-        color=QtGui.QColor("purple"),
+        color=QtGui.QColor("gray"),
         fname=DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz",
     ):
         self.color = color
