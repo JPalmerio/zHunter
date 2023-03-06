@@ -1,5 +1,6 @@
 include src/zhunter/ui/*.ui
 include src/zhunter/data/lines/*.csv
+include src/zhunter/data/lines/*.ecsv
 include src/zhunter/data/tellurics/*.gz
 include src/zhunter/data/sky_background/*.gz
 include README_short.md

@@ -5,3 +5,4 @@ pyqtgraph>=0.13.1
 pandas>=1.5
 spectres>=2.1
 astropy>=5.2
+specutils>=1.9
