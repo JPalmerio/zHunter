@@ -8,7 +8,6 @@ from PyQt6 import QtWidgets
 from PyQt6 import QtCore
 from PyQt6 import QtGui
 
-from astropy.io import fits
 from astropy.io.ascii import read as ascii_read
 from astropy.units.quantity import Quantity
 import astropy.constants as cst
@@ -414,7 +413,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Read data
         try:
             if self.mode == "1D":
-                spec_1D = io.read_1D_data(self.fnames["data"])
+                spec_1D, header = io.read_1D_spectrum(self.fnames["data"])
                 wvlg_1D = spec_1D.spectral_axis
                 flux_1D = spec_1D.flux
 
@@ -427,23 +426,19 @@ class MainWindow(QtWidgets.QMainWindow):
                     )
                     unc_1D = np.zeros(wvlg_1D.shape) * flux_1D.unit
             elif self.mode == "2D":
-                wvlg, spat, flux, unc = io.read_fits_2D_spectrum(self.fnames["data"])
+                wvlg, spat, flux, unc, header = io.read_fits_2D_spectrum(self.fnames["data"])
         except Exception as e:
-            log.error(e)
-            QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
+            log.error(f"Could not read input file because: {e}")
+            QtWidgets.QMessageBox.information(self, "Invalid input file", f"Could not read input file because: {e}")
             self.reset_plot()
             return
 
-        if ".fit" in str(self.fnames["data"].stem):
-            try:
-                self.data["header"] = fits.getheader(self.fnames["data"])
-            except OSError:
-                log.warning(
+        if header is not None:
+            self.data["header"] = header
+        else:
+            log.warning(
                     f"No header could be loaded for file {self.fnames['data']}."
                 )
-                self.data["header"] = None
-        else:
-            log.info("Not a fits file, no header loaded.")
             self.data["header"] = None
 
         if self.mode == "1D":
@@ -521,12 +516,13 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Load the input line lists and check the format is ok.
         """
+        log.debug(f"Reading absorption lines from: {self.fnames['absorption_lines']}")
         self.abs_lines = ascii_read(self.fnames["absorption_lines"])
-        log.debug(f"Read absorption lines from: {self.fnames['absorption_lines']}")
 
+        log.debug(f"Reading emission lines from: {self.fnames['emission_lines']}")
         self.em_lines = ascii_read(self.fnames["emission_lines"])
-        log.debug(f"Read emission lines from: {self.fnames['emission_lines']}")
 
+        log.debug(f"Reading fine structure lines from: {self.fnames['emission_lines']}")
         self.fs_lines = ascii_read(self.fnames["fine_structure_lines"])
         check = (
             "name" not in self.abs_lines.columns
@@ -960,7 +956,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def select_file_and_plot(self):
         fname = select_file(
-            self, self.fnames["data"], file_type="(*.fits *.dat *.txt *.csv *.gz)"
+            self, self.fnames["data"], file_type="(*.fits *.dat *.txt *.csv *.ecsv *.gz)"
         )
         if fname:
             self.fnames["data"] = Path(fname)

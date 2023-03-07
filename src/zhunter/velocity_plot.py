@@ -107,7 +107,8 @@ class VelocityPlot(QtWidgets.QMainWindow):
 
         if any([(ow < self.wvlg_min) or (ow > self.wvlg_max) for ow in waves_obs]):
             out_of_bounds = [
-                n for n, ow in zip(lnames, waves_obs)
+                n
+                for n, ow in zip(lnames, waves_obs)
                 if (ow < self.wvlg_min) and (ow > self.wvlg_max)
             ]
             QtWidgets.QMessageBox.information(
