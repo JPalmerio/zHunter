@@ -236,7 +236,7 @@ class Telluric:
         self,
         vb,
         color=QtGui.QColor("gray"),
-        fname=DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz",
+        fname=DIRS["DATA"] / "tellurics/sky_transimission_opt_to_nir.ecsv.gz",
     ):
         self.color = color
         self.plotted_items = []
@@ -334,7 +334,7 @@ class SkyBackground:
         self,
         vb,
         color=QtGui.QColor("gray"),
-        fname=DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz",
+        fname=DIRS["DATA"] / "sky_background/sky_background_norm_opt_to_nir.ecsv.gz",
     ):
         self.color = color
         self.plotted_items = []

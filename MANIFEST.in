@@ -1,6 +1,6 @@
 include src/zhunter/ui/*.ui
 include src/zhunter/data/lines/*.csv
 include src/zhunter/data/lines/*.ecsv
-include src/zhunter/data/tellurics/*.gz
-include src/zhunter/data/sky_background/*.gz
+include src/zhunter/data/tellurics/sky_transimission_opt_to_nir.ecsv.gz
+include src/zhunter/data/sky_background/sky_background_norm_opt_to_nir.ecsv.gz
 include README_short.md

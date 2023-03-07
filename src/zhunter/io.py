@@ -43,18 +43,20 @@ def read_1D_data(fname):
 
     # Load data
     if fname_extension in [".fits", ".fit"]:
-        spectrum = read_fits_1D_spectrum(fname)
+        spectrum, header = read_fits_1D_spectrum(fname)
 
     else:
         spectrum = read_generic_1D_spectrum(fname)
+        header = None
 
-    return spectrum
+    return spectrum, header
 
 
 def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     """
     Can read ECSV format.
     Ignores line starting with '#'
+    Will try with the following separators: comma, space, tab and '|'
     Expects the following format:
         # this is a comment in the file which will be ignored
         wave, flux, error/uncertainty
@@ -89,18 +91,35 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     flux = None
     uncertainty = None
 
+    wave_unit = None
+    flux_unit = None
+
     if fname.suffix == ".ecsv":
+        log.debug("ECSV file, reading with astropy ascii.read function")
         tab = ascii_read(fname)
         pandas = False
     else:
+        log.debug("Reading with pandas read_csv function")
         pandas = True
-        tab = pd.read_csv(
-            fname,
-            comment="#",
-            dtype=float,
-        )
+        separators = [',', r'\s+', r'\t', '|']
+        for sep in separators:
+            try:
+                tab = pd.read_csv(
+                    fname,
+                    sep=sep,
+                    comment="#",
+                    dtype=float,
+                )
+                break
+            except ValueError:
+                tab = None
+                log.debug(f"Could not read file with '{sep}' separator, trying others...")
+
+        if tab is None:
+            raise ValueError(f"Could not read text file format using the following separators: {separators}")
 
     column_names = list(tab.columns)
+    log.debug(f"Found the following columns: {column_names}")
 
     # Wavelength
     wave_key = __find_column_name(
@@ -122,23 +141,18 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     if any(k is None for k in [wave_key, flux_key]):
         log.info(
             f"Could not find any reasonable column names for file {fname}."
-            " Trying to extract data assuming default format wave, flux, uncertainty."
+            " Trying to extract data assuming default format: wave, flux, uncertainty."
         )
 
         wave_key, flux_key, uncertainty_key = ("wave", "flux", "uncertainty")
-
+        # Use separator that worked from before
         tab = pd.read_csv(
             fname,
+            sep=sep,
             names=[wave_key, flux_key, uncertainty_key],
             comment="#",
             dtype=float,
         )
-
-    # Try to get units from the column name
-    if wave_key is not None:
-        wave_unit = __parse_units_from_column_name(wave_key)
-    if flux_key is not None:
-        flux_unit = __parse_units_from_column_name(flux_key)
 
     # Have to turn to numpy because using pandas series
     if wave_key is not None:
@@ -147,12 +161,22 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         else:
             waveobs = tab[wave_key]
             wave_unit = waveobs.unit
+
+        # Try to get units from the column name
+        if wave_unit is None:
+            wave_unit = __parse_units_from_column_name(wave_key)
+
     if flux_key is not None:
         if pandas:
             flux = tab[flux_key].to_numpy()
         else:
             flux = tab[flux_key]
             flux_unit = flux.unit
+
+        # Try to get units from the column name
+        if flux_unit is None:
+            flux_unit = __parse_units_from_column_name(flux_key)
+
     if uncertainty_key is not None:
         if pandas:
             uncertainty = tab[uncertainty_key].to_numpy()
@@ -211,6 +235,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
         if flux_hdu_name:
             hdu = hdulist[flux_hdu_name]
             flux = hdu.data
+            header = hdu.header
         else:
             log.info(
                 f"Couldn't find an HDU with a name containing any of {FLUX_KEYS}. "
@@ -225,6 +250,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
                         continue
                     elif len(flux.shape) == 2:
                         log.debug(f"Found HDU: {hdu.name} which contains a 2D array")
+                        header = hdu.header
                         break
 
         if flux is None or len(flux.shape) != 2:
@@ -245,7 +271,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
             )
             uncertainty = np.zeros(flux.shape)
 
-    flux_unit = hdu.header.get("BUNIT")
+    flux_unit = header.get("BUNIT")
     if flux_unit is not None:
         flux_unit = u.Unit(flux_unit)
     else:
@@ -257,8 +283,8 @@ def read_fits_2D_spectrum(fname, verbose=False):
     wpixels = np.arange(flux.shape[1])
 
     # Spatial dimension
-    spatial_unit = __get_units(header=hdu.header, axis=2, default_units=u.arcsec)
-    spatial_constructor = __get_constructor(header=hdu.header, axis=2)
+    spatial_unit = __get_units(header=header, axis=2, default_units=u.arcsec)
+    spatial_constructor = __get_constructor(header=header, axis=2)
     spatial = spatial_constructor(spixels)
     if spatial_unit is not None:
         spatial = spatial * spatial_unit
@@ -266,15 +292,15 @@ def read_fits_2D_spectrum(fname, verbose=False):
         spatial = spatial * u.Unit()
 
     # Spectral dimension
-    wave_unit = __get_wavelength_units(header=hdu.header)
-    wave_constructor = __get_wavelength_constructor(header=hdu.header)
+    wave_unit = __get_wavelength_units(header=header)
+    wave_constructor = __get_wavelength_constructor(header=header)
     waveobs = wave_constructor(wpixels)
     if wave_unit is not None:
         waveobs = waveobs * wave_unit
     else:
         waveobs = waveobs * u.Unit()
 
-    return waveobs, spatial, flux, uncertainty
+    return waveobs, spatial, flux, uncertainty, header
 
 
 def read_fits_1D_spectrum(fname):
@@ -299,7 +325,7 @@ def read_fits_1D_spectrum(fname):
     with fits.open(fname) as hdulist:
         # By default start with PRIMARY HDU
         data = hdulist["PRIMARY"].data
-        hdr = hdulist["PRIMARY"].header
+        header = hdulist["PRIMARY"].header
 
         waveobs = None
         wave_unit = None
@@ -316,19 +342,19 @@ def read_fits_1D_spectrum(fname):
             # each dimension has more than one length (not just a single value)
             # This is to detect 2D spectra where one axis is wavelength
             # and the other is spatial dimension (arcsec)
-            if hdr["NAXIS"] > 1 and all(dim > 1 for dim in data.shape):
+            if header["NAXIS"] > 1 and all(dim > 1 for dim in data.shape):
                 raise Exception("Can only read 1D fits spectra")
 
             flux = data.flatten()
             pixels = np.arange(len(flux))
 
             flux_unit = __get_flux_units(
-                header=hdr,
+                header=header,
                 axis=2,
                 default_units=ergscm2AA,
             )
-            wave_unit = __get_wavelength_units(header=hdr)
-            wave_constructor = __get_wavelength_constructor(header=hdr)
+            wave_unit = __get_wavelength_units(header=header)
+            wave_constructor = __get_wavelength_constructor(header=header)
             waveobs = wave_constructor(pixels)
 
             if waveobs is None:
@@ -339,7 +365,7 @@ def read_fits_1D_spectrum(fname):
                         "Assuming 2D input with 1st dimension representing the spectral axis."
                     )
                     # No valid WCS, try assuming first axis is the wavelength axis
-                    if hdr.get("CUNIT1") is not None:
+                    if header.get("CUNIT1") is not None:
                         waveobs = data[0, :]
                         flux = data[1, :]
                         if data.shape[0] > 2:
@@ -373,6 +399,7 @@ def read_fits_1D_spectrum(fname):
 
         # If not data in Primary HDU
         elif data is None:
+            header = None
             log.info("Data is not in PRIMARY HDU, searching for binary tables...")
             # Try to find a binary table with the right columns
             # Stop after having found the first table that works
@@ -380,42 +407,57 @@ def read_fits_1D_spectrum(fname):
                 if isinstance(hdu, fits.hdu.table.BinTableHDU):
                     bin_tab = Table.read(hdu)
                     column_names = list(bin_tab.columns)
+                    log.debug(f"Found the following columns: {column_names} in HDU: {hdu.name}")
 
                     # Wavelength
                     wave_key = __find_column_name(
                         column_names,
                         possible_names=WAVE_KEYS,
                     )
-                    waveobs = bin_tab[wave_key]
-                    if waveobs is not None:
-                        # Need to call .flatten() here because sometimes
-                        # we have an array inside another as a single element
-                        # in data from eso archive
-                        waveobs = np.array(waveobs).flatten()
-                        wave_unit = bin_tab[wave_key].unit
-
                     # Flux
                     flux_key = __find_column_name(
                         column_names,
                         possible_names=FLUX_KEYS,
                     )
-                    flux = bin_tab[flux_key]
-                    if flux is not None:
-                        # Need to call .flatten() here (see wavelength above)
-                        flux = np.array(flux).flatten()
-                        flux_unit = bin_tab[flux_key].unit
-
                     # Error
                     uncertainty_key = __find_column_name(
                         column_names,
                         possible_names=ERROR_KEYS,
                     )
-                    uncertainty = bin_tab[uncertainty_key]
-                    if uncertainty is not None:
-                        # Need to call .flatten() here (see wavelength above)
-                        uncertainty = np.array(uncertainty).flatten()
-                        # Don't check for error/uncertainty units, Spectrum1D assumes they
-                        # have same units as flux
+
+                    if any(k is None for k in [wave_key, flux_key]):
+                        log.debug(
+                            f"Could not find any reasonable column names for HDU {hdu.name}."
+                        )
+                        continue
+                    else:
+
+                        waveobs = bin_tab[wave_key]
+                        if waveobs is not None:
+                            # Need to call .flatten() here because sometimes
+                            # we have an array inside another as a single element
+                            # in data from eso archive
+                            waveobs = np.array(waveobs).flatten()
+                            wave_unit = bin_tab[wave_key].unit
+
+                        flux = bin_tab[flux_key]
+                        if flux is not None:
+                            # Need to call .flatten() here (see wavelength above)
+                            flux = np.array(flux).flatten()
+                            flux_unit = bin_tab[flux_key].unit
+
+                        if uncertainty_key is not None:
+                            uncertainty = bin_tab[uncertainty_key]
+                            if uncertainty is not None:
+                                # Need to call .flatten() here (see wavelength above)
+                                uncertainty = np.array(uncertainty).flatten()
+                                # Don't check for error/uncertainty units, Spectrum1D assumes they
+                                # have same units as flux
+
+                    if flux is not None and waveobs is not None:
+                        header = hdu.header
+                        log.debug(f"Found HDU: {hdu.name} which contains a binary table with wave and flux keys: {wave_key}, {flux_key}")
+                        break
 
     # Default units if no units were found
     if wave_unit is None:
@@ -432,7 +474,7 @@ def read_fits_1D_spectrum(fname):
         if uncertainty is not None:
             spectrum.uncertainty = StdDevUncertainty(uncertainty)
 
-        return spectrum
+        return spectrum, header
     else:
         # If didn't return a spectrum with Primary
         # Or didn't find any binary table with the right columns
