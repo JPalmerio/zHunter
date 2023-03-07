@@ -1,6 +1,6 @@
 VERSION = "0.10.2"
 
-upload2pip: version build twine
+upload2pip: version pybuild twine
 
 version:
 	@echo 'Using version value defined in Makefile'
@@ -8,7 +8,7 @@ version:
 	@echo 'src/zhunter/__init__.py'
 	@./update_version.sh ${VERSION}
 
-build:
+pybuild:
 	@echo 'Building zhunter...'
 	@python -m build
 
