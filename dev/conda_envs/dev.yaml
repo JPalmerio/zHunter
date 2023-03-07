@@ -11,12 +11,11 @@ dependencies:
   - scipy=1.10
   - specutils>=1.9
   - pyqtgraph>=0.13.1
-  - pyqt>=6.4
   - jupyter                      # For development
   - pytest                       # For code testing
   - pylint                       # For code quality
   - coverage                     # For code quality
-  - sphinx                       # For documentation
+  - sphinx=6.1                   # For documentation
   - build                        # For building source distribution and wheels
   - twine                        # For uploading sdist and wheels to PyPI
   - pip                          # For additional packages not on conda
@@ -25,3 +24,4 @@ dependencies:
     - mplcyberpunk               # For nicer matplotlib colors
     - cmasher                    # For nicer matplotlib colors
     - spectres                   # For spectra rebinning
+    - pyqt>=6.4
