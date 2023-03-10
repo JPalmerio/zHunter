@@ -173,6 +173,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Remove padding so that panning preserves x and y range
         self.ax1D.vb.setDefaultPadding(padding=0.00)
+        self.ax1D.showGrid(x=True, y=True)
 
         # cross hair for 1D plot
         self.set_up_crosshairs()
