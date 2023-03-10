@@ -1,7 +1,6 @@
 import pyqtgraph as pg
 from PyQt6 import QtGui
 import logging
-from zhunter import DIRS
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
         return list(colors.values())
 
 
-KRAKEN = {
+KRAKEN9 = {
     "spec": "#EBEBEB",
     "unc": "#BC271B",
     "specsys": [
@@ -84,6 +83,37 @@ KRAKEN = {
         "#66CBA0",  # Teal
         "#B52EB0",  # Fuschia
         "#2D67EE",  # Blue
+    ],
+    "sky": "#696969",
+    "crosshair": "#C6C6C6",
+    "background": "#000000",
+    "foreground": "#C6C6C6",
+    "roi": "g",
+    # "roi": "#3E8D26",  # green
+}
+
+KRAKEN17 = {
+    "spec": "#EBEBEB",
+    "unc": "#BC271B",
+    "specsys": [
+        "#4A9EBC",  # Lightblue
+        "#ECCA54",  # Yellow
+        "#C72A70",  # Pink
+        "#C95D38",  # Orange
+        "#92D754",  # Green
+        "#8218BB",  # Purple
+        "#66CBA0",  # Teal
+        "#B52EB0",  # Fuschia
+        "#2D67EE",  # Blue
+        '#7E3817',  # Sangria
+        '#C0C0C0',  # Silver
+        '#808000',  # Olive
+        '#49413F',  # Charcoal
+        '#F9B7FF',  # Blossom Pink
+        '#FFDF00',  # Golden yellow
+        '#64E986',  # Algae
+        '#16E2F5',  # Tucquoise
+
     ],
     "sky": "#696969",
     "crosshair": "#C6C6C6",
@@ -141,7 +171,8 @@ CYBERPUNK = {
 }
 
 COLORS = {
-    "kraken": KRAKEN,
+    "kraken9": KRAKEN9,
+    "kraken17": KRAKEN17,
     "cvd": CVD,
     "old": OLD,
     "cyberpunk": CYBERPUNK,

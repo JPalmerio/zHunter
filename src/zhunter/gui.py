@@ -2,6 +2,8 @@ from itertools import cycle
 import logging
 import sys
 from pathlib import Path
+import yaml
+import shutil
 
 from PyQt6 import uic
 from PyQt6 import QtWidgets
@@ -15,7 +17,7 @@ from astropy.table import join
 
 import numpy as np
 import pyqtgraph as pg
-from zhunter import DIRS
+from zhunter import DIRS, __version__
 import zhunter.io as io
 import zhunter.spectral_functions as sf
 from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric, SkyBackground
@@ -34,18 +36,45 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
+log.info(
+    f"""
+#############################
+    zHunter v{__version__}
+#############################
+    """
+    )
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
+        # Try loading a user-defined config file
+        self.config_fname = Path("~/.config/zhunter/user_config.yaml").expanduser()
+        # If user-defined config file doesn't exist, try loading default config file
+        if not self.config_fname.exists():
+            self.config_fname = Path("~/.config/zhunter/default_config.yaml").expanduser()
+            # if the default config file doesn't exist, it means it is the first
+            # time zhunter is installed on the computer, so copy the file
+            if not self.config_fname.exists():
+                self.config_fname.parent.mkdir(parents=True, exist_ok=True)
+                default_config_fname = DIRS['CONFIG']/'default_config.yaml'
+                shutil.copyfile(default_config_fname, self.config_fname)
+
+        # Load config file
+        with open(self.config_fname, "r") as f:
+            self.config = yaml.safe_load(f)
+            log.debug(f"Loaded configuration from: {self.config_fname}")
+         
         # Define color style
         # Have to do this before loading UI for it to work
-        # self.color_style = "old"
-        # self.color_style = "cyberpunk"
-        self.color_style = "kraken"
-        # self.color_style = "cvd"
-        self.colors = COLORS[self.color_style]
+        self.color_style = self.config['colors']
+        try:
+            self.colors = COLORS[self.color_style]
+        except KeyError:
+            log.error("This color palette doest not exist. Please use one of "
+                f"{list(COLORS.keys())}. Falling back to default colors: 'kraken17'")
+            self.colors = COLORS['kraken17']
+
         pg.setConfigOption("foreground", self.colors["foreground"])
         pg.setConfigOption("background", self.colors["background"])
 
@@ -55,20 +84,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
 
-        # Load the line lists
         self.fnames = {}
-        self.fnames["data"] = None
-        self.fnames["emission_lines"] = DIRS["DATA"] / "lines/emission_lines.ecsv"
-        self.fnames["absorption_lines"] = DIRS["DATA"] / "lines/basic_line_list.ecsv"
-        self.fnames["fine_structure_lines"] = DIRS["DATA"] / "lines/fine_structure.ecsv"
+
+        # Load the line lists
+        line_dir = DIRS["DATA"] / "lines/"
+        if 'default' in self.config_fname.stem:
+            self.fnames["emission_lines"] = line_dir / self.config['fnames']['emission_lines']
+            self.fnames["intervening_lines"] = line_dir / self.config['fnames']['intervening_lines']
+            self.fnames["GRB_lines"] = line_dir / self.config['fnames']['GRB_lines']
+        else:
+            self.fnames["emission_lines"] = Path(self.config['fnames']['emission_lines'])
+            self.fnames["intervening_lines"] = Path(self.config['fnames']['intervening_lines'])
+            self.fnames["GRB_lines"] = Path(self.config['fnames']['GRB_lines'])
+        
         self.fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
         self.fnames["tellurics"] = (
-            DIRS["DATA"] / "tellurics/synth_tellurics_350_1100nm.csv.gz"
+            DIRS["DATA"] / "tellurics/sky_transimission_opt_to_nir.ecsv.gz"
         )
         self.fnames["sky_bkg"] = (
-            DIRS["DATA"] / "sky_background/sky_bkg_norm_nir_9000_23000.csv.gz"
+            DIRS["DATA"] / "sky_background/sky_background_norm_opt_to_nir.ecsv.gz"
         )
-        self.load_line_lists(calc_ratio=False)
+
+        # Make sure that all files are well defined
+        for f in self.fnames.values():
+            if not f.exists():
+                raise FileNotFoundError(f"File '{f}' does not exist.")   
+
+        self.load_line_lists(calc_ratio=True)
+        self.fnames["data"] = None
 
         # List of spectral systems
         self.specsysModel = SpecSystemModel()
@@ -517,21 +560,21 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Load the input line lists and check the format is ok.
         """
-        log.debug(f"Reading absorption lines from: {self.fnames['absorption_lines']}")
-        self.abs_lines = ascii_read(self.fnames["absorption_lines"])
+        log.debug(f"Reading absorption lines from: {self.fnames['intervening_lines']}")
+        self.abs_lines = ascii_read(self.fnames["intervening_lines"])
 
         log.debug(f"Reading emission lines from: {self.fnames['emission_lines']}")
         self.em_lines = ascii_read(self.fnames["emission_lines"])
 
-        log.debug(f"Reading fine structure lines from: {self.fnames['emission_lines']}")
-        self.fs_lines = ascii_read(self.fnames["fine_structure_lines"])
+        log.debug(f"Reading GRB lines from: {self.fnames['GRB_lines']}")
+        self.GRB_lines = ascii_read(self.fnames["GRB_lines"])
         check = (
             "name" not in self.abs_lines.columns
             or "wave" not in self.abs_lines.columns
             or "name" not in self.em_lines.columns
             or "awav" not in self.em_lines.columns
-            or "name" not in self.fs_lines.columns
-            or "wave" not in self.fs_lines.columns
+            or "name" not in self.GRB_lines.columns
+            or "wave" not in self.GRB_lines.columns
         )
         if check:
             QtWidgets.QMessageBox.information(
@@ -544,7 +587,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         if calc_ratio:
-            self.line_ratios = create_line_ratios(self.fnames["absorption_lines"])
+            self.line_ratios = create_line_ratios(self.fnames["intervening_lines"])
         else:
             self.line_ratios = ascii_read(self.fnames["line_ratio"])
             log.debug(f"Read line ratios: {self.fnames['line_ratio']}")
@@ -1356,7 +1399,7 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             if sys_type == "abs":
                 sys_type_str = "absorber"
-                lines = join(self.abs_lines, self.fs_lines, join_type="outer")
+                lines = join(self.abs_lines, self.GRB_lines, join_type="outer")
             elif sys_type == "em":
                 lines = self.em_lines
                 sys_type_str = "emitter"

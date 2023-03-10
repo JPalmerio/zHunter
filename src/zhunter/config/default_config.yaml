@@ -1,0 +1,12 @@
+# If you want to personalize this, save this file as user_config.yaml
+# in the same directory as this file.
+# You will have to provide full paths for the fnames that you want to use
+fnames:
+  emission_lines: "emission_lines.ecsv"
+  # If you want a more complete line list, using 'full_path_to_file/intervening_lines.ecsv'
+  intervening_lines: "basic_lines.ecsv"
+  GRB_lines: "GRB_lines.ecsv"
+
+# Colors is defined in zhunter/color.py
+# Can be one of 'kraken9', 'kraken17', 'cvd', 'old', 'cyberpunk'
+colors: 'kraken9'
