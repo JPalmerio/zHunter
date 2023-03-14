@@ -25,7 +25,7 @@ from .line_list_selection import SelectLineListsDialog, select_file
 from .velocity_plot import VelocityPlot
 from .key_binding import KeyBindingHelpDialog
 from .misc import create_line_ratios, set_up_linked_vb, check_flux_scale
-from .colors import COLORS
+from .colors import COLORS, ZHUNTER_LOGO
 
 logging.getLogger("PyQt6").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.INFO)
@@ -37,12 +37,9 @@ logging.basicConfig(
 )
 
 log.info(
-    f"""
-#############################
-    zHunter v{__version__}
-#############################
-    """
-    )
+    "\n" + 36 * "-" + ZHUNTER_LOGO + "\n" + 14 * " " + f"v{__version__}\n" + 36 * "-"
+)
+
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
@@ -52,28 +49,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config_fname = Path("~/.config/zhunter/user_config.yaml").expanduser()
         # If user-defined config file doesn't exist, try loading default config file
         if not self.config_fname.exists():
-            self.config_fname = Path("~/.config/zhunter/default_config.yaml").expanduser()
+            self.config_fname = Path(
+                "~/.config/zhunter/default_config.yaml"
+            ).expanduser()
             # if the default config file doesn't exist, it means it is the first
             # time zhunter is installed on the computer, so copy the file
             if not self.config_fname.exists():
                 self.config_fname.parent.mkdir(parents=True, exist_ok=True)
-                default_config_fname = DIRS['CONFIG']/'default_config.yaml'
+                default_config_fname = DIRS["CONFIG"] / "default_config.yaml"
                 shutil.copyfile(default_config_fname, self.config_fname)
 
         # Load config file
         with open(self.config_fname, "r") as f:
             self.config = yaml.safe_load(f)
             log.debug(f"Loaded configuration from: {self.config_fname}")
-         
+
         # Define color style
         # Have to do this before loading UI for it to work
-        self.color_style = self.config['colors']
+        self.color_style = self.config["colors"]
         try:
             self.colors = COLORS[self.color_style]
         except KeyError:
-            log.error("This color palette doest not exist. Please use one of "
-                f"{list(COLORS.keys())}. Falling back to default colors: 'kraken17'")
-            self.colors = COLORS['kraken17']
+            log.error(
+                "This color palette doest not exist. Please use one of "
+                f"{list(COLORS.keys())}. Falling back to default colors: 'kraken17'"
+            )
+            self.colors = COLORS["kraken17"]
 
         pg.setConfigOption("foreground", self.colors["foreground"])
         pg.setConfigOption("background", self.colors["background"])
@@ -88,15 +89,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load the line lists
         line_dir = DIRS["DATA"] / "lines/"
-        if 'default' in self.config_fname.stem:
-            self.fnames["emission_lines"] = line_dir / self.config['fnames']['emission_lines']
-            self.fnames["intervening_lines"] = line_dir / self.config['fnames']['intervening_lines']
-            self.fnames["GRB_lines"] = line_dir / self.config['fnames']['GRB_lines']
+        if "default" in self.config_fname.stem:
+            self.fnames["emission_lines"] = (
+                line_dir / self.config["fnames"]["emission_lines"]
+            )
+            self.fnames["intervening_lines"] = (
+                line_dir / self.config["fnames"]["intervening_lines"]
+            )
+            self.fnames["GRB_lines"] = line_dir / self.config["fnames"]["GRB_lines"]
         else:
-            self.fnames["emission_lines"] = Path(self.config['fnames']['emission_lines'])
-            self.fnames["intervening_lines"] = Path(self.config['fnames']['intervening_lines'])
-            self.fnames["GRB_lines"] = Path(self.config['fnames']['GRB_lines'])
-        
+            self.fnames["emission_lines"] = Path(
+                self.config["fnames"]["emission_lines"]
+            )
+            self.fnames["intervening_lines"] = Path(
+                self.config["fnames"]["intervening_lines"]
+            )
+            self.fnames["GRB_lines"] = Path(self.config["fnames"]["GRB_lines"])
+
         self.fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
         self.fnames["tellurics"] = (
             DIRS["DATA"] / "tellurics/sky_transimission_opt_to_nir.ecsv.gz"
@@ -108,7 +117,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Make sure that all files are well defined
         for f in self.fnames.values():
             if not f.exists():
-                raise FileNotFoundError(f"File '{f}' does not exist.")   
+                raise FileNotFoundError(f"File '{f}' does not exist.")
 
         self.load_line_lists(calc_ratio=True)
         self.fnames["data"] = None
@@ -470,19 +479,21 @@ class MainWindow(QtWidgets.QMainWindow):
                     )
                     unc_1D = np.zeros(wvlg_1D.shape) * flux_1D.unit
             elif self.mode == "2D":
-                wvlg, spat, flux, unc, header = io.read_fits_2D_spectrum(self.fnames["data"])
+                wvlg, spat, flux, unc, header = io.read_fits_2D_spectrum(
+                    self.fnames["data"]
+                )
         except Exception as e:
             log.error(f"Could not read input file because: {e}")
-            QtWidgets.QMessageBox.information(self, "Invalid input file", f"Could not read input file because: {e}")
+            QtWidgets.QMessageBox.information(
+                self, "Invalid input file", f"Could not read input file because: {e}"
+            )
             self.reset_plot()
             return
 
         if header is not None:
             self.data["header"] = header
         else:
-            log.warning(
-                    f"No header could be loaded for file {self.fnames['data']}."
-                )
+            log.warning(f"No header could be loaded for file {self.fnames['data']}.")
             self.data["header"] = None
 
         if self.mode == "1D":
@@ -1000,7 +1011,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def select_file_and_plot(self):
         fname = select_file(
-            self, self.fnames["data"], file_type="(*.fits *.dat *.txt *.csv *.ecsv *.gz)"
+            self,
+            self.fnames["data"],
+            file_type="(*.fits *.dat *.txt *.csv *.ecsv *.gz)",
         )
         if fname:
             self.fnames["data"] = Path(fname)

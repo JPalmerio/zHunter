@@ -247,7 +247,7 @@ class Telluric:
     def load_spectrum(self, fname=None, sep="\t", **args):
         if fname is None:
             fname = self.fname
-        self.spectrum_full_res = io.read_generic_1D_spectrum(fname)
+        self.spectrum_full_res = io.read_generic_1D_spectrum(fname, ignore_unc_warning=True)
         self.spectrum = self.spectrum_full_res
 
     def draw(self, xmin=None, xmax=None):
@@ -345,7 +345,7 @@ class SkyBackground:
     def load_spectrum(self, fname=None, sep="\t", **args):
         if fname is None:
             fname = self.fname
-        self.spectrum_full_res = io.read_generic_1D_spectrum(fname)
+        self.spectrum_full_res = io.read_generic_1D_spectrum(fname, ignore_unc_warning=True)
         self.spectrum = self.spectrum_full_res
 
     def draw(self, xmin=None, xmax=None):

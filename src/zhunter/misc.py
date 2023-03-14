@@ -1,10 +1,13 @@
+import logging
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from astropy.units.quantity import Quantity
 import astropy.units as u
 import pyqtgraph as pg
-from pathlib import Path
-import logging
+
+from zhunter.io import read_line_list, __find_column_name, WAVE_KEYS
 
 log = logging.getLogger(__name__)
 
@@ -94,12 +97,19 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     to a file.
     Input file must contain 2 columns for the name and the wavelength
     """
-    lines = pd.read_csv(input_fname, sep=sep, comment="#")
+    lines = read_line_list(input_fname)
     ratio = []
     ratio_name = []
+    column_names = list(lines.columns)
 
-    for n1, w1 in zip(lines["name"], lines["wvlg"]):
-        for n2, w2 in zip(lines["name"], lines["wvlg"]):
+    # Wavelength
+    wave_key = __find_column_name(
+        column_names,
+        possible_names=WAVE_KEYS,
+    )
+
+    for n1, w1 in zip(lines["name"], lines[wave_key]):
+        for n2, w2 in zip(lines["name"], lines[wave_key]):
             ratio_name.append("/".join([n1.strip(), n2.strip()]))
             ratio.append(w1 / w2)
 
@@ -112,6 +122,6 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     output_fname = line_dir / output_fname
     if save:
         df_ratios.to_csv(output_fname, index=False)
-        log.info("Saved line ratios in {}".format(output_fname))
+        log.info(f"Saved line ratios in {output_fname}")
 
     return df_ratios

@@ -22,7 +22,67 @@ WAVE_KEYS = ["WAVE", "AWAV", "WVLG", "LAM"]
 FLUX_KEYS = ["FLUX"]
 
 
-def read_1D_data(fname):
+def read_line_list(fname):
+    """Reads an '.ecsv' file containing a list of lines.
+    File must have the columns 'name' and a wavelength column
+
+    Args:
+        fname (str or Path): Name of the file/
+
+    Returns:
+        astropy Table
+
+
+    """
+
+    # Make sure fname is a Path instance
+    if not isinstance(fname, Path):
+        fname = Path(fname)
+
+    if not fname.exists():
+        raise FileNotFoundError("File does not exist")
+
+    if ".ecsv" in fname.name.lower():
+        log.debug("ECSV file, reading with astropy ascii.read function")
+        tab = ascii_read(fname)
+    else:
+        raise Exception(
+            f"Wrong format for file '{fname}'."
+            " The format must be '.ecsv'."
+            " See https://docs.astropy.org/en/stable/io/ascii/ecsv.html"
+        )
+
+    column_names = list(tab.columns)
+
+    # Wavelength
+    wave_key = __find_column_name(
+        column_names,
+        possible_names=WAVE_KEYS,
+    )
+
+    if wave_key is None:
+        raise Exception(
+            f"No wavelength key could be parsed from column names for file '{fname}'."
+        )
+    else:
+        wave_unit = tab[wave_key].unit
+        if wave_unit is None:
+            # Try to get units from the column name
+            wave_unit = __parse_units_from_column_name(wave_key)
+        if wave_unit is None:
+            log.info(f"No units found in file '{fname}', assuming Angstrom.")
+            tab[wave_key].unit = u.Unit("Angstrom")
+
+    if "name" not in column_names:
+        raise Exception(
+            "Column 'name' must exist in line list file. (did not find it for file "
+            f"'{fname}'"
+        )
+
+    return tab
+
+
+def read_1D_spectrum(fname):
     """
     A wrapper function to handle case for fits extension or generic txt
     or dat file
@@ -32,7 +92,7 @@ def read_1D_data(fname):
         fname = Path(fname)
 
     if not fname.exists():
-        raise Exception("File does not exist")
+        raise FileNotFoundError("File does not exist")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -52,7 +112,7 @@ def read_1D_data(fname):
     return spectrum, header
 
 
-def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
+def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None, ignore_unc_warning=False):
     """
     Can read ECSV format.
     Ignores line starting with '#'
@@ -94,14 +154,14 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
     wave_unit = None
     flux_unit = None
 
-    if fname.suffix == ".ecsv":
+    if ".ecsv" in fname.name.lower():
         log.debug("ECSV file, reading with astropy ascii.read function")
         tab = ascii_read(fname)
         pandas = False
     else:
         log.debug("Reading with pandas read_csv function")
         pandas = True
-        separators = [',', r'\s+', r'\t', '|']
+        separators = [",", r"\s+", r"\t", "|"]
         for sep in separators:
             try:
                 tab = pd.read_csv(
@@ -113,10 +173,14 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
                 break
             except ValueError:
                 tab = None
-                log.debug(f"Could not read file with '{sep}' separator, trying others...")
+                log.debug(
+                    f"Could not read file with '{sep}' separator, trying others..."
+                )
 
         if tab is None:
-            raise ValueError(f"Could not read text file format using the following separators: {separators}")
+            raise Exception(
+                f"Could not read text file format using the following separators: {separators}"
+            )
 
     column_names = list(tab.columns)
     log.debug(f"Found the following columns: {column_names}")
@@ -159,8 +223,8 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         if pandas:
             waveobs = tab[wave_key].to_numpy()
         else:
-            waveobs = tab[wave_key]
-            wave_unit = waveobs.unit
+            waveobs = tab[wave_key].value
+            wave_unit = tab[wave_key].unit
 
         # Try to get units from the column name
         if wave_unit is None:
@@ -170,8 +234,8 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         if pandas:
             flux = tab[flux_key].to_numpy()
         else:
-            flux = tab[flux_key]
-            flux_unit = flux.unit
+            flux = tab[flux_key].value
+            flux_unit = tab[flux_key].unit
 
         # Try to get units from the column name
         if flux_unit is None:
@@ -184,7 +248,7 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
             if all(np.isnan(uncertainty)):
                 uncertainty = None
         else:
-            uncertainty = tab[uncertainty_key]
+            uncertainty = tab[uncertainty_key].value
 
     # Default units if no units were specified
     if wave_unit is None:
@@ -203,7 +267,10 @@ def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None):
         if uncertainty is not None:
             spectrum.uncertainty = StdDevUncertainty(uncertainty)
         else:
-            log.warning(f"No error/uncertainty found in file {fname}.")
+            if ignore_unc_warning:
+                log.debug(f"No error/uncertainty found in file {fname}.")
+            else:
+                log.warning(f"No error/uncertainty found in file {fname}.")
     else:
         raise Exception("Unknown file format")
     return spectrum
@@ -407,7 +474,9 @@ def read_fits_1D_spectrum(fname):
                 if isinstance(hdu, fits.hdu.table.BinTableHDU):
                     bin_tab = Table.read(hdu)
                     column_names = list(bin_tab.columns)
-                    log.debug(f"Found the following columns: {column_names} in HDU: {hdu.name}")
+                    log.debug(
+                        f"Found the following columns: {column_names} in HDU: {hdu.name}"
+                    )
 
                     # Wavelength
                     wave_key = __find_column_name(
@@ -431,7 +500,6 @@ def read_fits_1D_spectrum(fname):
                         )
                         continue
                     else:
-
                         waveobs = bin_tab[wave_key]
                         if waveobs is not None:
                             # Need to call .flatten() here because sometimes
@@ -456,7 +524,9 @@ def read_fits_1D_spectrum(fname):
 
                     if flux is not None and waveobs is not None:
                         header = hdu.header
-                        log.debug(f"Found HDU: {hdu.name} which contains a binary table with wave and flux keys: {wave_key}, {flux_key}")
+                        log.debug(
+                            f"Found HDU: {hdu.name} which contains a binary table with wave and flux keys: {wave_key}, {flux_key}"
+                        )
                         break
 
     # Default units if no units were found
@@ -613,7 +683,7 @@ def __get_flux_units(header, axis=2, default_units=None):
     return flux_units
 
 
-def __get_wavelength_units(header, waxis=1, default_units=u.AA):
+def __get_wavelength_units(header, waxis=1, default_units=u.nm):
     # Check for wavelength units
     try:
         cunit1 = header[f"CUNIT{waxis}"].strip().lower()

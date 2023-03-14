@@ -105,15 +105,14 @@ KRAKEN17 = {
         "#66CBA0",  # Teal
         "#B52EB0",  # Fuschia
         "#2D67EE",  # Blue
-        '#7E3817',  # Sangria
-        '#C0C0C0',  # Silver
-        '#808000',  # Olive
-        '#49413F',  # Charcoal
-        '#F9B7FF',  # Blossom Pink
-        '#FFDF00',  # Golden yellow
-        '#64E986',  # Algae
-        '#16E2F5',  # Tucquoise
-
+        "#7E3817",  # Sangria
+        "#C0C0C0",  # Silver
+        "#808000",  # Olive
+        "#49413F",  # Charcoal
+        "#F9B7FF",  # Blossom Pink
+        "#FFDF00",  # Golden yellow
+        "#64E986",  # Algae
+        "#16E2F5",  # Tucquoise
     ],
     "sky": "#696969",
     "crosshair": "#C6C6C6",
@@ -177,3 +176,11 @@ COLORS = {
     "old": OLD,
     "cyberpunk": CYBERPUNK,
 }
+
+ZHUNTER_LOGO = r"""
+     _   _             _            
+ ___| | | |_   _ _ __ | |_ ___ _ __ 
+|_  / |_| | | | | '_ \| __/ _ \ '__|
+ / /|  _  | |_| | | | | ||  __/ |   
+/___|_| |_|\__,_|_| |_|\__\___|_|   
+"""
