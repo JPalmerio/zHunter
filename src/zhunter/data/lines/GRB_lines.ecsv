@@ -1,9 +1,9 @@
 # %ECSV 1.0
 # ---
 # datatype:
-# - {name: name  unit: ''  datatype: string}
-# - {name: wave  unit: Angstrom  datatype: float64}
-# - {name: freq  unit: ''  datatype: string}
+# - {name: name, unit: '',  datatype: string}
+# - {name: wave, unit: Angstrom,  datatype: float64}
+# - {name: freq, unit: '',  datatype: string}
 # meta: !!omap
 # - comments: ['Wavelengths are in vacuum', 'freq is the the number of occurences in Fynbo+09']
 # schema: astropy-2.0

@@ -1,8 +1,8 @@
 # %ECSV 1.0
 # ---
 # datatype:
-# - {name: name  unit: ''  datatype: string}
-# - {name: wave  unit: Angstrom  datatype: float64}
+# - {name: name,  unit: '',  datatype: string}
+# - {name: wave,  unit: Angstrom, datatype: float64}
 # meta: !!omap
 # - comments: ['Wavelengths are in vacuum', 'This is a line list of the most common absorption features found in GRB afterglow. It is not the most complete']
 # schema: astropy-2.0

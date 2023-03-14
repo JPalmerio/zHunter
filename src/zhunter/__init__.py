@@ -10,6 +10,6 @@ DIRS = {
     "ROOT": ROOT_DIR,
     "UI": ROOT_DIR / "ui",
     "DATA": ROOT_DIR / "data",
-    "CONFIG": ROOT_DIR / "config"
+    "CONFIG": ROOT_DIR / "config",
 }
 log.debug("DIRS: {}".format(DIRS))
