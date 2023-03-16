@@ -112,7 +112,9 @@ def read_1D_spectrum(fname):
     return spectrum, header
 
 
-def read_generic_1D_spectrum(fname, wave_unit=None, flux_unit=None, ignore_unc_warning=False):
+def read_generic_1D_spectrum(
+    fname, wave_unit=None, flux_unit=None, ignore_unc_warning=False
+):
     """
     Can read ECSV format.
     Ignores line starting with '#'

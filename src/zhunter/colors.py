@@ -4,6 +4,25 @@ import logging
 
 log = logging.getLogger(__name__)
 
+def load_colors(config, default='kraken9'):
+    """Load colors
+    
+    Parameters
+    ----------
+    config : dict
+        Description
+    """
+    # Define color style
+    style = config["colors"]
+    try:
+        colors = COLORS[style]
+    except KeyError:
+        log.error(
+            "This color palette doest not exist. Please use one of "
+            f"{list(COLORS.keys())}. Falling back to default colors: '{default}'"
+        )
+        colors = COLORS[default]
+    return colors
 
 def get_gradient(color, reverse=False):
     """Summary

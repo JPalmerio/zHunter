@@ -42,21 +42,21 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="QPushButton" name="file_1D_button">
+         <widget class="QPushButton" name="file_1D_btn">
           <property name="text">
            <string>1D File</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="file_2D_button">
+         <widget class="QPushButton" name="file_2D_btn">
           <property name="text">
            <string>2D File</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="file_line_list_button">
+         <widget class="QPushButton" name="file_line_list_btn">
           <property name="text">
            <string>Line Lists</string>
           </property>
@@ -142,7 +142,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="to_vacuum_button">
+         <widget class="QPushButton" name="to_vacuum_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -155,7 +155,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="to_air_button">
+         <widget class="QPushButton" name="to_air_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -202,7 +202,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
-           <widget class="QLineEdit" name="textbox_for_extraction_width">
+           <widget class="QLineEdit" name="txb_extraction_width">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -233,7 +233,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="reset_width_button">
+         <widget class="QPushButton" name="reset_width_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -280,7 +280,7 @@
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
-           <widget class="QLineEdit" name="textbox_for_smooth">
+           <widget class="QLineEdit" name="txb_smooth">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -311,7 +311,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="reset_smooth_button">
+         <widget class="QPushButton" name="reset_smooth_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -358,7 +358,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="textbox_for_wvlg1">
+           <widget class="QLineEdit" name="txb_wvlg1">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -415,7 +415,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="textbox_for_wvlg2">
+           <widget class="QLineEdit" name="txb_wvlg2">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -445,7 +445,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="ratio_button">
+         <widget class="QPushButton" name="ratio_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -504,7 +504,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="textbox_for_ratio">
+           <widget class="QLineEdit" name="txb_ratio">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -579,7 +579,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="textbox_for_ratio_error_margin">
+           <widget class="QLineEdit" name="txb_ratio_error_margin">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -612,7 +612,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="find_line_ratios_button">
+         <widget class="QPushButton" name="find_line_ratios_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -676,7 +676,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="add_ratio_button">
+         <widget class="QPushButton" name="add_ratio_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -709,7 +709,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="textbox_for_line">
+         <widget class="QLineEdit" name="txb_line">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -725,7 +725,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="add_line_button">
+         <widget class="QPushButton" name="add_line_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -750,7 +750,7 @@
        <number>5</number>
       </property>
       <item>
-       <widget class="GraphicsLayoutWidget" name="graphLayout">
+       <widget class="MainGraphicsWidget" name="graphLayout">
         <property name="minimumSize">
          <size>
           <width>400</width>
@@ -777,7 +777,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="textbox_for_z">
+           <widget class="QLineEdit" name="txb_z">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -795,7 +795,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="add_abs_button">
+         <widget class="QPushButton" name="add_abs_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Maximum">
             <horstretch>0</horstretch>
@@ -814,7 +814,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="add_em_button">
+         <widget class="QPushButton" name="add_em_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -871,7 +871,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="del_specsys_button">
+         <widget class="QPushButton" name="del_specsys_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -884,7 +884,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="fine_structure_button">
+         <widget class="QPushButton" name="fine_structure_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -898,7 +898,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="velocity_plot_button">
+         <widget class="QPushButton" name="velocity_plot_btn">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -991,17 +991,17 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>GraphicsLayoutWidget</class>
+   <class>MainGraphicsWidget</class>
    <extends>QGraphicsView</extends>
-   <header>pyqtgraph</header>
+   <header>zhunter.MainGraphicsWidget</header>
   </customwidget>
  </customwidgets>
  <resources/>
  <connections>
   <connection>
-   <sender>ratio_button</sender>
+   <sender>ratio_btn</sender>
    <signal>released()</signal>
-   <receiver>textbox_for_ratio</receiver>
+   <receiver>txb_ratio</receiver>
    <slot>update()</slot>
    <hints>
     <hint type="sourcelabel">
