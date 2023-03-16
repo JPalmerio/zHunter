@@ -332,11 +332,11 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
 
     
     def clear_all(self):
-        # try:
-        #     self.telluric_vb.clear()
-        #     self.sky_bkg_vb.clear()
-        # except AttributeError:
-        #     pass
+        try:
+            self.telluric_vb.clear()
+            self.sky_bkg_vb.clear()
+        except AttributeError:
+            pass
         self.clear()
         self.active = False
 
