@@ -11,6 +11,37 @@ from zhunter.io import read_line_list, __find_column_name, WAVE_KEYS
 
 log = logging.getLogger(__name__)
 
+def get_vb_containing(pos, axes):
+    vb = None
+    # Find which ViewBox contains the mouse to get the position
+    for ax in axes:
+        if isinstance(ax, pg.PlotItem):
+            _vb = ax.vb
+        elif isinstance(ax, pg.ViewBox):
+            # In case ax is a ViewBox and not a PlotItem
+            # it doesn't have the .vb attribute
+            _vb = ax
+        else:
+            continue
+
+        if _vb.sceneBoundingRect().contains(pos):
+            vb = _vb
+            break
+
+    return vb
+
+def add_crosshair(vb, ax="x", color='yellow'):
+        if ax not in ["x", "y"]:
+            raise ValueError("'ax' must be 'x' or 'y' to add a crosshair.")
+
+        crosshair = pg.InfiniteLine(
+            angle=90 if ax == "x" else 0,
+            movable=False,
+            pen=pg.mkPen(color=color),
+        )
+        crosshair.setZValue(9)  # To make sure crosshair is on top
+        vb.addItem(crosshair, ignoreBounds=True)
+        return crosshair
 
 def check_flux_scale(flux, unc):
     """

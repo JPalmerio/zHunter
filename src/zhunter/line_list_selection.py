@@ -8,6 +8,60 @@ from zhunter import DIRS
 
 log = logging.getLogger(__name__)
 
+line_dir = DIRS["DATA"] / "lines/"
+
+def define_paths(config, default=True):
+    """Define the paths to the various files used throughout the code.
+    The config is used to get the name of certain paths.
+    If default is True, will look in './data/lines/' for the line lists.
+    Otherwise the full path to the file is needed.
+    
+    Parameters
+    ----------
+    config : dict
+        Configuration load from a yaml file containing the correct keys
+    default : bool, optional
+        Where to search for the files. If `True`, will search in './data/lines/',
+        if `False`, the full path must be provided for the files in the config.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing the file names.
+    """
+    fnames = {}
+    if default:
+        fnames["emission_lines"] = (
+            line_dir / config["fnames"]["emission_lines"]
+        )
+        fnames["intervening_lines"] = (
+            line_dir / config["fnames"]["intervening_lines"]
+        )
+        fnames["GRB_lines"] = line_dir / config["fnames"]["GRB_lines"]
+    else:
+        fnames["emission_lines"] = Path(
+            config["fnames"]["emission_lines"]
+        )
+        fnames["intervening_lines"] = Path(
+            config["fnames"]["intervening_lines"]
+        )
+        fnames["GRB_lines"] = Path(config["fnames"]["GRB_lines"])
+
+    fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
+    fnames["tellurics"] = (
+        DIRS["DATA"] / "tellurics/sky_transimission_opt_to_nir.ecsv.gz"
+    )
+    fnames["sky_bkg"] = (
+        DIRS["DATA"] / "sky_background/sky_background_norm_opt_to_nir.ecsv.gz"
+    )
+
+    # Make sure that all files are well defined
+    for f in fnames.values():
+        if not f.exists():
+            raise FileNotFoundError(f"File '{f}' does not exist.")
+
+    fnames["data"] = None
+    return fnames
 
 def select_file(parent, fname, file_type):
     if fname is not None and Path(fname).exists():

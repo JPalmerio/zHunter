@@ -234,7 +234,7 @@ class Telluric:
 
     def __init__(
         self,
-        vb,
+        vb=None,
         color=QtGui.QColor("gray"),
         fname=DIRS["DATA"] / "tellurics/sky_transimission_opt_to_nir.ecsv.gz",
     ):
@@ -247,10 +247,15 @@ class Telluric:
     def load_spectrum(self, fname=None, sep="\t", **args):
         if fname is None:
             fname = self.fname
-        self.spectrum_full_res = io.read_generic_1D_spectrum(fname, ignore_unc_warning=True)
+        self.spectrum_full_res = io.read_generic_1D_spectrum(
+            fname, ignore_unc_warning=True
+        )
         self.spectrum = self.spectrum_full_res
 
     def draw(self, xmin=None, xmax=None):
+        if self.vb is None:
+            log.error("Cannot draw without a vb (ViewBox)")
+            return
         log.debug(f"Attempting to draw telluric spectrum from {xmin} to {xmax}")
         wave_unit = xmin.unit
         imin = self.spectrum.spectral_axis.searchsorted(xmin)
@@ -332,7 +337,7 @@ class SkyBackground:
 
     def __init__(
         self,
-        vb,
+        vb=None,
         color=QtGui.QColor("gray"),
         fname=DIRS["DATA"] / "sky_background/sky_background_norm_opt_to_nir.ecsv.gz",
     ):
@@ -345,10 +350,15 @@ class SkyBackground:
     def load_spectrum(self, fname=None, sep="\t", **args):
         if fname is None:
             fname = self.fname
-        self.spectrum_full_res = io.read_generic_1D_spectrum(fname, ignore_unc_warning=True)
+        self.spectrum_full_res = io.read_generic_1D_spectrum(
+            fname, ignore_unc_warning=True
+        )
         self.spectrum = self.spectrum_full_res
 
     def draw(self, xmin=None, xmax=None):
+        if self.vb is None:
+            log.error("Cannot draw without a vb (ViewBox)")
+            return
         log.debug(f"Attempting to draw sky background spectrum from {xmin} to {xmax}")
         wave_unit = xmin.unit
         imin = self.spectrum.spectral_axis.searchsorted(xmin)
