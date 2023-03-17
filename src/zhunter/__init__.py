@@ -6,9 +6,7 @@ __version__ = "0.10.3"
 
 log = logging.getLogger(__name__)
 
-__all__ = [
-    'MainGraphicsWidget'
-]
+__all__ = ["MainGraphicsWidget"]
 
 ROOT_DIR = Path(__file__).parents[0]
 DIRS = {
@@ -17,4 +15,3 @@ DIRS = {
     "DATA": ROOT_DIR / "data",
     "CONFIG": ROOT_DIR / "config",
 }
-

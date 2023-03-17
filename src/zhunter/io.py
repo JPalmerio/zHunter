@@ -27,7 +27,7 @@ def read_line_list(fname):
     File must have the columns 'name' and a wavelength column
 
     Args:
-        fname (str or Path): Name of the file/
+        fname (str or Path): Name of the file.
 
     Returns:
         astropy Table
@@ -42,11 +42,11 @@ def read_line_list(fname):
     if not fname.exists():
         raise FileNotFoundError("File does not exist")
 
+    log.debug(f"Reading line list {fname}")
     if ".ecsv" in fname.name.lower():
-        log.debug("ECSV file, reading with astropy ascii.read function")
         tab = ascii_read(fname)
     else:
-        raise Exception(
+        raise ValueError(
             f"Wrong format for file '{fname}'."
             " The format must be '.ecsv'."
             " See https://docs.astropy.org/en/stable/io/ascii/ecsv.html"
@@ -61,7 +61,7 @@ def read_line_list(fname):
     )
 
     if wave_key is None:
-        raise Exception(
+        raise ValueError(
             f"No wavelength key could be parsed from column names for file '{fname}'."
         )
     else:
@@ -74,7 +74,7 @@ def read_line_list(fname):
             tab[wave_key].unit = u.Unit("Angstrom")
 
     if "name" not in column_names:
-        raise Exception(
+        raise ValueError(
             "Column 'name' must exist in line list file. (did not find it for file "
             f"'{fname}'"
         )
@@ -92,7 +92,9 @@ def read_1D_spectrum(fname):
         fname = Path(fname)
 
     if not fname.exists():
-        raise FileNotFoundError("File does not exist")
+        raise FileNotFoundError(f"No such file: {fname}")
+
+    log.info(f"Read 1D spectrum from file {fname}...")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -180,7 +182,7 @@ def read_generic_1D_spectrum(
                 )
 
         if tab is None:
-            raise Exception(
+            raise IOError(
                 f"Could not read text file format using the following separators: {separators}"
             )
 
@@ -274,7 +276,7 @@ def read_generic_1D_spectrum(
             else:
                 log.warning(f"No error/uncertainty found in file {fname}.")
     else:
-        raise Exception("Unknown file format")
+        raise IOError("Unknown file format")
     return spectrum
 
 
@@ -323,7 +325,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
                         break
 
         if flux is None or len(flux.shape) != 2:
-            raise Exception("Could not find a 2D flux array in this fits file.")
+            raise IOError("Could not find a 2D flux array in this fits file.")
 
         # Error/uncertainty
         uncertainty_hdu_name = __find_column_name(
@@ -412,7 +414,7 @@ def read_fits_1D_spectrum(fname):
             # This is to detect 2D spectra where one axis is wavelength
             # and the other is spatial dimension (arcsec)
             if header["NAXIS"] > 1 and all(dim > 1 for dim in data.shape):
-                raise Exception("Can only read 1D fits spectra")
+                raise IOError("Can only read 1D fits spectra")
 
             flux = data.flatten()
             pixels = np.arange(len(flux))
@@ -440,9 +442,9 @@ def read_fits_1D_spectrum(fname):
                         if data.shape[0] > 2:
                             uncertainty = data[2, :]
                     else:
-                        raise Exception("Unknown FITS file format")
+                        raise IOError("Unknown FITS file format")
                 else:
-                    raise Exception("Unknown FITS file format")
+                    raise IOError("Unknown FITS file format")
 
             # Try to find the errors/uncertainties in the extensions (HDU different than the PRIMARY):
             for hdu in hdulist:
@@ -550,7 +552,7 @@ def read_fits_1D_spectrum(fname):
     else:
         # If didn't return a spectrum with Primary
         # Or didn't find any binary table with the right columns
-        raise Exception("Unknown FITS file format")
+        raise IOError("Unknown FITS file format")
 
 
 def convert_to_ecsv(fname, delimiter=" ", units=None):
