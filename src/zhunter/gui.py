@@ -152,7 +152,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load extra parameters defined on the GUI
         ext_width = float(self.txb_extraction_width.text())
-        self.data["extraction_width"] = ext_width * self.data["spat"].unit
+        if self.mode == '2D':
+            self.data["extraction_width"] = ext_width * self.data["spat"].unit
         self.data["smooth"] = int(self.txb_smooth.text())
 
         # Main plotting function
@@ -351,7 +352,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fnames["data"] = Path(fname)
             if self.fnames["data"].exists():
                 log.debug(
-                    f"File: '{self.fnames['data']}' is valid and exists, proceeding..."
+                    f"File: '{self.fnames['data']}' is valid and exists, proceeding"
                 )
                 self.reset_plot()
                 self.set_up_plot()
@@ -363,16 +364,16 @@ class MainWindow(QtWidgets.QMainWindow):
         corrections and the list of spectroscopic systems.
         """
 
-        log.debug("Resetting main plot...")
+        log.debug("Resetting main plot")
         # Clear the main plot
         self.graphLayout.clear_all()
 
         # Clear models
-        log.debug("Resetting spectroscopic system model...")
+        log.debug("Resetting spectroscopic system model")
         self.specsysModel.clear()
 
         # Clear data and corrections
-        log.debug("Resetting data handler...")
+        log.debug("Resetting data handler")
         self.data = DataHandler()
         self.graphLayout.set_data(self.data)
 
@@ -427,7 +428,6 @@ class MainWindow(QtWidgets.QMainWindow):
         smoothing = int(self.txb_smooth.text())
         log.debug(f"Smoothing by {smoothing} pixels")
         self.statusBar().showMessage("Smoothing by {} pixels".format(smoothing), 2000)
-        log.info("Smoothing {} pixels".format(smoothing))
         wvlg_sm, flux_sm, unc_sm = sf.smooth(
             self.data["wvlg_1D"].value,
             self.data["flux_1D"].value,
@@ -446,7 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        log.debug("Attempting to smooth...")
+        log.debug("Attempting to smooth")
         self.statusBar().showMessage("Smoothing...")
         try:
             wvlg_sm, flux_sm, unc_sm = self.smooth()

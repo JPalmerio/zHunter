@@ -94,7 +94,7 @@ def read_1D_spectrum(fname):
     if not fname.exists():
         raise FileNotFoundError(f"No such file: {fname}")
 
-    log.info(f"Read 1D spectrum from file {fname}...")
+    log.info(f"Read 1D spectrum from file {fname}")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -310,7 +310,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
         else:
             log.info(
                 f"Couldn't find an HDU with a name containing any of {FLUX_KEYS}. "
-                "Looking for primary or image HDUs containing 2D arrays..."
+                "Looking for primary or image HDUs containing 2D arrays"
             )
             for hdu in hdulist:
                 if isinstance(
@@ -471,7 +471,7 @@ def read_fits_1D_spectrum(fname):
         # If not data in Primary HDU
         elif data is None:
             header = None
-            log.info("Data is not in PRIMARY HDU, searching for binary tables...")
+            log.info("Data is not in PRIMARY HDU, searching for binary tables")
             # Try to find a binary table with the right columns
             # Stop after having found the first table that works
             for hdu in hdulist:
