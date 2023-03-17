@@ -94,7 +94,7 @@ def read_1D_spectrum(fname):
     if not fname.exists():
         raise FileNotFoundError(f"No such file: {fname}")
 
-    log.info(f"Read 1D spectrum from file {fname}")
+    log.debug(f"Read 1D spectrum from file {fname}")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -143,10 +143,10 @@ def read_generic_1D_spectrum(
         flux_unit (None, optional): Description
 
     Returns:
-        TYPE: Description
+        Spectrum1D: Spectrum containing the data
     """
 
-    log.debug(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file: {fname}")
 
     if not isinstance(fname, Path):
         fname = Path(fname)
@@ -207,7 +207,7 @@ def read_generic_1D_spectrum(
 
     # If no column names, assume wave, flux, error/uncertainty
     if any(k is None for k in [wave_key, flux_key]):
-        log.info(
+        log.debug(
             f"Could not find any reasonable column names for file {fname}."
             " Trying to extract data assuming default format: wave, flux, uncertainty."
         )
@@ -293,7 +293,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
     the header of the HDU where it found the flux.
     """
 
-    log.debug(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file: {fname}")
 
     with fits.open(fname) as hdulist:
         hdu_names = [hdu.name for hdu in hdulist]
@@ -308,7 +308,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
             flux = hdu.data
             header = hdu.header
         else:
-            log.info(
+            log.debug(
                 f"Couldn't find an HDU with a name containing any of {FLUX_KEYS}. "
                 "Looking for primary or image HDUs containing 2D arrays"
             )
@@ -336,7 +336,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
         if uncertainty_hdu_name:
             uncertainty = hdulist[uncertainty_hdu_name].data
         else:
-            log.info(
+            log.debug(
                 f"Couldn't find an HDU with a name containing any of {ERROR_KEYS}."
                 " Setting errors/uncertainties to 0."
             )
@@ -391,7 +391,7 @@ def read_fits_1D_spectrum(fname):
     returns a Spectrum1D object
     """
 
-    log.debug(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file: {fname}")
 
     with fits.open(fname) as hdulist:
         # By default start with PRIMARY HDU
@@ -432,7 +432,7 @@ def read_fits_1D_spectrum(fname):
                 # If could not build a constructor from WCS in header
                 # try to see if data array has more than one dimension
                 if len(data.shape) > 1:
-                    log.info(
+                    log.debug(
                         "Assuming 2D input with 1st dimension representing the spectral axis."
                     )
                     # No valid WCS, try assuming first axis is the wavelength axis
@@ -471,7 +471,7 @@ def read_fits_1D_spectrum(fname):
         # If not data in Primary HDU
         elif data is None:
             header = None
-            log.info("Data is not in PRIMARY HDU, searching for binary tables")
+            log.debug("Data is not in PRIMARY HDU, searching for binary tables")
             # Try to find a binary table with the right columns
             # Stop after having found the first table that works
             for hdu in hdulist:
@@ -536,8 +536,10 @@ def read_fits_1D_spectrum(fname):
     # Default units if no units were found
     if wave_unit is None:
         wave_unit = u.AA
+        log.info("No units specified for wave, assuming Angstrom.")
     if flux_unit is None:
         flux_unit = ergscm2AA
+        log.info(f"No units specified for flux, assuming {ergscm2AA}.")
 
     if flux is not None and waveobs is not None:
         # Create the spectrum object
@@ -655,8 +657,7 @@ def __get_units(header, axis=2, default_units=None):
         else:
             units = None
             log.info(
-                "No unit found in header and no default units provided,"
-                " returning None."
+                "No unit found in header and no default units provided, returning None."
             )
     return units
 
@@ -682,7 +683,7 @@ def __get_flux_units(header, axis=2, default_units=None):
     else:
         flux_units = None
         log.info(
-            "No unit found in header and no default units provided," " returning None."
+            "No unit found in header and no default units provided, returning None."
         )
     return flux_units
 
