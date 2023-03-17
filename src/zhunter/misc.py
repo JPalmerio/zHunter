@@ -11,6 +11,7 @@ from zhunter.io import read_line_list, __find_column_name, WAVE_KEYS
 
 log = logging.getLogger(__name__)
 
+
 def get_vb_containing(pos, axes):
     vb = None
     # Find which ViewBox contains the mouse to get the position
@@ -30,18 +31,20 @@ def get_vb_containing(pos, axes):
 
     return vb
 
-def add_crosshair(vb, ax="x", color='yellow'):
-        if ax not in ["x", "y"]:
-            raise ValueError("'ax' must be 'x' or 'y' to add a crosshair.")
 
-        crosshair = pg.InfiniteLine(
-            angle=90 if ax == "x" else 0,
-            movable=False,
-            pen=pg.mkPen(color=color),
-        )
-        crosshair.setZValue(9)  # To make sure crosshair is on top
-        vb.addItem(crosshair, ignoreBounds=True)
-        return crosshair
+def add_crosshair(vb, ax="x", color="yellow"):
+    if ax not in ["x", "y"]:
+        raise ValueError("'ax' must be 'x' or 'y' to add a crosshair.")
+
+    crosshair = pg.InfiniteLine(
+        angle=90 if ax == "x" else 0,
+        movable=False,
+        pen=pg.mkPen(color=color),
+    )
+    crosshair.setZValue(9)  # To make sure crosshair is on top
+    vb.addItem(crosshair, ignoreBounds=True)
+    return crosshair
+
 
 def check_flux_scale(flux, unc):
     """
@@ -128,6 +131,7 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     to a file.
     Input file must contain 2 columns for the name and the wavelength
     """
+    log.info(f"Calculating line ratios from {input_fname}")
     lines = read_line_list(input_fname)
     ratio = []
     ratio_name = []

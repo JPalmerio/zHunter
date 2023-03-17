@@ -4,9 +4,10 @@ import logging
 
 log = logging.getLogger(__name__)
 
-def load_colors(config, default='kraken9'):
+
+def load_colors(config, default="kraken9"):
     """Load colors
-    
+
     Parameters
     ----------
     config : dict
@@ -23,6 +24,7 @@ def load_colors(config, default='kraken9'):
         )
         colors = COLORS[default]
     return colors
+
 
 def get_gradient(color, reverse=False):
     """Summary
