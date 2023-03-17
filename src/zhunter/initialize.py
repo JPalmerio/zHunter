@@ -21,7 +21,7 @@ def get_config_fname():
         `Path` object of the configuration file name.
     """
 
-    log.debug("Looking for config file...")
+    log.debug("Looking for config file")
     # Try loading a user-defined config file
     config_fname = Path("~/.config/zhunter/user_config.yaml").expanduser()
     # If user-defined config file doesn't exist, try loading default config file
@@ -30,7 +30,7 @@ def get_config_fname():
         # if the default config file doesn't exist, it means it is the first
         # time zhunter is installed on the computer, so copy the file
         if not config_fname.exists():
-            log.debug("No configuration on this computer, creating one...")
+            log.debug("No configuration on this computer, creating one")
             config_fname.parent.mkdir(parents=True, exist_ok=True)
             default_config_fname = DIRS["CONFIG"] / "default_config.yaml"
             shutil.copyfile(default_config_fname, config_fname)
