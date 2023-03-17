@@ -26,7 +26,7 @@ qt_events = (
     if not event.startswith("_")
 )
 events_mapping = defaultdict(lambda: "unknown", qt_events)
- 
+
 
 class MainGraphicsWidget(pg.GraphicsLayoutWidget):
     """
@@ -47,13 +47,15 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # (used for knowing mouse position during keyPressEvents)
         self.scene().sigMouseMoved.connect(self.update_mouse_pos)
         self.active = False
+        self.parent = None
 
     def set_parent(self, parent):
+        log.debug(f"Setting parent to {parent}")
         self.parent = parent
 
     # Set up plotting architecture
     # (i.e. anything that doesn't require actual data)
-    def set_up_plot(self, mode, colors, **args):
+    def set_up_plot(self, mode, colors, show_roi=True, **args):
         """
         Set up the main plot items.
         """
@@ -61,23 +63,30 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             raise ValueError(f"'mode' must be among {ALLOWED_MODES}")
 
         self.active = True
+        self.show_roi = show_roi
         self.mode = mode
         self.colors = colors
         name = args.pop("name", self.mode)
+        log.info(
+            f"Setting up a new plot called '{name}' in '{mode}' mode, "
+            f"with{''if show_roi else'out'} Region Of Interest "
+        )
 
         if self.mode == "1D":
             self.__set_up_1D_plot(name=name, **args)
             self.__set_legend()
+            self.axes = [self.ax1D]
 
         elif self.mode == "2D":
             self.__set_up_2D_plot(name=name, **args)
             self.__set_legend()
-
-        self.axes = [self.ax1D, self.ax2D, self.vb2D_collapsed]
+            self.axes = [self.ax1D, self.ax2D, self.vb2D_collapsed]
 
         # crosshairs
         self.__set_up_crosshairs()
-        self.scene().sigMouseMoved.connect(self.update_statusbar)
+
+        if self.parent:
+            self.scene().sigMouseMoved.connect(self.update_statusbar)
 
         # ViewBox for Tellurics
         self.telluric_vb = set_up_linked_vb(self.ax1D)
@@ -152,7 +161,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.ci.layout.setRowStretchFactor(2, 3)
         # Strech column 0 (where 1D and 2D plots are) to make it bigger
         # in x than the side histogram
-        self.ci.layout.setColumnStretchFactor(0, 100)  
+        self.ci.layout.setColumnStretchFactor(0, 100)
 
     def __set_legend(self):
         # Set up the legend (empty for now)
@@ -175,7 +184,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         axes = [self.ax1D, self.ax2D, self.ax_res]
         self.vbs_with_chx = [ax.vb for ax in axes if ax is not None]
 
-        if self.mode == '2D':
+        if self.mode == "2D":
             self.vbs_with_chy = [self.ax2D.vb, self.vb2D_collapsed]
         else:
             # In 1D mode, only 1D plot has a y crosshair and it is already
@@ -185,26 +194,20 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Add x crosshairs
         for vb in self.vbs_with_chx:
             self.crosshairs_x.append(
-                add_crosshair(
-                    vb=vb,
-                    ax="x",
-                    color=self.colors['crosshair']),
-                )
+                add_crosshair(vb=vb, ax="x", color=self.colors["crosshair"]),
+            )
 
         # Add y crosshairs that are linked
         for vb in self.vbs_with_chy:
             self.crosshairs_y.append(
-                add_crosshair(
-                    vb=vb,
-                    ax="y",
-                    color=self.colors['crosshair']),
-                )
+                add_crosshair(vb=vb, ax="y", color=self.colors["crosshair"]),
+            )
         # Add independant y crosshair for 1D plot
         self.ax1D_chy = add_crosshair(
             vb=self.ax1D.vb,
             ax="y",
-            color=self.colors['crosshair'],
-            )
+            color=self.colors["crosshair"],
+        )
 
         # Connect mouse and crosshairs
         self.scene().sigMouseMoved.connect(self.move_crosshair)
@@ -279,10 +282,12 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             self.ax2D.addItem(self.unc_2D_img)
             self.vb2D_collapsed.addItem(self.collapsed_2D)
 
-            # Region Of Interest
-            self.set_up_ROI()
+            if self.show_roi:
+                # Region Of Interest
+                self.set_up_ROI()
+
             self.__set_2D_ZValues()
-            
+
             # Units
             self.flux2D_unit = None
             self.wvlg2D_unit = None
@@ -293,23 +298,25 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.flux_2D_img.setZValue(8)
         for ch in self.crosshairs_x + self.crosshairs_y:
             ch.setZValue(9)
-        self.roi.setZValue(10)
-        self.lower_ROI.setZValue(10)
-        self.upper_ROI.setZValue(10)
+        if self.show_roi:
+            # self.roi.setZValue(10)
+            self.lower_ROI.setZValue(10)
+            self.upper_ROI.setZValue(10)
 
     def set_up_ROI(self):
         """
-            Set up the Region Of Interest used to extract the 1D spectrum from the
-            2D spectrum.
+        Set up the Region Of Interest used to extract the 1D spectrum from the
+        2D spectrum.
         """
+        log.debug("Setting up Region Of Interest")
         self.roi = pg.ROI(
-                pos=[0,0],
-                size=[1,1],
-                pen=pg.mkPen(self.colors["roi"], width=2),
-                hoverPen=pg.mkPen(self.colors["roi"], width=5),
-                handlePen=pg.mkPen(self.colors["roi"], width=2),
-                handleHoverPen=pg.mkPen(self.colors["roi"], width=5),
-            )
+            pos=[0, 0],
+            size=[0, 0],
+            pen=pg.mkPen(self.colors["roi"], width=2),
+            hoverPen=pg.mkPen(self.colors["roi"], width=5),
+            handlePen=pg.mkPen(self.colors["roi"], width=2),
+            handleHoverPen=pg.mkPen(self.colors["roi"], width=5),
+        )
         # Extend ROI visualization to collapsed 2D spectrum
         self.lower_ROI = pg.InfiniteLine(
             self.roi.pos()[1],
@@ -327,50 +334,69 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.ax2D.addItem(self.roi)
         self.vb2D_collapsed.addItem(self.lower_ROI, ignoreBounds=True)
         self.vb2D_collapsed.addItem(self.upper_ROI, ignoreBounds=True)
-        # Connect movement of ROI on collapsed 2D
-        self.roi.sigRegionChanged.connect(self.update_ROI_on_collapsed_2D)
 
-    
+        # Connect movement of ROI on collapsed 2D
+        log.debug("Connecting signals and slots for ROI")
+        self.roi.sigRegionChanged.connect(self.update_ROI_on_collapsed_2D)
+        self.roi.sigRegionChangeFinished.connect(self.extract_and_draw_1D)
+        self.roi.sigRegionChangeFinished.connect(self.print_ROI_to_logs)
+
     def clear_all(self):
         try:
             self.telluric_vb.clear()
             self.sky_bkg_vb.clear()
         except AttributeError:
             pass
+        self.data = None
         self.clear()
         self.active = False
 
     # Display data
-    def draw_data(self, data):
+    def set_data(self, data):
         """
-        A wrapper function to draw data. Look at draw_1D_data and
-        draw_2D_data for more details.
+        data must be an instance of `DataHandler`.
         """
-        if self.mode == "2D":
-            self.draw_2D_data(data)
-            self.parent.extract_and_plot_1D() # this function calls draw_1D_data
-        elif self.mode == "1D":
-            self.draw_1D_data(data)
+        self.data = data
 
-    def draw_1D_data(self, data):
+    def draw_data(self, data=None):
+        """
+        A wrapper function to draw data. Look at draw_1D and
+        draw_2D for more details.
+        """
+        if data is None:
+            if self.data is None:
+                raise ValueError("No data provided, cannot draw anything.")
+            else:
+                data = self.data
+
+        if self.mode == "2D":
+            self.draw_2D(data)
+            if self.show_roi:
+                self.extract_and_draw_1D()  # this function calls draw_1D
+            else:
+                self.draw_1D(data)
+        elif self.mode == "1D":
+            self.draw_1D(data)
+
+        self.__adjust_1D_yrange(data)
+
+    def draw_1D(self, data):
         """
         Takes the 1D display data loaded and plots it on the interface.
         """
+        log.debug("Drawing 1D data")
         self.flux_1D_spec.setData(
             data["wvlg_1D_disp"].value, data["flux_1D_disp"].value
         )
-        self.unc_1D_spec.setData(
-            data["wvlg_1D_disp"].value, data["unc_1D_disp"].value
-        )
+        self.unc_1D_spec.setData(data["wvlg_1D_disp"].value, data["unc_1D_disp"].value)
         self.__set_1D_labels(data)
-        self.__set_1D_units(data)
         self.__set_1D_viewing_limits(data)
 
-    def draw_2D_data(self, data):
+    def draw_2D(self, data):
         """
         Takes the 2D display data loaded and plots it on the interface.
         """
-
+        log.info("Drawing 2D data")
         # Use the transpose here so that the wavelength and spatial dimensions
         # are in the right order
         self.flux_2D_img.setImage(
@@ -389,15 +415,12 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             data["wvlg_2D_disp"][-1].value - data["wvlg_2D_disp"][0].value,
             data["spat_disp"][-1].value - data["spat_disp"][0].value,
         )
-        self.roi.maxBounds = self.rect
+
         self.flux_2D_img.setRect(self.rect)
         self.unc_2D_img.setRect(self.rect)
         # Don't display uncertainty image, just keep it
         # for when extracting the 1D from the 2D
         self.unc_2D_img.hide()
-
-        self.__set_2D_units(data)
-        self.__set_starting_ROI(data)
 
         # Add the side histogram of the pixel intensities
         self.__set_up_img_colobar(data)
@@ -405,25 +428,36 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.plot_collapsed_2D(data)
 
         self.__set_2D_labels(data)
-    
+
         self.__set_2D_viewing_limits(data)
+
+        if self.show_roi:
+            self.roi.maxBounds = self.rect
+            self.update_ROI(data)
 
     def plot_collapsed_2D(self, data):
         y_dist = np.median(data["flux_2D_disp"], axis=1)
         self.collapsed_2D.setData(y_dist.value, data["spat_disp"].value)
 
-    def __set_starting_ROI(self, data):
+    def update_ROI(self, data):
         """
-            Set the data for the Region Of Interest that is used to extract the 1D from
-            the 2D.
+        Set the data for the Region Of Interest that is used to extract the 1D from
+        the 2D.
         """
-        self.roi.setPos(
-            [
-                data["wvlg_min"].value,
-                data["spat_med"].value - data["extraction_width"].value / 2,
-            ]
-            )
-        self.roi.setSize([data["wvlg_span"].value, data["extraction_width"].value])
+        try:
+            width = data["extraction_width"].value
+        except KeyError:
+            log.warning("No extraction width specified, using 1 by default")
+            width = 1
+
+        # Don't send signals until everything is updated
+        # This is to avoid extracting with the wrong ROI dimensions
+        self.roi.blockSignals(True)
+        self.roi.setSize([data["wvlg_span"].value, width])
+        self.roi.setPos([data["wvlg_min"].value, data["spat_med"].value - width / 2])
+        self.roi.blockSignals(False)
+        # Now send signals
+        self.roi.sigRegionChangeFinished.emit(self.roi)
 
     def __set_2D_units(self, data):
         self.wvlg2D_unit = data["wvlg_2D_disp"].unit
@@ -435,22 +469,32 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.flux1D_unit = data["flux_1D_disp"].unit
 
     def __set_2D_labels(self, data):
+        self.__set_2D_units(data)
         self.ax2D.setLabel(
             "left",
-            "Spatial" + f" ({data['spat'].unit})",
+            "Spatial" + f" ({self.spat_unit})",
         )
 
     def __set_1D_labels(self, data):
+        self.__set_1D_units(data)
         self.ax1D.setLabel(
             "left",
-            "Flux" + f" ({data['flux_1D'].unit})",
+            "Flux" + f" ({self.flux1D_unit})",
             # useful if you want pyqtgraph to automatically display k in front
             # of units if you zoom out to thousands for example
             # units=f"{data['flux_1D'].unit}",
         )
         self.ax1D.setLabel(
             "bottom",
-            "Observed wavelength" + f" ({data['wvlg'].unit})",
+            "Observed wavelength" + f" ({self.wvlg1D_unit})",
+        )
+
+    def __adjust_1D_yrange(self, data):
+        # Adjust the default viewing range to be reasonable
+        # and avoid really large values from bad pixels
+        self.ax1D.setYRange(
+            min=data["q025_1D"].value,
+            max=data["q975_1D"].value,
         )
 
     def __set_2D_viewing_limits(self, data):
@@ -465,21 +509,54 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         )
 
     def __set_1D_viewing_limits(self, data):
-        self.ax1D.vb.setLimits(
-            xMin=data["wvlg_min"].value, xMax=data["wvlg_max"].value
-        )
- 
+        self.ax1D.vb.setLimits(xMin=data["wvlg_min"].value, xMax=data["wvlg_max"].value)
+
     def __set_up_img_colobar(self, data):
         self.img_colorbar.setImageItem(self.flux_2D_img)
         self.img_colorbar.setHistogramRange(
             data["q025_2D"].value, data["q975_2D"].value
         )
-        self.img_colorbar.setLevels(
-            data["q025_2D"].value, data["q975_2D"].value
-        )
+        self.img_colorbar.setLevels(data["q025_2D"].value, data["q975_2D"].value)
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
 
+    # Modify data
+    def extract_and_draw_1D(self):
+        """
+        Extract the 2D data within the ROI as 1D data, load it into
+        memory, apply smoothing if necessary and draw it on the 1D
+        plot.
+        """
+        wvlg, flux, unc = self.get_data_from_ROI()
+        self.data.load_1D(wvlg, flux, unc)
+        if self.parent:
+            if int(self.data["smooth"]) != 1:
+                wvlg, flux, unc = self.parent.smooth()
+        self.data.set_1D_displayed(wvlg, flux, unc)
+        self.draw_1D(self.data)
+
+    def get_data_from_ROI(self):
+        """
+        Return the mean of the flux and uncertaintyin the area selected
+        by the Region Of Interest widget.
+        """
+        flux_selected = self.roi.getArrayRegion(
+            self.data["flux_2D_disp"].T.value,
+            self.flux_2D_img,
+            returnMappedCoords=True,
+        )
+
+        unc_selected = self.roi.getArrayRegion(
+            self.data["unc_2D_disp"].T.value,
+            self.unc_2D_img,
+            returnMappedCoords=True,
+        )
+
+        flux_1D = flux_selected[0].sum(axis=1) * self.flux2D_unit
+        unc_1D = np.sqrt((unc_selected[0] ** 2).sum(axis=1)) * self.flux2D_unit
+        wvlg_1D = flux_selected[1][0, :, 0] * self.wvlg2D_unit
+
+        return wvlg_1D, flux_1D, unc_1D
 
     # Events
     def image_hover_event(self, ev):
@@ -487,36 +564,36 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         Show the position and value under the mouse cursor.
         """
         if ev.isExit():
-            self.parent.statusBar().showMessage("")
+            if self.parent:
+                self.parent.statusBar().clearMessage()
             return
-        elif ev.isEnter():
-            log.warning("image hover event is not implemented yet")
-        # pos = event.pos()
-        # # x and y are reversed because the transpose of the flux is displayed
-        # i, j = pos.y(), pos.x()
-        # # Clip indexes to be 0 at minimum and len(flux)-1 at maximum
-        # i = int(np.clip(i, 0, self.data["flux_2D_disp"].shape[0] - 1))
-        # j = int(np.clip(j, 0, self.data["flux_2D_disp"].shape[1] - 1))
-        # z = self.data["flux_2D_disp"][i, j]
-        # x, y = self.data["wvlg"][j], self.data["spat_disp"][i]
-        # self.statusBar().showMessage(
-        #     f"Wavelength = {x.value:0.3f} {x.unit},"
-        #     f" Spatial = {y.value:0.3f} {y.unit},"
-        #     f" Flux = {z.value:.4f} {z.unit}"
-        # )
+
+        pos = ev.pos()
+        # x and y are reversed because the transpose of the flux is displayed
+        i, j = pos.y(), pos.x()
+        # Clip indexes to be 0 at minimum and len(flux)-1 at maximum
+        i = int(np.clip(i, 0, self.data["flux_2D_disp"].shape[0] - 1))
+        j = int(np.clip(j, 0, self.data["flux_2D_disp"].shape[1] - 1))
+        z = self.data["flux_2D_disp"][i, j]
+        x, y = self.data["wvlg"][j], self.data["spat_disp"][i]
+        if self.parent:
+            self.parent.statusBar().showMessage(
+                f"Wavelength = {x.value:0.3f} {x.unit},"
+                f" Spatial = {y.value:0.3f} {y.unit},"
+                f" Flux = {z.value:.4f} {z.unit}"
+            )
 
     def keyPressEvent(self, ev):
         """
         Override keyPressEvent to allow custom handling.
-        
+
         """
         if self.active:
             key = keys_mapping[ev.key()]
             log.debug(
-                "keyPressEvent! "
                 f"Key: {key}, Mouse position: [{self.mousePoint.x()},{self.mousePoint.y()}]"
             )
-            
+
             scene_pos = self.mapToScene(self.mousePoint)
             vb = get_vb_containing(pos=scene_pos, axes=self.axes)
 
@@ -526,7 +603,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             else:
                 view_pos = vb.mapSceneToView(scene_pos)
                 self.handle_key_press(vb, key, view_pos)
-               
+
             super().keyPressEvent(ev)
 
     def handle_key_press(self, vb, key, pos):
@@ -534,36 +611,29 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         Custom function to handle key presses.
         pos is in coordinates of the ViewBox vb.
         """
-        log.debug(
-            f"Handling KeyPress event from {vb.name} plot. "
-            f"Pressed key: {key}, mouse position: [{pos.x()}, {pos.y()}]"
-        )
-
         if vb is self.ax1D.vb:
             self.set_lambdas(key, x_pos=pos.x())
             self.pan(key, vb)
 
-        if self.mode == '2D' and vb is self.ax2D.vb:
+        if self.mode == "2D" and vb is self.ax2D.vb:
             self.set_lambdas(key, x_pos=pos.x())
             self.pan(key, vb)
 
     def set_lambdas(self, key, x_pos):
         # Setting lambda 1 and 2
         if key == "Q":
-            # self.sigStatusBarMessage.emit(f"Setting Lambda_1 at {x_pos:0.5f}")
-            log.debug(f"Setting Lambda_1 at {x_pos:0.5f}")
-            try:
-                self.parent.textbox_for_wvlg1.setText("{:.5f}".format(x_pos))
-            except Exception as e:
-                log.error(f"Could not set Lambda 1: {e}")
+            if self.parent:
+                self.parent.statusBar().showMessage(
+                    f"Setting Lambda_1 at {x_pos:0.5f} {self.wvlg1D_unit}"
+                )
+                self.parent.txb_wvlg1.setText("{:.5f}".format(x_pos))
             self.lam1_line.setPos(x_pos)
         elif key == "E":
-            self.sigStatusBarMessage.emit(f"Setting Lambda_2 at {x_pos:0.5f}")
-            log.debug(f"Setting Lambda_2 at {x_pos:0.5f}")
-            try:
-                self.parent.textbox_for_wvlg2.setText("{:.5f}".format(x_pos))
-            except Exception as e:
-                log.error(f"Could not set Lambda 2: {e}")
+            if self.parent:
+                self.parent.statusBar().showMessage(
+                    f"Setting Lambda_2 at {x_pos:0.5f} {self.wvlg1D_unit}"
+                )
+                self.parent.txb_wvlg2.setText("{:.5f}".format(x_pos))
             self.lam2_line.setPos(x_pos)
 
     def pan(self, key, vb):
@@ -573,22 +643,14 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # after multiple key presses... Had to force padding to 0 when
         # defining the viewBox to remove this effect
         x_view, y_view = vb.getState()["viewRange"]
-        if key == 'D':
-            vb.setRange(
-                xRange=np.array(x_view) + 0.15 * np.abs(x_view[1] - x_view[0])
-            )
-        elif key == 'A':
-            vb.setRange(
-                xRange=np.array(x_view) - 0.15 * np.abs(x_view[1] - x_view[0])
-            )
-        elif key == 'W':
-            vb.setRange(
-                yRange=np.array(y_view) + 0.15 * np.abs(y_view[1] - y_view[0])
-            )
-        elif key == 'S':
-            vb.setRange(
-                yRange=np.array(y_view) - 0.15 * np.abs(y_view[1] - y_view[0])
-            )
+        if key == "D":
+            vb.setRange(xRange=np.array(x_view) + 0.15 * np.abs(x_view[1] - x_view[0]))
+        elif key == "A":
+            vb.setRange(xRange=np.array(x_view) - 0.15 * np.abs(x_view[1] - x_view[0]))
+        elif key == "W":
+            vb.setRange(yRange=np.array(y_view) + 0.15 * np.abs(y_view[1] - y_view[0]))
+        elif key == "S":
+            vb.setRange(yRange=np.array(y_view) - 0.15 * np.abs(y_view[1] - y_view[0]))
 
     # Slots
     def update_mouse_pos(self, pos):
@@ -597,7 +659,8 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
     def update_statusbar(self, scene_pos):
         vb = get_vb_containing(pos=scene_pos, axes=self.axes)
         if vb is None:
-            self.parent.statusBar().clearMessage()
+            if self.parent:
+                self.parent.statusBar().clearMessage()
             return
         else:
             view_pos = vb.mapSceneToView(scene_pos)
@@ -607,21 +670,20 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
                 f"Wavelength = {view_pos.x():0.3f} {self.wvlg1D_unit}, "
                 + f"Flux = {view_pos.y():0.3f} {self.flux1D_unit}"
             )
-        if self.mode == '2D':
+        if self.mode == "2D":
             if vb is self.ax2D.vb:
                 # msg = f"Wavelength = {view_pos.x():0.3f} {self.wvlg2D_unit}, "
-                    # f"Flux = {view_pos.y():0.3f} {self.flux2D_unit}"
-                msg = ''
+                # f"Flux = {view_pos.y():0.3f} {self.flux2D_unit}"
+                msg = ""
             elif vb is self.vb2D_collapsed:
-                 msg = f"Spatial = {view_pos.y():0.3f} {self.spat_unit}"
-
+                msg = f"Spatial = {view_pos.y():0.3f} {self.spat_unit}"
 
         self.parent.statusBar().showMessage(msg)
-    
+
     def move_crosshair(self, scene_pos):
         """
-            This is triggered on a sigMouseMoved
-            which sends a scene position as an event
+        This is triggered on a sigMouseMoved
+        which sends a scene position as an event
         """
         vb = get_vb_containing(pos=scene_pos, axes=self.axes)
         if vb is None:
@@ -630,7 +692,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             view_pos = vb.mapSceneToView(scene_pos)
 
         # Move y crosshairs
-        if self.mode == '2D' and vb in [self.ax2D.vb, self.vb2D_collapsed]:
+        if self.mode == "2D" and vb in [self.ax2D.vb, self.vb2D_collapsed]:
             for chy in self.crosshairs_y:
                 chy.setPos(view_pos.y())
         elif vb is self.ax1D.vb:
@@ -651,13 +713,12 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.lower_ROI.setPos(self.roi.pos()[1])
         self.upper_ROI.setPos(self.roi.pos()[1] + self.roi.size()[1])
 
-
-
-
-
-
-
-    
-
-
-
+    def print_ROI_to_logs(self):
+        log.info(
+            "Extraction 2D spectrum from "
+            f"{self.roi.pos()[0]:.4f} to "
+            f"{self.roi.pos()[0] + self.roi.size()[0]:.4f} {self.wvlg2D_unit} "
+            "and from "
+            f"{self.roi.pos()[1]:.3f} to "
+            f"{self.roi.pos()[1] + self.roi.size()[1]:.3f} {self.spat_unit}"
+        )
