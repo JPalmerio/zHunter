@@ -5,7 +5,6 @@ from PyQt6 import QtWidgets
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
 
-from astropy.io.ascii import read as ascii_read
 import astropy.units as u
 from astropy.units.quantity import Quantity
 import numpy as np
@@ -15,9 +14,7 @@ from itertools import product
 import logging
 from zhunter import DIRS
 from .line_list_selection import select_file
-
-# from .CheckBoxListWidget import CheckBoxListWidget
-
+from .misc import load_lines
 
 log = logging.getLogger(__name__)
 
@@ -25,21 +22,23 @@ log = logging.getLogger(__name__)
 class VelocityPlot(QtWidgets.QMainWindow):
     def __init__(self, parent, z=None, lines=None):
         super(VelocityPlot, self).__init__(parent)
+
         uic.loadUi(DIRS["UI"] / "velocity_plot.ui", self)
 
         self.parent = parent
 
+        # To suppress qt.pointer.dispatch warning
+        self.velLayout.viewport().setAttribute(
+            QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents,
+            False,
+        )
         # Colors
         self.colors = parent.colors
-        # DONT FORGET TO REMOVE THIS
-        # ITS A TEST TO SEE IF IT MATTERS OR IF ITS TOO LATE
-        # pg.setConfigOption("foreground", self.colors["background"])
-        # pg.setConfigOption("background", self.colors["foreground"])
 
         if lines is None:
-            self.linelist_file_textbox.setText(str(parent.fnames["absorption_lines"]))
-            self.fname = parent.fnames["absorption_lines"]
-            self.load_lines()
+            self.linelist_file_textbox.setText(str(parent.fnames["intervening_lines"]))
+            self.fname = parent.fnames["intervening_lines"]
+            self.lines = load_lines(self, self.fname)
         else:
             self.fname = None
             self.lines = lines
@@ -70,15 +69,9 @@ class VelocityPlot(QtWidgets.QMainWindow):
         if fname:
             self.fname = Path(fname)
             self.linelist_file_textbox.setText(str(self.fname))
-            self.load_lines()
+            self.lines = load_lines(self, self.fname)
             self.linelistView.clear()
             self.linelistView.addItems(self.lines["name"])
-
-    def load_lines(self):
-        try:
-            self.lines = ascii_read(self.fname)
-        except Exception as e:
-            QtWidgets.QMessageBox.information(self, "Invalid input file", str(e))
 
     def reset_plot_and_checklist(self):
         self.velLayout.clear()
@@ -134,7 +127,7 @@ class VelocityPlot(QtWidgets.QMainWindow):
         flux = self.parent.data["flux_1D_disp"]
         unc = self.parent.data["unc_1D_disp"]
 
-        n_rows, n_cols = self.__get_n_rows_and_cols()
+        n_rows, n_cols = self.get_n_rows_and_cols()
         # take the first element of the list of line names
         # as the reference. All velocity plots will be linked
         # to this one
@@ -194,7 +187,7 @@ class VelocityPlot(QtWidgets.QMainWindow):
 
         self.velLayout.setFocus()
 
-    def __get_n_rows_and_cols(self):
+    def get_n_rows_and_cols(self):
         n_l = len(self.lines_to_plot.keys())
         if n_l <= 4:
             n_cols = 1
