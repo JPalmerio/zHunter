@@ -4,7 +4,6 @@ from PyQt6 import QtCore
 import logging
 import numpy as np
 from astropy.units.quantity import Quantity
-from astropy.io.ascii import read as ascii_read
 from zhunter import DIRS
 from spectres import spectres
 from .colors import get_gradient
@@ -45,7 +44,7 @@ class SpecSystem(QtCore.QObject):
                     fname = DIRS["DATA"] / "lines/emission_lines.ecsv"
                 elif sys_type == "abs":
                     fname = DIRS["DATA"] / "lines/basic_line_list.ecsv"
-            self.lines = ascii_read(fname)
+            self.lines = io.read_line_list(fname)
         else:
             self.lines = lines
         self.plotted_lines = []

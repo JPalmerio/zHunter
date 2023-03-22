@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from .misc import check_flux_scale
+from .misc import check_flux_scale, convert_to_bins
 import zhunter.io as io
 
 log = logging.getLogger(__name__)
@@ -46,8 +46,13 @@ class DataHandler(dict):
             # Load data into memory
             self.load_2D(wvlg, spat, flux, unc)
 
+        log.debug("Loaded data:")
+        for k, v in self.items():
+            if k != 'header':
+                log.debug(f"{k}: {v}")
+
     # Acting on data
-    def load_1D(self, wvlg, flux, unc):
+    def load_1D(self, wvlg, flux, unc, res=None, resh=None):
         """
         Save wvlg, flux and unc arrays into memory.
         """
@@ -55,15 +60,19 @@ class DataHandler(dict):
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
-        self["wvlg"] = wvlg
-        self["wvlg_1D"] = wvlg
+        self["wvlg_med"] = wvlg
+        self["wvlg_bins"] = convert_to_bins(wvlg)
         self["flux_1D"] = flux
         self["unc_1D"] = unc
+        self["res_1D"] = res
+        self["resh_1D"] = resh
 
         self.set_1D_displayed(
-            wvlg=self["wvlg_1D"],
+            wvlg_bins=self["wvlg_bins"],
             flux=self["flux_1D"],
             unc=self["unc_1D"],
+            res=self["res_1D"],
+            resh=self["resh_1D"],
         )
         self.calculate_1D_displayed_range()
 
@@ -76,44 +85,46 @@ class DataHandler(dict):
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
 
-        self["wvlg"] = wvlg
+        self["wvlg_med"] = wvlg
+        self["wvlg_bins"] = convert_to_bins(wvlg)
         self["flux_2D"] = flux
         self["unc_2D"] = unc
-        self["spat"] = spat
+        self["spat_med"] = spat
+        self["spat_bins"] = convert_to_bins(spat)
 
         self.set_2D_displayed(
-            wvlg=self["wvlg"],
+            wvlg_bins=self["wvlg_bins"],
             flux=self["flux_2D"],
             unc=self["unc_2D"],
-            spat=self["spat"],
+            spat_bins=self["spat_bins"],
         )
         self.calculate_2D_displayed_range()
 
-    def set_2D_displayed(self, wvlg, flux, unc, spat):
+    def set_2D_displayed(self, wvlg_bins, flux, unc, spat_bins):
         """
         Saves into memory the data that is actually being displayed
         on the interface (after smoothing for example).
         """
-        self["wvlg_2D_disp"] = wvlg
+
+        self["wvlg_mid_disp"] = 0.5*(wvlg_bins[1:]+wvlg_bins[:-1])
+        self["wvlg_bins_disp"] = wvlg_bins
         self["flux_2D_disp"] = flux
         self["unc_2D_disp"] = unc
-        self["spat_disp"] = spat
+        self["spat_mid_disp"] = 0.5*(spat_bins[1:]+spat_bins[:-1])
+        self["spat_bins_disp"] = spat_bins
 
-    def set_1D_displayed(self, wvlg, flux, unc):
+    def set_1D_displayed(self, wvlg_bins, flux, unc, res=None, resh=None):
         """
         Saves into memory the data that is actually being displayed
         on the interface (after smoothing for example).
         """
-        # Modify wvlg array to be of size len(flux)+1 by adding the right
-        # edge of the last bin. This is to allow for visualization with
-        # stepMode='center'
-        wvlg_unit = wvlg.unit
-        wvlg = wvlg.value
-        dx = wvlg[1] - wvlg[0]
-        # Add the right edge of the final bin
-        self["wvlg_1D_disp"] = np.asarray(list(wvlg) + [wvlg[-1] + dx]) * wvlg_unit
+
+        self["wvlg_mid_disp"] = 0.5*(wvlg_bins[1:]+wvlg_bins[:-1])
+        self["wvlg_bins_disp"] = wvlg_bins
         self["flux_1D_disp"] = flux
         self["unc_1D_disp"] = unc
+        self["res_1D_disp"] = res
+        self["resh_1D_disp"] = resh
 
     def calculate_1D_displayed_range(self):
         """
@@ -121,8 +132,8 @@ class DataHandler(dict):
         visualization purposed such as setting the min and max range
         allowed by the ViewBox.
         """
-        self["wvlg_min"] = np.min(self["wvlg_1D_disp"])
-        self["wvlg_max"] = np.max(self["wvlg_1D_disp"])
+        self["wvlg_min"] = np.min(self["wvlg_bins_disp"])
+        self["wvlg_max"] = np.max(self["wvlg_bins_disp"])
         self["wvlg_span"] = self["wvlg_max"] - self["wvlg_min"]
         self["q975_1D"] = np.quantile(self["flux_1D_disp"], q=0.975)
         self["q025_1D"] = np.quantile(self["flux_1D_disp"], q=0.025)
@@ -133,12 +144,19 @@ class DataHandler(dict):
         visualization purposed such as setting the min and max range
         allowed by the ViewBox.
         """
-        self["wvlg_min"] = np.min(self["wvlg_2D_disp"])
-        self["wvlg_max"] = np.max(self["wvlg_2D_disp"])
+        self["wvlg_min"] = np.min(self["wvlg_bins_disp"])
+        self["wvlg_max"] = np.max(self["wvlg_bins_disp"])
         self["wvlg_span"] = self["wvlg_max"] - self["wvlg_min"]
         self["q975_2D"] = np.quantile(self["flux_2D_disp"], q=0.975)
         self["q025_2D"] = np.quantile(self["flux_2D_disp"], q=0.025)
-        self["spat_min"] = np.min(self["spat_disp"])
-        self["spat_max"] = np.max(self["spat_disp"])
-        self["spat_med"] = np.median(self["spat_disp"])
-        self["spat_span"] = np.max(self["spat_disp"]) - np.min(self["spat_disp"])
+        self["spat_min"] = np.min(self["spat_bins_disp"])
+        self["spat_max"] = np.max(self["spat_bins_disp"])
+        self["spat_med"] = np.median(self["spat_bins_disp"])
+        self["spat_span"] = self["spat_max"] - self["spat_min"]
+
+    def calculate_residuals(self, model):
+        self["res_1D"] = (self["flux_1D"] - model(self["wvlg_med"])) / self["unc_1D"]
+        self["res_1D_disp"] = (
+            self["flux_1D_disp"] - model(self["wvlg_mid_disp"])
+        ) / self["unc_1D_disp"]
+

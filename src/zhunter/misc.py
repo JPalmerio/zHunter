@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from PyQt6 import QtWidgets
 
 import pandas as pd
 import numpy as np
@@ -7,9 +8,33 @@ from astropy.units.quantity import Quantity
 import astropy.units as u
 import pyqtgraph as pg
 
-from zhunter.io import read_line_list, __find_column_name, WAVE_KEYS
+from zhunter.io import read_line_list, find_column_name, WAVE_KEYS
 
 log = logging.getLogger(__name__)
+
+
+def convert_to_bins(array):
+    # Modify array to be of size len(array)+1 by adding the right
+    # edge of the last bin and shifting everything by step/2.
+    # This is to allow for accurate visualization with stepMode='center'
+    if isinstance(array, Quantity):
+        array_unit = array.unit
+        array = array.value
+    else:
+        array_unit = 1
+    delta = array[1] - array[0]
+    n_bin_edges = len(array) + 1
+    bins = np.linspace(array[0]-delta/2, array[-1]+delta/2, n_bin_edges) * array_unit
+    return bins
+
+
+def load_lines(widget, fname):
+    try:
+        lines = read_line_list(fname)
+        return lines
+    except Exception as e:
+        QtWidgets.QMessageBox.information(widget, "Invalid input file", str(e))
+        return None
 
 
 def get_vb_containing(pos, axes):
@@ -138,7 +163,7 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     column_names = list(lines.columns)
 
     # Wavelength
-    wave_key = __find_column_name(
+    wave_key = find_column_name(
         column_names,
         possible_names=WAVE_KEYS,
     )

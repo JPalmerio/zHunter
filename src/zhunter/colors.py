@@ -5,7 +5,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def load_colors(config, default="kraken9"):
+def load_colors(style, default="kraken9"):
     """Load colors
 
     Parameters
@@ -14,7 +14,6 @@ def load_colors(config, default="kraken9"):
         Description
     """
     # Define color style
-    style = config["colors"]
     try:
         colors = COLORS[style]
     except KeyError:
@@ -92,7 +91,7 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
 
 KRAKEN9 = {
     "spec": "#EBEBEB",
-    "unc": "#BC271B",
+    "unc": "#BC271B",  # Rust
     "specsys": [
         "#4A9EBC",  # Lightblue
         "#ECCA54",  # Yellow
@@ -110,12 +109,13 @@ KRAKEN9 = {
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
-    # "roi": "#3E8D26",  # green
+    "continuum": "#C95D38",  # Orange
+    "fit": "#4A9EBC",  # Lightblue
 }
 
 KRAKEN17 = {
     "spec": "#EBEBEB",
-    "unc": "#BC271B",
+    "unc": "#BC271B",  # Rust
     "specsys": [
         "#4A9EBC",  # Lightblue
         "#ECCA54",  # Yellow
@@ -140,7 +140,8 @@ KRAKEN17 = {
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
-    # "roi": "#3E8D26",  # green
+    "continuum": "#C95D38",  # Orange
+    "fit": "#4A9EBC",  # Lightblue
 }
 
 
@@ -152,7 +153,9 @@ CVD = {
     "crosshair": "lightgray",
     "background": "#000000",
     "foreground": "lightgray",
-    "roi": "#0041FF",  # blue
+    "roi": "cyan",  # cyan
+    "continuum": "#C95D38",  # Orange
+    "fit": "#4A9EBC",  # Lightblue
 }
 
 OLD = {
@@ -177,6 +180,8 @@ OLD = {
     "background": "#000000",
     "foreground": "white",
     "roi": "g",
+    "continuum": "#C95D38",  # Orange
+    "fit": "#4A9EBC",  # Lightblue
 }
 
 CYBERPUNK = {
@@ -188,6 +193,8 @@ CYBERPUNK = {
     "background": "#212946",
     "foreground": "lightgray",
     "roi": "g",
+    "continuum": "#C95D38",  # Orange
+    "fit": "#4A9EBC",  # Lightblue
 }
 
 COLORS = {
