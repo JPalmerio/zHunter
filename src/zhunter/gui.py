@@ -20,8 +20,9 @@ import zhunter.spectral_functions as sf
 from .spectroscopic_system import SpecSystem, SpecSystemModel, Telluric, SkyBackground
 from .line_list_selection import SelectLineListsDialog, select_file, define_paths
 from .velocity_plot import VelocityPlot
+from .fit_plot import LineFitPlot
 from .key_binding import KeyBindingHelpDialog
-from .misc import create_line_ratios
+from .misc import create_line_ratios, convert_to_bins
 from .colors import load_colors, ZHUNTER_LOGO
 from .initialize import load_config, get_config_fname
 from .data_handler import DataHandler
@@ -46,7 +47,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config = load_config(self.config_fname)
 
         # Colors
-        self.colors = load_colors(self.config)
+        self.colors = load_colors(style=self.config["colors"])
+
         # Have to do this before loading UI for it to work
         pg.setConfigOption("foreground", self.colors["foreground"])
         pg.setConfigOption("background", self.colors["background"])
@@ -93,14 +95,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.file_2D_btn.clicked.connect(self.select_2D_file)
         self.file_line_list_btn.clicked.connect(self.select_line_lists)
         self.velocity_plot_btn.clicked.connect(self.velocity_plot)
+        self.line_fit_plot_btn.clicked.connect(self.line_fit_plot)
 
     def connect_signals_and_slots(self):
         # Connect all signals and slots
-        self.show_uncertainty_cb.stateChanged.connect(self.show_hide_uncertainty)
+        self.show_uncertainty_chb.stateChanged.connect(self.show_hide_uncertainty)
 
-        self.telluric_cb.stateChanged.connect(self.show_hide_telluric)
+        self.telluric_chb.stateChanged.connect(self.show_hide_telluric)
 
-        self.sky_bkg_cb.stateChanged.connect(self.show_hide_sky_bkg)
+        self.sky_bkg_chb.stateChanged.connect(self.show_hide_sky_bkg)
 
         self.fine_structure_btn.clicked.connect(self.show_hide_fine_structure)
 
@@ -120,9 +123,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.add_line_btn.clicked.connect(self.add_specsys_from_line)
 
-        self.reset_smooth_btn.clicked.connect(self.reset_smoothing)
+        # self.reset_smooth_btn.clicked.connect(self.reset_smoothing)
 
-        self.txb_smooth.editingFinished.connect(self.apply_smoothing)
+        # self.txb_smooth.editingFinished.connect(self.apply_smoothing)
 
         self.reset_width_btn.clicked.connect(self.reset_width)
 
@@ -152,9 +155,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Load extra parameters defined on the GUI
         ext_width = float(self.txb_extraction_width.text())
-        if self.mode == '2D':
-            self.data["extraction_width"] = ext_width * self.data["spat"].unit
-        self.data["smooth"] = int(self.txb_smooth.text())
+        if self.mode == "2D":
+            self.data["extraction_width"] = ext_width * self.data["spat_mid_disp"].unit
+        # self.data["smooth"] = int(self.txb_smooth.text())
 
         # Main plotting function
         # Here self.data should be the same as self.graphLayout.data
@@ -162,10 +165,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphLayout.draw_data()
 
         # Plot telluric
-        if self.telluric_cb.isChecked():
+        if self.telluric_chb.isChecked():
             self.plot_telluric()
         # Plot sky background
-        if self.sky_bkg_cb.isChecked():
+        if self.sky_bkg_chb.isChecked():
             self.plot_sky_bkg()
 
     def load_line_lists(self, calc_ratio):
@@ -173,7 +176,9 @@ class MainWindow(QtWidgets.QMainWindow):
         Load the input line lists and check the format is ok.
         """
         try:
-            log.debug(f"Reading absorption lines from: {self.fnames['intervening_lines']}")
+            log.debug(
+                f"Reading absorption lines from: {self.fnames['intervening_lines']}"
+            )
             self.abs_lines = io.read_line_list(self.fnames["intervening_lines"])
 
             log.debug(f"Reading emission lines from: {self.fnames['emission_lines']}")
@@ -183,11 +188,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.GRB_lines = io.read_line_list(self.fnames["GRB_lines"])
 
         except Exception as e:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Invalid line list format",
-                f"{e}"
-            )
+            QtWidgets.QMessageBox.information(self, "Invalid line list format", f"{e}")
             return
 
         if calc_ratio:
@@ -226,7 +227,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        if self.show_uncertainty_cb.isChecked():
+        if self.show_uncertainty_chb.isChecked():
             self.unc_1D_spec.show()
         else:
             self.unc_1D_spec.hide()
@@ -241,7 +242,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.telluric_1D_spec is None:
             self.plot_telluric()
-        if self.telluric_cb.isChecked():
+        if self.telluric_chb.isChecked():
             self.telluric_1D_spec.show()
         else:
             self.telluric_1D_spec.hide()
@@ -256,7 +257,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.sky_bkg_1D_spec is None:
             self.plot_sky_bkg()
-        if self.sky_bkg_cb.isChecked():
+        if self.sky_bkg_chb.isChecked():
             self.sky_bkg_1D_spec.show()
         else:
             self.sky_bkg_1D_spec.hide()
@@ -302,7 +303,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         "spectrum",
                     )
                     return
-                self.data["extraction_width"] = ext_width * self.data["spat"].unit
+                self.data["extraction_width"] = ext_width * self.data["spat_mid_disp"].unit
                 self.graphLayout.roi.setSize([self.data["wvlg_span"].value, ext_width])
             except ValueError:
                 QtWidgets.QMessageBox.information(
@@ -395,7 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         indexes = self.specsysView.selectedIndexes()
-        if indexes:
+        if len(indexes) > 0:
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             specsys = self.specsysModel.get_specsys(index)
@@ -414,85 +415,123 @@ class MainWindow(QtWidgets.QMainWindow):
                 "to show the velocity plot.",
             )
 
-    # Modify displayed data
-    def smooth(self):
-        """
-        Get the number of pixels over which to smooth from the
-        corresponding textbox. Then apply it the original 1D data
-        loaded into memory.
-        This is applied to the data in memory and not the displayed
-        data, that way one can go back to lower values of smoothing.
-        Otherwise, smoothing degrades information and one cannot
-        "unsmooth" as that information is lost.
-        """
-        smoothing = int(self.txb_smooth.text())
-        log.debug(f"Smoothing by {smoothing} pixels")
-        self.statusBar().showMessage("Smoothing by {} pixels".format(smoothing), 2000)
-        wvlg_sm, flux_sm, unc_sm = sf.smooth(
-            self.data["wvlg_1D"].value,
-            self.data["flux_1D"].value,
-            unc=self.data["unc_1D"].value,
-            smoothing=smoothing,
-        )
-        wvlg_sm = wvlg_sm * self.data["wvlg"].unit
-        flux_sm = flux_sm * self.data["flux_1D"].unit
-        unc_sm = unc_sm * self.data["unc_1D"].unit
-        self.data["smooth"] = smoothing
-
-        return wvlg_sm, flux_sm, unc_sm
-
-    def apply_smoothing(self):
+    def line_fit_plot(self):
         if not self.data:
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        log.debug("Attempting to smooth")
-        self.statusBar().showMessage("Smoothing...")
-        try:
-            wvlg_sm, flux_sm, unc_sm = self.smooth()
-            # if self.mode == '1D':
-            self.data.set_1D_displayed(wvlg_sm, flux_sm, unc_sm)
-            self.data.calculate_1D_displayed_range()
-            self.graphLayout.draw_data()
-            # TODO : implement 2D smoothing
-            # elif self.mode == '2D':
-            #     self.data['wvlg_2D_disp'] = x_sm
-            #     self.data['flux_2D_disp'] = y_sm
-            #     self.data['err_2D_disp'] = err_sm
-            #     self.flux_2D_img.setImage(y_sm.T, levels=(self.data['q025'], self.data['q975']))
-            #     self.err_2D_img.setImage(err_sm.T)
-            #     # self.rect = QtCore.QRectF(x_sm[0], spat[0],
-            #     # x_sm[-1]-x_sm[0], spat[-1]-spat[0])
-            #     # self.flux_2D_img.setRect(self.rect)
+        indexes = self.specsysView.selectedIndexes()
+        if len(indexes) > 0:
+            # Indexes is a list of a single item in single-select mode.
+            index = indexes[0]
+            specsys = self.specsysModel.get_specsys(index)
+            if specsys.sys_type == 'abs':
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Invalid spectroscopic system selected",
+                    "Only emission spectroscopic systems can be fit currently.",
+                )
 
-        except ValueError:
-            self.txb_smooth.blockSignals(True)
+                return
+            else:
+                log.info("Calling line plot widget")
+                self.linefitWidget = LineFitPlot(
+                    parentWidget=self,
+                    z=specsys.redshift,
+                    lines=specsys.lines,
+                    data=self.data,
+                    mode=self.mode,
+                    colors=self.colors
+                )
+
+                self.linefitWidget.show()
+        else:
             QtWidgets.QMessageBox.information(
                 self,
-                "Invalid smooth value",
-                "Smoothing value must be convertible to integer",
+                "No spectroscopic system selected",
+                "Please select a spectroscopic system from the list "
+                "to show the velocity plot.",
             )
-            self.txb_smooth.blockSignals(False)
-            self.txb_smooth.setFocus()
 
-    def reset_smoothing(self):
-        """
-        Display the original data the was read from the file or
-        extracted from the 2D.
-        """
-        if not self.data:
-            log.debug("You pushed a button but did not load any data. Ignoring.")
-            return
+    # Modify displayed data
+    # def smooth(self):
+    #     """
+    #     Get the number of pixels over which to smooth from the
+    #     corresponding textbox. Then apply it the original 1D data
+    #     loaded into memory.
+    #     This is applied to the data in memory and not the displayed
+    #     data, that way one can go back to lower values of smoothing.
+    #     Otherwise, smoothing degrades information and one cannot
+    #     "unsmooth" as that information is lost.
+    #     """
+    #     smoothing = int(self.txb_smooth.text())
+    #     log.debug(f"Smoothing by {smoothing} pixels")
+    #     self.statusBar().showMessage("Smoothing by {} pixels".format(smoothing), 2000)
+    #     wvlg_sm, flux_sm, unc_sm = sf.smooth(
+    #         self.data["wvlg_1D"].value,
+    #         self.data["flux_1D"].value,
+    #         unc=self.data["unc_1D"].value,
+    #         smoothing=smoothing,
+    #     )
+    #     wvlg_sm = wvlg_sm * self.data["wvlg"].unit
+    #     flux_sm = flux_sm * self.data["flux_1D"].unit
+    #     unc_sm = unc_sm * self.data["unc_1D"].unit
+    #     self.data["smooth"] = smoothing
 
-        self.data.set_1D_displayed(
-            wvlg=self.data["wvlg_1D"],
-            flux=self.data["flux_1D"],
-            unc=self.data["unc_1D"],
-        )
-        self.data.calculate_1D_displayed_range()
-        self.graphLayout.draw_data()
-        self.txb_smooth.setText("1")
-        # TODO : implement 2D smoothing
+    #     return wvlg_sm, flux_sm, unc_sm
+
+    # def apply_smoothing(self):
+    #     if not self.data:
+    #         log.debug("You pushed a button but did not load any data. Ignoring.")
+    #         return
+
+    #     log.debug("Attempting to smooth")
+    #     self.statusBar().showMessage("Smoothing...")
+    #     try:
+    #         wvlg_sm, flux_sm, unc_sm = self.smooth()
+    #         # if self.mode == '1D':
+    #         self.data.set_1D_displayed(wvlg_sm, flux_sm, unc_sm)
+    #         self.data.calculate_1D_displayed_range()
+    #         self.graphLayout.draw_data()
+    #         # TODO : implement 2D smoothing
+    #         # elif self.mode == '2D':
+    #         #     self.data['wvlg_2D_disp'] = x_sm
+    #         #     self.data['flux_2D_disp'] = y_sm
+    #         #     self.data['err_2D_disp'] = err_sm
+    #         #     self.flux_2D_img.setImage(y_sm.T, levels=(self.data['q025'], self.data['q975']))
+    #         #     self.err_2D_img.setImage(err_sm.T)
+    #         #     # self.rect = QtCore.QRectF(x_sm[0], spat[0],
+    #         #     # x_sm[-1]-x_sm[0], spat[-1]-spat[0])
+    #         #     # self.flux_2D_img.setRect(self.rect)
+
+    #     except ValueError:
+    #         self.txb_smooth.blockSignals(True)
+    #         QtWidgets.QMessageBox.information(
+    #             self,
+    #             "Invalid smooth value",
+    #             "Smoothing value must be convertible to integer",
+    #         )
+    #         self.txb_smooth.blockSignals(False)
+    #         self.txb_smooth.setFocus()
+
+    # def reset_smoothing(self):
+    #     """
+    #     Display the original data the was read from the file or
+    #     extracted from the 2D.
+    #     """
+    #     if not self.data:
+    #         log.debug("You pushed a button but did not load any data. Ignoring.")
+    #         return
+
+    #     self.data.set_1D_displayed(
+    #         wvlg=self.data["wvlg_1D"],
+    #         flux=self.data["flux_1D"],
+    #         unc=self.data["unc_1D"],
+    #     )
+    #     self.data.calculate_1D_displayed_range()
+    #     self.graphLayout.draw_data()
+    #     self.txb_smooth.setText("1")
+    #     # TODO : implement 2D smoothing
 
     def wvlg_to_air(self):
         """
@@ -509,9 +548,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from vacuum " "to air.",
             )
         else:
-            wvlg = self.data[f"wvlg_{self.mode}_disp"]
+            wvlg = self.data["wvlg_mid_disp"]
             wvlg_in_air = sf.vac_to_air(wvlg)
-            self.data[f"wvlg_{self.mode}_disp"] = wvlg_in_air
+            self.data["wvlg_mid_disp"] = wvlg_in_air
+            self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_air)
             if not self.wvlg_corrections["to_vacuum"]:
                 self.wvlg_corrections["to_air"] = True
             self.wvlg_corrections["to_vacuum"] = False
@@ -533,9 +573,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from air " "to vacuum.",
             )
         else:
-            wvlg = self.data[f"wvlg_{self.mode}_disp"]
+            wvlg = self.data["wvlg_mid_disp"]
             wvlg_in_vac = sf.air_to_vac(wvlg)
-            self.data[f"wvlg_{self.mode}_disp"] = wvlg_in_vac
+            self.data["wvlg_mid_disp"] = wvlg_in_vac
+            self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_vac)
             if not self.wvlg_corrections["to_air"]:
                 self.wvlg_corrections["to_vacuum"] = True
             self.wvlg_corrections["to_air"] = False
@@ -576,15 +617,16 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         else:
             try:
-                wvlg = self.data[f"wvlg_{self.mode}_disp"]
+                wvlg = self.data["wvlg_mid_disp"]
                 c = cst.c.to("km/s")
                 vcorr = sf.calc_vel_corr(header=self.data["header"], kind=kind)
                 wvlg_corr = wvlg * (1.0 + vcorr / c)
-                self.data[f"wvlg_{self.mode}_disp"] = wvlg_corr
+                self.data["wvlg_mid_disp"] = wvlg_corr
+                self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_corr)
                 self.wvlg_corrections["barycentric"] = True
                 self.wvlg_corrections["heliocentric"] = True
                 self.graphLayout.draw_data()
-                log.info("Converted wavelength from {:s} motion".format(kind))
+                log.info(f"Converted wavelength from {kind} motion")
             except KeyError as e:
                 log.error(e)
                 QtWidgets.QMessageBox.information(
@@ -727,15 +769,16 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         try:
             z = self.txb_z.text()
-            log.debug("z is %s, reading from textbox for z", z)
+            log.debug(f"Reading z from textbox : {z}")
             z = float(z)
-            self.add_specsys(z, sys_type="em")
         except ValueError:
             QtWidgets.QMessageBox.information(
                 self,
                 "Invalid spectral system",
                 "Can't add system: z must be convertible to float",
             )
+            return
+        self.add_specsys(z, sys_type="em")
 
     def add_specsys(self, z, sys_type="abs"):
         """
@@ -758,7 +801,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 lines=lines,
                 show_fs=True,
             )
-            self.statusBar().showMessage("Adding system at redshift %.5lf" % z, 2000)
+            self.statusBar().showMessage(f"Adding system at redshift {z:.5f}", 2000)
             specsys.draw(
                 xmin=self.data["wvlg_min"],
                 xmax=self.data["wvlg_max"],
@@ -772,9 +815,9 @@ class MainWindow(QtWidgets.QMainWindow):
             specsys.edited.connect(self.specsysModel.layoutChanged.emit)
             self.txb_z.setText("")
             self.clear_color_from_available_list(color)
-            log.info("Added %s at redshift %.5lf", sys_type_str, z)
+            log.info(f"Added {sys_type_str} at redshift {z:.5f}")
         except ValueError as e:
-            log.error(f"Can't add system: z must be convertible to float. Error : {e}")
+            log.error(f"Can't add system: {e}")
             self.txb_z.setFocus()
 
     def delete_specsys(self):
@@ -861,6 +904,66 @@ def main():
     )
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()
+    main.show()
+    sys.exit(app.exec())
+
+
+def testmode1D():
+    log.info(
+        "\n"
+        + 36 * "-"
+        + ZHUNTER_LOGO
+        + "\n"
+        + """
+ _ ____    _____ _____ ____ _____   __  __  ___  ____  _____ 
+/ |  _ \  |_   _| ____/ ___|_   _| |  \/  |/ _ \|  _ \| ____|
+| | | | |   | | |  _| \___ \ | |   | |\/| | | | | | | |  _|  
+| | |_| |   | | | |___ ___) || |   | |  | | |_| | |_| | |___ 
+|_|____/    |_| |_____|____/ |_|   |_|  |_|\___/|____/|_____|
+"""
+        + "\n"
+        + 14 * " "
+        + f"v{__version__}\n"
+        + 36 * "-"
+    )
+    app = QtWidgets.QApplication(sys.argv)
+    main = MainWindow()
+    main.mode = '1D'
+    fname = Path(str(Path(__file__).resolve().parents[2]) + '/dev/data/test_input_files/XSHOOTER_bintable_1D.fits')
+    main.fnames['data'] = fname
+    main.set_up_plot()
+    main.visualize_spec()
+    main.add_specsys(z=6.317, sys_type="abs")
+    main.show()
+    sys.exit(app.exec())
+
+
+def testmode2D():
+    log.info(
+        "\n"
+        + 36 * "-"
+        + ZHUNTER_LOGO
+        + "\n"
+        + """
+ ____  ____    _____ _____ ____ _____   __  __  ___  ____  _____ 
+|___ \|  _ \  |_   _| ____/ ___|_   _| |  \/  |/ _ \|  _ \| ____|
+  __) | | | |   | | |  _| \___ \ | |   | |\/| | | | | | | |  _|  
+ / __/| |_| |   | | | |___ ___) || |   | |  | | |_| | |_| | |___ 
+|_____|____/    |_| |_____|____/ |_|   |_|  |_|\___/|____/|_____|
+"""
+        + "\n"
+        + 14 * " "
+        + f"v{__version__}\n"
+        + 36 * "-"
+    )
+    app = QtWidgets.QApplication(sys.argv)
+    main = MainWindow()
+    main.mode = '2D'
+    fname = Path(str(Path(__file__).resolve().parents[2]) + '/dev/data/test_input_files/2D.fits')
+    main.fnames['data'] = fname
+    main.set_up_plot()
+    main.visualize_spec()
+    main.add_specsys(z=0.15135, sys_type="em")
     main.show()
     sys.exit(app.exec())
 

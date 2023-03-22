@@ -67,7 +67,7 @@
       <item row="0" column="1">
        <layout class="QVBoxLayout" name="verticalLayout_6">
         <item>
-         <widget class="QCheckBox" name="show_uncertainty_cb">
+         <widget class="QCheckBox" name="show_uncertainty_chb">
           <property name="text">
            <string>Show error</string>
           </property>
@@ -77,7 +77,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="telluric_cb">
+         <widget class="QCheckBox" name="telluric_chb">
           <property name="text">
            <string>Telluric absorption</string>
           </property>
@@ -87,7 +87,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="sky_bkg_cb">
+         <widget class="QCheckBox" name="sky_bkg_chb">
           <property name="text">
            <string>Sky emission</string>
           </property>
@@ -907,6 +907,13 @@
           </property>
           <property name="text">
            <string>Velocity Plot</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="line_fit_plot_btn">
+          <property name="text">
+           <string>Line Fit Plot</string>
           </property>
          </widget>
         </item>

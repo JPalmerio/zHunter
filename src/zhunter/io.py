@@ -55,7 +55,7 @@ def read_line_list(fname):
     column_names = list(tab.columns)
 
     # Wavelength
-    wave_key = __find_column_name(
+    wave_key = find_column_name(
         column_names,
         possible_names=WAVE_KEYS,
     )
@@ -68,7 +68,7 @@ def read_line_list(fname):
         wave_unit = tab[wave_key].unit
         if wave_unit is None:
             # Try to get units from the column name
-            wave_unit = __parse_units_from_column_name(wave_key)
+            wave_unit = parse_units_from_column_name(wave_key)
         if wave_unit is None:
             log.info(f"No units found in file '{fname}', assuming Angstrom.")
             tab[wave_key].unit = u.Unit("Angstrom")
@@ -190,17 +190,17 @@ def read_generic_1D_spectrum(
     log.debug(f"Found the following columns: {column_names}")
 
     # Wavelength
-    wave_key = __find_column_name(
+    wave_key = find_column_name(
         column_names,
         possible_names=WAVE_KEYS,
     )
     # Flux
-    flux_key = __find_column_name(
+    flux_key = find_column_name(
         column_names,
         possible_names=FLUX_KEYS,
     )
     # Error
-    uncertainty_key = __find_column_name(
+    uncertainty_key = find_column_name(
         column_names,
         possible_names=ERROR_KEYS,
     )
@@ -232,7 +232,7 @@ def read_generic_1D_spectrum(
 
         # Try to get units from the column name
         if wave_unit is None:
-            wave_unit = __parse_units_from_column_name(wave_key)
+            wave_unit = parse_units_from_column_name(wave_key)
 
     if flux_key is not None:
         if pandas:
@@ -243,7 +243,7 @@ def read_generic_1D_spectrum(
 
         # Try to get units from the column name
         if flux_unit is None:
-            flux_unit = __parse_units_from_column_name(flux_key)
+            flux_unit = parse_units_from_column_name(flux_key)
 
     if uncertainty_key is not None:
         if pandas:
@@ -298,7 +298,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
     with fits.open(fname) as hdulist:
         hdu_names = [hdu.name for hdu in hdulist]
 
-        flux_hdu_name = __find_column_name(
+        flux_hdu_name = find_column_name(
             hdu_names,
             possible_names=FLUX_KEYS,
         )
@@ -328,7 +328,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
             raise IOError("Could not find a 2D flux array in this fits file.")
 
         # Error/uncertainty
-        uncertainty_hdu_name = __find_column_name(
+        uncertainty_hdu_name = find_column_name(
             hdu_names,
             possible_names=ERROR_KEYS,
         )
@@ -354,8 +354,8 @@ def read_fits_2D_spectrum(fname, verbose=False):
     wpixels = np.arange(flux.shape[1])
 
     # Spatial dimension
-    spatial_unit = __get_units(header=header, axis=2, default_units=u.arcsec)
-    spatial_constructor = __get_constructor(header=header, axis=2)
+    spatial_unit = get_units(header=header, axis=2, default_units=u.arcsec)
+    spatial_constructor = get_constructor(header=header, axis=2)
     spatial = spatial_constructor(spixels)
     if spatial_unit is not None:
         spatial = spatial * spatial_unit
@@ -363,8 +363,8 @@ def read_fits_2D_spectrum(fname, verbose=False):
         spatial = spatial * u.Unit()
 
     # Spectral dimension
-    wave_unit = __get_wavelength_units(header=header)
-    wave_constructor = __get_wavelength_constructor(header=header)
+    wave_unit = get_wavelength_units(header=header)
+    wave_constructor = get_wavelength_constructor(header=header)
     waveobs = wave_constructor(wpixels)
     if wave_unit is not None:
         waveobs = waveobs * wave_unit
@@ -419,13 +419,13 @@ def read_fits_1D_spectrum(fname):
             flux = data.flatten()
             pixels = np.arange(len(flux))
 
-            flux_unit = __get_flux_units(
+            flux_unit = get_flux_units(
                 header=header,
                 axis=2,
                 default_units=ergscm2AA,
             )
-            wave_unit = __get_wavelength_units(header=header)
-            wave_constructor = __get_wavelength_constructor(header=header)
+            wave_unit = get_wavelength_units(header=header)
+            wave_constructor = get_wavelength_constructor(header=header)
             waveobs = wave_constructor(pixels)
 
             if waveobs is None:
@@ -483,17 +483,17 @@ def read_fits_1D_spectrum(fname):
                     )
 
                     # Wavelength
-                    wave_key = __find_column_name(
+                    wave_key = find_column_name(
                         column_names,
                         possible_names=WAVE_KEYS,
                     )
                     # Flux
-                    flux_key = __find_column_name(
+                    flux_key = find_column_name(
                         column_names,
                         possible_names=FLUX_KEYS,
                     )
                     # Error
-                    uncertainty_key = __find_column_name(
+                    uncertainty_key = find_column_name(
                         column_names,
                         possible_names=ERROR_KEYS,
                     )
@@ -625,7 +625,7 @@ def convert_line_name_to_latex(lname):
         return latex_string
 
 
-def __parse_units_from_column_name(col_name):
+def parse_units_from_column_name(col_name):
     """Look for units in the name of a column by searching for a format
     as: wave(nm)
 
@@ -645,7 +645,7 @@ def __parse_units_from_column_name(col_name):
     return units
 
 
-def __get_units(header, axis=2, default_units=None):
+def get_units(header, axis=2, default_units=None):
     # Check for flux units
     try:
         cunit2 = header[f"CUNIT{axis}"].strip().lower()
@@ -662,7 +662,7 @@ def __get_units(header, axis=2, default_units=None):
     return units
 
 
-def __get_flux_units(header, axis=2, default_units=None):
+def get_flux_units(header, axis=2, default_units=None):
     # Check for flux units
     cunit2 = header.get(f"CUNIT{axis}")
     bunit = header.get("BUNIT")
@@ -688,7 +688,7 @@ def __get_flux_units(header, axis=2, default_units=None):
     return flux_units
 
 
-def __get_wavelength_units(header, waxis=1, default_units=u.nm):
+def get_wavelength_units(header, waxis=1, default_units=u.nm):
     # Check for wavelength units
     try:
         cunit1 = header[f"CUNIT{waxis}"].strip().lower()
@@ -705,7 +705,7 @@ def __get_wavelength_units(header, waxis=1, default_units=u.nm):
     return wave_unit
 
 
-def __get_constructor(header, axis=2):
+def get_constructor(header, axis=2):
     """
     Create a function by reading the header that can construct a
     physical axis if provided a pixel array.
@@ -744,7 +744,7 @@ def __get_constructor(header, axis=2):
     return constructor
 
 
-def __get_wavelength_constructor(header, waxis=1):
+def get_wavelength_constructor(header, waxis=1):
     """
     Create a function by reading the header that can construct a
     wavelength axis if provided a pixel array.
@@ -790,7 +790,7 @@ def __get_wavelength_constructor(header, waxis=1):
     return constructor
 
 
-def __find_column_name(column_names, possible_names):
+def find_column_name(column_names, possible_names):
     """
     This function checks if any of the names in colnames are found
     in a list of possible keys.
