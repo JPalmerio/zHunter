@@ -48,7 +48,7 @@ class DataHandler(dict):
 
         log.debug("Loaded data:")
         for k, v in self.items():
-            if k != 'header':
+            if k != "header":
                 log.debug(f"{k}: {v}")
 
     # Acting on data
@@ -106,11 +106,11 @@ class DataHandler(dict):
         on the interface (after smoothing for example).
         """
 
-        self["wvlg_mid_disp"] = 0.5*(wvlg_bins[1:]+wvlg_bins[:-1])
+        self["wvlg_mid_disp"] = 0.5 * (wvlg_bins[1:] + wvlg_bins[:-1])
         self["wvlg_bins_disp"] = wvlg_bins
         self["flux_2D_disp"] = flux
         self["unc_2D_disp"] = unc
-        self["spat_mid_disp"] = 0.5*(spat_bins[1:]+spat_bins[:-1])
+        self["spat_mid_disp"] = 0.5 * (spat_bins[1:] + spat_bins[:-1])
         self["spat_bins_disp"] = spat_bins
 
     def set_1D_displayed(self, wvlg_bins, flux, unc, res=None, resh=None):
@@ -119,7 +119,7 @@ class DataHandler(dict):
         on the interface (after smoothing for example).
         """
 
-        self["wvlg_mid_disp"] = 0.5*(wvlg_bins[1:]+wvlg_bins[:-1])
+        self["wvlg_mid_disp"] = 0.5 * (wvlg_bins[1:] + wvlg_bins[:-1])
         self["wvlg_bins_disp"] = wvlg_bins
         self["flux_1D_disp"] = flux
         self["unc_1D_disp"] = unc
@@ -159,4 +159,3 @@ class DataHandler(dict):
         self["res_1D_disp"] = (
             self["flux_1D_disp"] - model(self["wvlg_mid_disp"])
         ) / self["unc_1D_disp"]
-

@@ -36,7 +36,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
 
     def set_up_plot(self, mode, line, colors=None, show_roi=False, name=None):
         self.line = line
-        name = self.line.name.replace('_', ' ')
+        name = self.line.name.replace("_", " ")
         super().set_up_plot(mode, colors=colors, show_roi=show_roi, name=name)
         self.axes.append(self.ax_res)
         self.adjust_proportions()
@@ -77,7 +77,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             stepMode="center",
             pen=pg.mkPen(color=self.colors["fit"], width=3),
             fillLevel=0,
-            brush=pg.mkBrush(color=self.colors["fit"]+'30')  # add alpha as Hex
+            brush=pg.mkBrush(color=self.colors["fit"] + "30"),  # add alpha as Hex
         )
         self.unit_gauss = pg.PlotCurveItem(
             np.linspace(-5, 5, 101),
@@ -126,12 +126,12 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.vb_resh.addItem(self.unit_gauss)
 
     def adjust_proportions(self):
-        if self.mode == '2D':
+        if self.mode == "2D":
             # Change the ratios of sizes of PlotItems
             self.ci.layout.setRowStretchFactor(1, 4)
             self.ci.layout.setRowStretchFactor(2, 8)
             self.ci.layout.setRowStretchFactor(3, 2)
-        elif self.mode == '1D':
+        elif self.mode == "1D":
             self.ci.layout.setRowStretchFactor(1, 8)
             self.ci.layout.setRowStretchFactor(2, 2)
         # Strech column 0 (where 1D and 2D plots are) to make it bigger in x
@@ -171,11 +171,11 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
     def draw_data(self, data=None):
         super().draw_data(data=data)
         wmin = self.line.properties["obs_awav_guess"] - 60 * u.AA * (
-                1 + self.line.properties["z_guess"]
-            )
+            1 + self.line.properties["z_guess"]
+        )
         wmax = self.line.properties["obs_awav_guess"] + 60 * u.AA * (
-                1 + self.line.properties["z_guess"]
-            )
+            1 + self.line.properties["z_guess"]
+        )
         wmin = wmin.to(self.wvlg_unit).value
         wmax = wmax.to(self.wvlg_unit).value
         self.ax1D.setXRange(min=wmin, max=wmax)
@@ -194,17 +194,17 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
                 self.add_excluded_region(pos, scene_pos)
             elif key == "Backspace":
                 self.delete_regions(pos, scene_pos)
-            # elif key == 'Q':
-            #     self.set_lower_fit_bound(key, pos.x())
-            # elif key == 'E':
-            #     self.set_upper_fit_bound(key, pos.x())
-            elif key == 'G':
+            elif key == "Q":
+                self.set_lower_integration_bound(key, pos.x())
+            elif key == "E":
+                self.set_upper_integration_bound(key, pos.x())
+            elif key == "G":
                 self.set_gaussian_mean_guess(pos)
-            elif key in ['A','S','D','W']:
+            elif key in ["A", "S", "D", "W"]:
                 self.pan(key, vb)
 
         elif self.mode == "2D" and vb is self.ax2D.vb:
-            if key in ['A','S','D','W']:
+            if key in ["A", "S", "D", "W"]:
                 self.pan(key, vb)
 
     def add_continuum_region(self, pos, scene_pos):
@@ -216,9 +216,9 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             self.current_cont_reg = ContinuumRegion(
                 pen=pg.mkPen(self.colors["continuum"], width=2),
                 hoverPen=pg.mkPen(self.colors["continuum"], width=5),
-                brush=pg.mkBrush(self.colors["continuum"]+'30'),
-                hoverBrush=pg.mkBrush(self.colors["continuum"]+'60'),
-                )
+                brush=pg.mkBrush(self.colors["continuum"] + "30"),
+                hoverBrush=pg.mkBrush(self.colors["continuum"] + "60"),
+            )
             self.ax1D.addItem(self.current_cont_reg)
             self.current_cont_reg.setRegion((pos.x(), pos.x()))
             self.scene().sigMouseMoved.connect(self.update_continuum_region)
@@ -228,7 +228,9 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             # Now that region is created, connect it to update fit bounds in case
             # it is edited later on.
             self.update_fit_bounds()
-            self.current_cont_reg.sigRegionChangeFinished.connect(self.update_fit_bounds)
+            self.current_cont_reg.sigRegionChangeFinished.connect(
+                self.update_fit_bounds
+            )
             # Add finished region to list of regions
             # Clear current region
             self.current_cont_reg = None
@@ -242,9 +244,9 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             self.current_excl_reg = ExcludedRegion(
                 pen=pg.mkPen(self.colors["sky"], width=2),
                 hoverPen=pg.mkPen(self.colors["sky"], width=5),
-                brush=pg.mkBrush(self.colors["sky"]+'30'),  # add alpha in Hexadecimal
-                hoverBrush=pg.mkBrush(self.colors["sky"]+'60'),
-                )
+                brush=pg.mkBrush(self.colors["sky"] + "30"),  # add alpha in Hexadecimal
+                hoverBrush=pg.mkBrush(self.colors["sky"] + "60"),
+            )
             self.ax1D.addItem(self.current_excl_reg)
             self.current_excl_reg.setRegion((pos.x(), pos.x()))
             self.scene().sigMouseMoved.connect(self.update_excluded_region)
@@ -340,7 +342,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.continuum_spec.setData(
             np.zeros(2),
             np.zeros(2),
-            )
+        )
         self.line.reset_continuum()
 
     def reset_fit(self):
@@ -348,16 +350,17 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.fit_spec.setData(
             np.zeros(2),
             np.zeros(2),
-            )
+        )
         self.flux_1D_res_spec.setData(
             np.zeros(2),
             np.zeros(1),
-            )
+        )
         self.collapsed_res.setData(
             np.zeros(2),
             np.zeros(1),
-            )
+        )
         self.line.reset_fit()
+        self.reset_continuum()
 
 
 class ContinuumRegion(pg.LinearRegionItem):

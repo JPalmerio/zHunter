@@ -303,7 +303,9 @@ class MainWindow(QtWidgets.QMainWindow):
                         "spectrum",
                     )
                     return
-                self.data["extraction_width"] = ext_width * self.data["spat_mid_disp"].unit
+                self.data["extraction_width"] = (
+                    ext_width * self.data["spat_mid_disp"].unit
+                )
                 self.graphLayout.roi.setSize([self.data["wvlg_span"].value, ext_width])
             except ValueError:
                 QtWidgets.QMessageBox.information(
@@ -425,7 +427,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             specsys = self.specsysModel.get_specsys(index)
-            if specsys.sys_type == 'abs':
+            if specsys.sys_type == "abs":
                 QtWidgets.QMessageBox.information(
                     self,
                     "Invalid spectroscopic system selected",
@@ -441,7 +443,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     lines=specsys.lines,
                     data=self.data,
                     mode=self.mode,
-                    colors=self.colors
+                    colors=self.colors,
                 )
 
                 self.linefitWidget.show()
@@ -928,9 +930,12 @@ def testmode1D():
     )
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()
-    main.mode = '1D'
-    fname = Path(str(Path(__file__).resolve().parents[2]) + '/dev/data/test_input_files/XSHOOTER_bintable_1D.fits')
-    main.fnames['data'] = fname
+    main.mode = "1D"
+    fname = Path(
+        str(Path(__file__).resolve().parents[2])
+        + "/dev/data/test_input_files/XSHOOTER_bintable_1D.fits"
+    )
+    main.fnames["data"] = fname
     main.set_up_plot()
     main.visualize_spec()
     main.add_specsys(z=6.317, sys_type="abs")
@@ -958,9 +963,11 @@ def testmode2D():
     )
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()
-    main.mode = '2D'
-    fname = Path(str(Path(__file__).resolve().parents[2]) + '/dev/data/test_input_files/2D.fits')
-    main.fnames['data'] = fname
+    main.mode = "2D"
+    fname = Path(
+        str(Path(__file__).resolve().parents[2]) + "/dev/data/test_input_files/2D.fits"
+    )
+    main.fnames["data"] = fname
     main.set_up_plot()
     main.visualize_spec()
     main.add_specsys(z=0.15135, sys_type="em")

@@ -278,7 +278,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
                 np.zeros(2),
                 np.zeros(1),
                 stepMode="center",
-                pen=pg.mkPen(color=self.colors["foreground"])
+                pen=pg.mkPen(color=self.colors["foreground"]),
             )
             self.collapsed_2D.setRotation(-90)
 
@@ -400,7 +400,9 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.flux_1D_spec.setData(
             data["wvlg_bins_disp"].value, data["flux_1D_disp"].value
         )
-        self.unc_1D_spec.setData(data["wvlg_bins_disp"].value, data["unc_1D_disp"].value)
+        self.unc_1D_spec.setData(
+            data["wvlg_bins_disp"].value, data["unc_1D_disp"].value
+        )
         self.set_1D_labels(data)
         self.set_1D_viewing_limits(data)
 
@@ -423,10 +425,10 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Transform image indexes to physical coordinates
         # these are defined from the bin edges
         rect = QtCore.QRectF(
-            data['wvlg_min'].value,      # lower edge of the first wvlg bin
-            data['spat_min'].value,      # lower edge of the first spatial bin
-            data['wvlg_span'].value,     # x-span of the rectangle
-            data['spat_span'].value,  # y-span of the rectangle
+            data["wvlg_min"].value,  # lower edge of the first wvlg bin
+            data["spat_min"].value,  # lower edge of the first spatial bin
+            data["wvlg_span"].value,  # x-span of the rectangle
+            data["spat_span"].value,  # y-span of the rectangle
         )
 
         self.flux_2D_img.setRect(rect)
@@ -627,15 +629,15 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         pos is in coordinates of the ViewBox vb.
         """
         if vb is self.ax1D.vb:
-            if key == 'Q':
+            if key == "Q":
                 self.set_lambda1(key, x_pos=pos.x())
-            elif key == 'E':
+            elif key == "E":
                 self.set_lambda2(key, x_pos=pos.x())
-            elif key in ['A','S','D','W']:
+            elif key in ["A", "S", "D", "W"]:
                 self.pan(key, vb)
 
         elif self.mode == "2D" and vb is self.ax2D.vb:
-            if key in ['A','S','D','W']:
+            if key in ["A", "S", "D", "W"]:
                 self.pan(key, vb)
 
     def set_lambda1(self, key, x_pos):

@@ -24,7 +24,10 @@ def convert_to_bins(array):
         array_unit = 1
     delta = array[1] - array[0]
     n_bin_edges = len(array) + 1
-    bins = np.linspace(array[0]-delta/2, array[-1]+delta/2, n_bin_edges) * array_unit
+    bins = (
+        np.linspace(array[0] - delta / 2, array[-1] + delta / 2, n_bin_edges)
+        * array_unit
+    )
     return bins
 
 

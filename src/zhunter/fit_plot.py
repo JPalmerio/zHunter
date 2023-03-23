@@ -23,7 +23,9 @@ log = logging.getLogger(__name__)
 
 
 class LineFitPlot(QtWidgets.QMainWindow):
-    def __init__(self, parentWidget=None, z=None, lines=None, data=None, mode=None, colors=None):
+    def __init__(
+        self, parentWidget=None, z=None, lines=None, data=None, mode=None, colors=None
+    ):
         super(LineFitPlot, self).__init__(parentWidget)
 
         uic.loadUi(DIRS["UI"] / "fit_plot.ui", self)
@@ -62,15 +64,17 @@ class LineFitPlot(QtWidgets.QMainWindow):
             except Exception as e:
                 raise ValueError(
                     f"No data provided and could not get it from parent because: {e}"
-                    )
+                )
         self.data = data
         self.linefitLayout.data = data
         self.line_name = None
 
         # Signals and slots
         self.set_up_line_cbb()
-        self.linefitLayout.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.connect_signals_and_slots()
+        self.linefitLayout.setFocus()
+        self.linefitLayout.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        self.linefitLayout.set_parent(self)
 
     def connect_signals_and_slots(self):
         # Connect all signals and slots
@@ -90,9 +94,9 @@ class LineFitPlot(QtWidgets.QMainWindow):
         self.plot_btn.clicked.connect(self.visualize_spec)
 
     def set_up_line_cbb(self):
-        self.line_name_cbb.addItems(list(self.lines['name']))
+        self.line_name_cbb.addItems(list(self.lines["name"]))
         # Default for now, change later
-        self.line_name_cbb.setCurrentText('H_alpha')
+        self.line_name_cbb.setCurrentText("H_alpha")
 
     def visualize_spec(self):
         self.linefitLayout.clear()
@@ -102,7 +106,7 @@ class LineFitPlot(QtWidgets.QMainWindow):
             mode=self.mode,
             colors=self.colors,
             line=self.line,
-            )
+        )
         self.linefitLayout.draw_data()
         self.linefitLayout.setFocus()
 
@@ -139,13 +143,13 @@ class LineFitPlot(QtWidgets.QMainWindow):
             self.linefitLayout.continuum_spec.hide()
 
     def fit_gaussian(self):
-        if 'continuum' not in self.line.fit.keys():
+        if "continuum" not in self.line.fit.keys():
             QtWidgets.QMessageBox.information(
-                    self,
-                    "Missing continuum regions",
-                    "Please define continuum with regions by pressing 'c' key twice "
-                    "and then fitting it before attempting to fit a line.",
-                )
+                self,
+                "Missing continuum regions",
+                "Please define continuum with regions by pressing 'c' key twice "
+                "and then fitting it before attempting to fit a line.",
+            )
             return
 
         log.info("Starting Gaussian line fitting.")
@@ -161,9 +165,9 @@ class LineFitPlot(QtWidgets.QMainWindow):
 
         gauss_mean_guess = self.linefitLayout.gauss_mean_guess.getPos()[0]
         if gauss_mean_guess != 0:
-            args['mean'] = gauss_mean_guess * self.linefitLayout.wvlg_unit
-        args['bounds'] = self.linefitLayout.fit_bounds
-        args['exclude_regions'] = excl_regions
+            args["mean"] = gauss_mean_guess * self.linefitLayout.wvlg_unit
+        args["bounds"] = self.linefitLayout.fit_bounds
+        args["exclude_regions"] = excl_regions
 
         self.line.fit_single_gaussian(**args)
         self.line.derive_properties_from_fit()
@@ -173,17 +177,19 @@ class LineFitPlot(QtWidgets.QMainWindow):
         self.linefitLayout.fit_spec.setData(
             x=self.line.spectrum["wvlg"].value,
             y=self.line.fit["flux"].value,
-            )
+        )
         self.linefitLayout.flux_1D_res_spec.setData(
             x=convert_to_bins(self.line.spectrum["wvlg"].value),
             y=self.line.fit["residuals"].value,
-            )
+        )
 
         res_histogram, bins = np.histogram(
             self.line.fit["residuals"].value,
-            bins=np.linspace(-10, 10, int(20/0.5)+1),  # bins every 0.5 from -10 to 10
+            bins=np.linspace(
+                -10, 10, int(20 / 0.5) + 1
+            ),  # bins every 0.5 from -10 to 10
             density=True,
-            )
+        )
 
         self.linefitLayout.collapsed_res.setData(-bins, res_histogram)
 
@@ -191,11 +197,11 @@ class LineFitPlot(QtWidgets.QMainWindow):
         regions = self.linefitLayout.get_continuum_regions()
         if len(regions) == 0:
             QtWidgets.QMessageBox.information(
-                    self,
-                    "Cannot fit continuum",
-                    "Please define continuum regions by pressing 'c' key twice "
-                    "before attempting to fit it.",
-                )
+                self,
+                "Cannot fit continuum",
+                "Please define continuum regions by pressing 'c' key twice "
+                "before attempting to fit it.",
+            )
             return
 
         log.info("Starting continuum fitting.")
@@ -217,4 +223,4 @@ class LineFitPlot(QtWidgets.QMainWindow):
         self.linefitLayout.continuum_spec.setData(
             x=self.line.spectrum["wvlg"].value,
             y=self.line.fit["continuum"]["flux"].value,
-            )
+        )
