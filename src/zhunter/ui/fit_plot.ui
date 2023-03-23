@@ -14,7 +14,7 @@
    <string>zHunter - Line Fit Plot</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QHBoxLayout" name="horizontalLayout_7">
+   <layout class="QHBoxLayout" name="horizontalLayout_8">
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_3">
       <property name="leftMargin">
@@ -185,9 +185,6 @@
      <layout class="QVBoxLayout" name="verticalLayout">
       <property name="spacing">
        <number>0</number>
-      </property>
-      <property name="rightMargin">
-       <number>10</number>
       </property>
       <item>
        <widget class="QCheckBox" name="show_excl_reg_chb">
@@ -360,36 +357,86 @@
        </layout>
       </item>
       <item>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
         <property name="spacing">
          <number>0</number>
         </property>
         <item>
-         <widget class="QTextEdit" name="txe_fit_info">
+         <widget class="QPushButton" name="measure_flux_btn">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="MinimumExpanding">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
           <property name="minimumSize">
            <size>
-            <width>150</width>
-            <height>160</height>
+            <width>130</width>
+            <height>32</height>
            </size>
           </property>
           <property name="maximumSize">
            <size>
-            <width>200</width>
-            <height>1000</height>
+            <width>140</width>
+            <height>32</height>
            </size>
           </property>
-          <property name="readOnly">
-           <bool>true</bool>
+          <property name="text">
+           <string>Measure Flux</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="reset_measure_flux_btn">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>70</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>70</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Reset</string>
           </property>
          </widget>
         </item>
        </layout>
+      </item>
+      <item>
+       <widget class="QTextEdit" name="txe_fit_info">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="MinimumExpanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>160</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>200</width>
+          <height>1000</height>
+         </size>
+        </property>
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
       </item>
      </layout>
     </item>

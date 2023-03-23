@@ -8,16 +8,15 @@ from PyQt6.QtCore import Qt
 import astropy.units as u
 from astropy.units.quantity import Quantity
 import numpy as np
-from specutils import Spectrum1D, SpectralRegion
 
 from astropalmerio.spectra import EmissionLine
-from astropy.nddata import StdDevUncertainty
 
 from pathlib import Path
 from itertools import product
 import logging
 from zhunter import DIRS
 from .misc import load_lines, convert_to_bins
+from .LineFitGraphicsWidget import ContinuumRegion, ExcludedRegion
 
 log = logging.getLogger(__name__)
 
@@ -72,9 +71,9 @@ class LineFitPlot(QtWidgets.QMainWindow):
         # Signals and slots
         self.set_up_line_cbb()
         self.connect_signals_and_slots()
-        self.linefitLayout.setFocus()
         self.linefitLayout.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.linefitLayout.set_parent(self)
+        self.line_name_cbb.setFocus()
 
     def connect_signals_and_slots(self):
         # Connect all signals and slots
@@ -82,16 +81,25 @@ class LineFitPlot(QtWidgets.QMainWindow):
 
         self.show_continuum_chb.stateChanged.connect(self.show_hide_continuum)
 
-        # self.line_name_cbb.finishe
-        self.fit_gaussian_btn.clicked.connect(self.fit_gaussian)
+        self.fit_gaussian_btn.clicked.connect(self.linefitLayout.fit_gaussian)
 
-        self.fit_continuum_btn.clicked.connect(self.fit_continuum)
+        self.fit_continuum_btn.clicked.connect(self.linefitLayout.fit_continuum)
+
+        self.measure_flux_btn.clicked.connect(self.linefitLayout.measure_flux)
 
         self.reset_fit_btn.clicked.connect(self.linefitLayout.reset_fit)
 
         self.reset_continuum_btn.clicked.connect(self.linefitLayout.reset_continuum)
 
+        self.reset_measure_flux_btn.clicked.connect(
+            self.linefitLayout.reset_measured_flux
+        )
+
         self.plot_btn.clicked.connect(self.visualize_spec)
+
+        self.reset_plot_btn.clicked.connect(self.linefitLayout.reset_plot)
+
+        self.linefitLayout.sigFitUpdate.connect(self.update_fit_info)
 
     def set_up_line_cbb(self):
         self.line_name_cbb.addItems(list(self.lines["name"]))
@@ -99,7 +107,10 @@ class LineFitPlot(QtWidgets.QMainWindow):
         self.line_name_cbb.setCurrentText("H_alpha")
 
     def visualize_spec(self):
-        self.linefitLayout.clear()
+        try:
+            self.linefitLayout.reset_plot()
+        except AttributeError:
+            pass
         self.line_name = self.line_name_cbb.currentText()
         self.create_emission_line(name=self.line_name)
         self.linefitLayout.set_up_plot(
@@ -142,85 +153,5 @@ class LineFitPlot(QtWidgets.QMainWindow):
                 reg.hide()
             self.linefitLayout.continuum_spec.hide()
 
-    def fit_gaussian(self):
-        if "continuum" not in self.line.fit.keys():
-            QtWidgets.QMessageBox.information(
-                self,
-                "Missing continuum regions",
-                "Please define continuum with regions by pressing 'c' key twice "
-                "and then fitting it before attempting to fit a line.",
-            )
-            return
-
-        log.info("Starting Gaussian line fitting.")
-
-        excl_regions = self.linefitLayout.get_excluded_regions()
-        if excl_regions:
-            excl_regions = SpectralRegion(excl_regions)
-        else:
-            excl_regions = None
-
-        # Define some arguments for fitting
-        args = {}
-
-        gauss_mean_guess = self.linefitLayout.gauss_mean_guess.getPos()[0]
-        if gauss_mean_guess != 0:
-            args["mean"] = gauss_mean_guess * self.linefitLayout.wvlg_unit
-        args["bounds"] = self.linefitLayout.fit_bounds
-        args["exclude_regions"] = excl_regions
-
-        self.line.fit_single_gaussian(**args)
-        self.line.derive_properties_from_fit()
-        fit_summary = self.line.fit_summary()
+    def update_fit_info(self, fit_summary):
         self.txe_fit_info.setText(fit_summary)
-
-        self.linefitLayout.fit_spec.setData(
-            x=self.line.spectrum["wvlg"].value,
-            y=self.line.fit["flux"].value,
-        )
-        self.linefitLayout.flux_1D_res_spec.setData(
-            x=convert_to_bins(self.line.spectrum["wvlg"].value),
-            y=self.line.fit["residuals"].value,
-        )
-
-        res_histogram, bins = np.histogram(
-            self.line.fit["residuals"].value,
-            bins=np.linspace(
-                -10, 10, int(20 / 0.5) + 1
-            ),  # bins every 0.5 from -10 to 10
-            density=True,
-        )
-
-        self.linefitLayout.collapsed_res.setData(-bins, res_histogram)
-
-    def fit_continuum(self):
-        regions = self.linefitLayout.get_continuum_regions()
-        if len(regions) == 0:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Cannot fit continuum",
-                "Please define continuum regions by pressing 'c' key twice "
-                "before attempting to fit it.",
-            )
-            return
-
-        log.info("Starting continuum fitting.")
-
-        bounds = self.linefitLayout.fit_bounds
-
-        self.line.extract_line_region(
-            spectrum=Spectrum1D(
-                spectral_axis=self.data["wvlg_mid_disp"],
-                flux=self.data["flux_1D_disp"],
-                uncertainty=StdDevUncertainty(self.data["unc_1D_disp"]),
-            ),
-            bounds=bounds,
-        )
-        log.debug(f"About to fit continuum over the following regions: {regions}")
-        self.line.fit_continuum(regions=regions)
-
-        log.debug("Displaying fitted continuum.")
-        self.linefitLayout.continuum_spec.setData(
-            x=self.line.spectrum["wvlg"].value,
-            y=self.line.fit["continuum"]["flux"].value,
-        )

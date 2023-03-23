@@ -105,7 +105,7 @@ KRAKEN9 = {
         "#2D67EE",  # Blue
     ],
     "sky": "#696969",
-    "crosshair": "cyan",
+    "crosshair": "g",
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
@@ -136,7 +136,7 @@ KRAKEN17 = {
         "#16E2F5",  # Tucquoise
     ],
     "sky": "#696969",
-    "crosshair": "cyan",
+    "crosshair": "g",
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
