@@ -687,6 +687,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         else:
             view_pos = vb.mapSceneToView(scene_pos)
 
+        msg = ""
         if vb is self.ax1D.vb:
             msg = (
                 f"Wavelength = {view_pos.x():0.3f} {self.wvlg_unit}, "

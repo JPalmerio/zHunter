@@ -1,38 +1,46 @@
 import logging
 
 from PyQt6 import QtCore
-from PyQt6 import QtGui
+# from PyQt6 import QtGui
+from PyQt6 import QtWidgets
 
 import astropy.units as u
+from astropy.nddata import StdDevUncertainty
 import pyqtgraph as pg
 import numpy as np
 from .MainGraphicsWidget import MainGraphicsWidget
 from .misc import get_vb_containing
+from .colors import load_colors
 from astropalmerio.spectra.utils import gaussian_fct
+from specutils import Spectrum1D, SpectralRegion
+from .misc import convert_to_bins
 
 log = logging.getLogger(__name__)
 
 
 class LineFitGraphicsWidget(MainGraphicsWidget):
+    sigFitUpdate = QtCore.pyqtSignal(str)
+
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
 
         # regions
         self.continuum_regions = []
         self.excluded_regions = []
-        self.current_cont_reg = None
-        self.current_excl_reg = None
+        self.current_reg = None
         self.fit_bounds = None
+        self.integration_region = None
         self.line = None
 
     def reset_plot(self):
         self.continuum_regions = []
         self.excluded_regions = []
-        self.current_cont_reg = None
-        self.current_excl_reg = None
+        self.current_reg = None
         self.fit_bounds = None
+        self.integration_region = None
         self.line = None
-        self.clear_all()
+        self.reset_fit()
+        super().clear_all()
 
     def set_up_plot(self, mode, line, colors=None, show_roi=False, name=None):
         self.line = line
@@ -106,7 +114,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.fit_spec = pg.PlotCurveItem(
             np.zeros(2),
             np.zeros(2),
-            pen=pg.mkPen(color=self.colors["fit"], width=3),
+            pen=pg.mkPen(color=self.colors["fit"], width=4),
         )
 
     def add_placeholders(self):
@@ -189,15 +197,13 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         if vb is self.ax1D.vb:
             scene_pos = vb.mapViewToScene(pos)
             if key == "C":
-                self.add_continuum_region(pos, scene_pos)
+                self.add_continuum_region(pos)
             elif key == "X":
-                self.add_excluded_region(pos, scene_pos)
+                self.add_excluded_region(pos)
             elif key == "Backspace":
-                self.delete_regions(pos, scene_pos)
-            elif key == "Q":
-                self.set_lower_integration_bound(key, pos.x())
-            elif key == "E":
-                self.set_upper_integration_bound(key, pos.x())
+                self.delete_regions(scene_pos)
+            elif key == "F":
+                self.add_integration_bounds(pos)
             elif key == "G":
                 self.set_gaussian_mean_guess(pos)
             elif key in ["A", "S", "D", "W"]:
@@ -207,57 +213,90 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             if key in ["A", "S", "D", "W"]:
                 self.pan(key, vb)
 
-    def add_continuum_region(self, pos, scene_pos):
+    def add_integration_bounds(self, pos):
+
+        # If an integration region already exists, remove it
+        if self.integration_region is not None:
+            # self.integration_region.sigRegionChangeFinished.disconnect(self.measure_flux)
+            self.__delete_regions([self.integration_region])
+            self.integration_region = None
+
+        if self.current_reg is None:
+            self.__add_region(region=FluxIntegrationRegion, pos=pos)
+
+        else:
+            if not self.__check_region_is(FluxIntegrationRegion):
+                return
+
+            self.scene().sigMouseMoved.disconnect(self.update_region)
+            # Add finished region to list of regions
+            self.integration_region = self.current_reg
+            self.integration_region.sigRegionChangeFinished.connect(self.measure_flux)
+            self.measure_flux()
+            # Clear current region
+            self.current_reg = None
+
+    def add_continuum_region(self, pos):
         """
         pos is relative to the view
         """
-        # Add region
-        if self.current_cont_reg is None:
-            self.current_cont_reg = ContinuumRegion(
-                pen=pg.mkPen(self.colors["continuum"], width=2),
-                hoverPen=pg.mkPen(self.colors["continuum"], width=5),
-                brush=pg.mkBrush(self.colors["continuum"] + "30"),
-                hoverBrush=pg.mkBrush(self.colors["continuum"] + "60"),
-            )
-            self.ax1D.addItem(self.current_cont_reg)
-            self.current_cont_reg.setRegion((pos.x(), pos.x()))
-            self.scene().sigMouseMoved.connect(self.update_continuum_region)
+        if self.current_reg is None:
+            self.__add_region(region=ContinuumRegion, pos=pos)
+
         else:
-            self.scene().sigMouseMoved.disconnect(self.update_continuum_region)
-            self.continuum_regions.append(self.current_cont_reg)
+            if not self.__check_region_is(ContinuumRegion):
+                return
+
+            self.scene().sigMouseMoved.disconnect(self.update_region)
+            # Add finished region to list of regions
+            self.continuum_regions.append(self.current_reg)
             # Now that region is created, connect it to update fit bounds in case
             # it is edited later on.
             self.update_fit_bounds()
-            self.current_cont_reg.sigRegionChangeFinished.connect(
-                self.update_fit_bounds
-            )
-            # Add finished region to list of regions
-            # Clear current region
-            self.current_cont_reg = None
+            self.current_reg.sigRegionChangeFinished.connect(self.update_fit_bounds)
+            self.current_reg.sigRegionChangeFinished.connect(self.fit_continuum)
+            self.fit_continuum()
 
-    def add_excluded_region(self, pos, scene_pos):
+            # Clear current region
+            self.current_reg = None
+
+    def add_excluded_region(self, pos):
         """
         pos is relative to the view
         """
         # Add region
-        if self.current_excl_reg is None:
-            self.current_excl_reg = ExcludedRegion(
-                pen=pg.mkPen(self.colors["sky"], width=2),
-                hoverPen=pg.mkPen(self.colors["sky"], width=5),
-                brush=pg.mkBrush(self.colors["sky"] + "30"),  # add alpha in Hexadecimal
-                hoverBrush=pg.mkBrush(self.colors["sky"] + "60"),
-            )
-            self.ax1D.addItem(self.current_excl_reg)
-            self.current_excl_reg.setRegion((pos.x(), pos.x()))
-            self.scene().sigMouseMoved.connect(self.update_excluded_region)
+        if self.current_reg is None:
+            self.__add_region(region=ExcludedRegion, pos=pos)
         else:
-            self.scene().sigMouseMoved.disconnect(self.update_excluded_region)
-            # Add finished region to list of regions
-            self.excluded_regions.append(self.current_excl_reg)
-            # Clear current region
-            self.current_excl_reg = None
+            if not self.__check_region_is(ExcludedRegion):
+                return
 
-    def delete_regions(self, pos, scene_pos):
+            self.scene().sigMouseMoved.disconnect(self.update_region)
+            # Add finished region to list of regions
+            self.excluded_regions.append(self.current_reg)
+            # Clear current region
+            self.current_reg = None
+
+    def __add_region(self, region, pos):
+        self.current_reg = region()
+        self.ax1D.addItem(self.current_reg)
+        self.current_reg.setRegion((pos.x(), pos.x()))
+        self.scene().sigMouseMoved.connect(self.update_region)
+
+    def __check_region_is(self, region):
+        if isinstance(self.current_reg, region):
+            return True
+        else:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Defining different regions simultaneously",
+                f"Please finish defining your current {self.current_reg.name} region "
+                f"by using the '{self.current_reg.key}' key before defining a new "
+                f"{region().name} region.",
+            )
+            return False
+
+    def delete_regions(self, scene_pos):
         items = self.scene().items(scene_pos)
         reg_to_delete = [
             item for item in items if isinstance(item, pg.LinearRegionItem)
@@ -270,10 +309,15 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         log.debug(f"Delete the following regions: {reg_to_delete}")
         # CAREFUL!!! Iterating over a list while deleting elements within it
         # is a very bad idea, this is why I created a copy of the list with list()
-        for i, r in enumerate(list(reg_to_delete)):
+        for r in list(reg_to_delete):
             self.ax1D.removeItem(r)
             if isinstance(r, ContinuumRegion):
                 self.continuum_regions.remove(r)
+                self.update_fit_bounds()
+                if len(self.continuum_regions) > 0:
+                    self.fit_continuum()
+                else:
+                    self.reset_continuum()
             elif isinstance(r, ExcludedRegion):
                 self.excluded_regions.remove(r)
 
@@ -299,30 +343,34 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             regions.append((r[0] * self.wvlg_unit, r[1] * self.wvlg_unit))
         return regions
 
+    def get_integration_bounds(self):
+        if self.integration_region is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Undefined integration region",
+                f"Please define a region over which to measure flux "
+                f"by using the '{FluxIntegrationRegion().key}' key twice.",
+            )
+            return
+
+        r = self.integration_region.getRegion()
+        bounds = (r[0] * self.wvlg_unit, r[1] * self.wvlg_unit)
+        return bounds
+
     # Slots
     def set_gaussian_mean_guess(self, x_pos):
         self.gauss_mean_guess.setPos(x_pos)
         self.gauss_mean_guess.show()
 
-    def update_continuum_region(self, scene_pos):
+    def update_region(self, scene_pos):
         vb = get_vb_containing(scene_pos, self.axes)
         if vb is self.ax1D.vb:
             view_pos = vb.mapSceneToView(scene_pos)
         else:
             return
-        beg, end = self.current_cont_reg.getRegion()
+        beg, end = self.current_reg.getRegion()
         end = view_pos.x()
-        self.current_cont_reg.setRegion((beg, end))
-
-    def update_excluded_region(self, scene_pos):
-        vb = get_vb_containing(scene_pos, self.axes)
-        if vb is self.ax1D.vb:
-            view_pos = vb.mapSceneToView(scene_pos)
-        else:
-            return
-        beg, end = self.current_excl_reg.getRegion()
-        end = view_pos.x()
-        self.current_excl_reg.setRegion((beg, end))
+        self.current_reg.setRegion((beg, end))
 
     def update_fit_bounds(self):
         cont_regions = self.get_continuum_regions()
@@ -362,12 +410,160 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.line.reset_fit()
         self.reset_continuum()
 
+        # Emit signal to indicate fit has been updated
+        fit_summary = self.line.fit_summary()
+        self.sigFitUpdate.emit(fit_summary)
+
+    def reset_measured_flux(self):
+        self.line.reset_measured_flux()
+        self.integration_region = None
+
+    # Manipulate data
+    def measure_flux(self):
+        if "continuum" not in self.line.fit.keys():
+            msg = (
+                "Please define continuum with regions by pressing the "
+                f"{ContinuumRegion().key} key twice "
+                "and then fitting it before attempting to measure flux."
+            )
+            log.warning(msg)
+            QtWidgets.QMessageBox.information(self, "Missing continuum regions", msg)
+            return
+
+        bounds = self.get_integration_bounds()
+        self.line.measure_flux(bounds=bounds)
+
+        # Emit signal to indicate fit has been updated
+        fit_summary = self.line.fit_summary()
+        self.sigFitUpdate.emit(fit_summary)
+
+    def fit_gaussian(self):
+        if "continuum" not in self.line.fit.keys():
+            msg = (
+                "Please define continuum with regions by pressing the "
+                f"{ContinuumRegion().key} key twice "
+                "and then fitting it before attempting to fit a line."
+            )
+            log.warning(msg)
+            QtWidgets.QMessageBox.information(self, "Missing continuum regions", msg)
+            return
+
+        log.info("Starting Gaussian line fitting.")
+
+        excl_regions = self.get_excluded_regions()
+        if excl_regions:
+            excl_regions = SpectralRegion(excl_regions)
+        else:
+            excl_regions = None
+
+        # Define some arguments for fitting
+        args = {}
+
+        gauss_mean_guess = self.gauss_mean_guess.getPos()[0]
+        if gauss_mean_guess != 0:
+            args["mean"] = gauss_mean_guess * self.wvlg_unit
+        args["bounds"] = self.fit_bounds
+        args["exclude_regions"] = excl_regions
+
+        self.line.fit_single_gaussian(**args)
+        self.line.derive_properties_from_fit()
+
+        self.fit_spec.setData(
+            x=self.line.spectrum["wvlg"].value,
+            y=self.line.fit["flux"].value,
+        )
+        self.flux_1D_res_spec.setData(
+            x=convert_to_bins(self.line.spectrum["wvlg"].value),
+            y=self.line.fit["residuals"].value,
+        )
+
+        res_histogram, bins = np.histogram(
+            self.line.fit["residuals"].value,
+            # bins every 0.5 from -10 to 10
+            bins=np.linspace(-10, 10, int(20 / 0.5) + 1),
+            density=True,
+        )
+
+        self.collapsed_res.setData(-bins, res_histogram)
+
+        # Emit signal to indicate fit has been updated
+        fit_summary = self.line.fit_summary()
+        self.sigFitUpdate.emit(fit_summary)
+
+    def fit_continuum(self):
+        regions = self.get_continuum_regions()
+        if len(regions) == 0:
+            msg = (
+                f"Please define continuum regions by pressing '{ContinuumRegion().key}'"
+                " key twice before attempting to fit it."
+            )
+            log.warning(msg)
+            QtWidgets.QMessageBox.information(self, "Cannot fit continuum", msg)
+            return
+
+        log.info("Starting continuum fitting.")
+
+        bounds = self.fit_bounds
+
+        self.line.extract_line_region(
+            spectrum=Spectrum1D(
+                spectral_axis=self.data["wvlg_mid_disp"],
+                flux=self.data["flux_1D_disp"],
+                uncertainty=StdDevUncertainty(self.data["unc_1D_disp"]),
+            ),
+            bounds=bounds,
+        )
+        log.debug(f"About to fit continuum over the following regions: {regions}")
+        self.line.fit_continuum(regions=regions)
+
+        log.debug("Displaying fitted continuum.")
+        self.continuum_spec.setData(
+            x=self.line.spectrum["wvlg"].value,
+            y=self.line.fit["continuum"]["flux"].value,
+        )
+
+
+class FluxIntegrationRegion(pg.LinearRegionItem):
+    def __init__(self, colors=None):
+        self.name = "flux integration"
+        self.key = "f"
+        if colors is None:
+            colors = load_colors(style="kraken9")
+        super().__init__(
+            pen=pg.mkPen(
+                colors["foreground"],
+                width=2,
+                style=QtCore.Qt.PenStyle.DashLine,
+            ),
+            hoverPen=pg.mkPen(colors["foreground"], width=5),
+            brush=pg.mkBrush(colors["foreground"] + "10"),
+            hoverBrush=pg.mkBrush(colors["foreground"] + "30"),
+        )
+
 
 class ContinuumRegion(pg.LinearRegionItem):
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
+    def __init__(self, colors=None):
+        self.name = "continuum"
+        self.key = "c"
+        if colors is None:
+            colors = load_colors(style="kraken9")
+        super().__init__(
+            pen=pg.mkPen(colors["continuum"], width=2),
+            hoverPen=pg.mkPen(colors["continuum"], width=5),
+            brush=pg.mkBrush(colors["continuum"] + "10"),
+            hoverBrush=pg.mkBrush(colors["continuum"] + "30"),
+        )
 
 
 class ExcludedRegion(pg.LinearRegionItem):
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
+    def __init__(self, colors=None):
+        self.name = "excluded"
+        self.key = "x"
+        if colors is None:
+            colors = load_colors(style="kraken9")
+        super().__init__(
+            pen=pg.mkPen(colors["sky"], width=2),
+            hoverPen=pg.mkPen(colors["sky"], width=5),
+            brush=pg.mkBrush(colors["sky"] + "90"),  # add alpha in Hexadecimal
+            hoverBrush=pg.mkBrush(colors["sky"] + "CC"),
+        )
