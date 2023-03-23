@@ -25,3 +25,4 @@ dependencies:
     - cmasher                    # For nicer matplotlib colors
     - spectres                   # For spectra rebinning
     - pyqt>=6.4
+    - astropalmerio>=0.1.0

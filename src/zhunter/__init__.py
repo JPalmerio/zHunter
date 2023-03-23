@@ -2,7 +2,7 @@ from pathlib import Path
 import logging
 from .MainGraphicsWidget import MainGraphicsWidget
 
-__version__ = "0.10.3"
+__version__ = "0.10.4"
 
 log = logging.getLogger(__name__)
 

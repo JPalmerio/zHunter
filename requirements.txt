@@ -1,8 +1,9 @@
 pyqt6>=6.4
-matplotlib>=3.6.0
+matplotlib>=3.7.0
 numpy>=1.24
 pyqtgraph>=0.13.1
 pandas>=1.5
 spectres>=2.1
 astropy>=5.2
 specutils>=1.9
+astropalmerio==0.1.0
