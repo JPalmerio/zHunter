@@ -105,11 +105,11 @@ KRAKEN9 = {
         "#2D67EE",  # Blue
     ],
     "sky": "#696969",
-    "crosshair": "#C6C6C6",
+    "crosshair": "cyan",
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
-    "continuum": "#C95D38",  # Orange
+    "continuum": "#ECCA54",  # Yellow
     "fit": "#4A9EBC",  # Lightblue
 }
 
@@ -136,11 +136,11 @@ KRAKEN17 = {
         "#16E2F5",  # Tucquoise
     ],
     "sky": "#696969",
-    "crosshair": "#C6C6C6",
+    "crosshair": "cyan",
     "background": "#000000",
     "foreground": "#C6C6C6",
     "roi": "g",
-    "continuum": "#C95D38",  # Orange
+    "continuum": "#ECCA54",  # Yellow
     "fit": "#4A9EBC",  # Lightblue
 }
 
@@ -154,7 +154,7 @@ CVD = {
     "background": "#000000",
     "foreground": "lightgray",
     "roi": "cyan",  # cyan
-    "continuum": "#C95D38",  # Orange
+    "continuum": "#ECCA54",  # Yellow
     "fit": "#4A9EBC",  # Lightblue
 }
 
@@ -180,7 +180,7 @@ OLD = {
     "background": "#000000",
     "foreground": "white",
     "roi": "g",
-    "continuum": "#C95D38",  # Orange
+    "continuum": "#ECCA54",  # Yellow
     "fit": "#4A9EBC",  # Lightblue
 }
 
@@ -193,7 +193,7 @@ CYBERPUNK = {
     "background": "#212946",
     "foreground": "lightgray",
     "roi": "g",
-    "continuum": "#C95D38",  # Orange
+    "continuum": "#ECCA54",  # Yellow
     "fit": "#4A9EBC",  # Lightblue
 }
 
