@@ -721,10 +721,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.add_specsys(z=z, sys_type="abs")
 
     def add_specsys_from_em_line(self):
-        self.__add_specsys_from_line(sys_type='em')
+        self.__add_specsys_from_line(sys_type="em")
 
     def add_specsys_from_abs_line(self):
-        self.__add_specsys_from_line(sys_type='abs')
+        self.__add_specsys_from_line(sys_type="abs")
 
     def __add_specsys_from_line(self, sys_type):
         """
@@ -734,13 +734,13 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        if sys_type == 'em':
+        if sys_type == "em":
             sys_type_str = "emission"
             cbb = self.cbb_em_line
             l_list = self.em_lines
             wave_key = "awav"
 
-        elif sys_type == 'abs':
+        elif sys_type == "abs":
             sys_type_str = "absorption"
             cbb = self.cbb_abs_line
             l_list = self.abs_lines
@@ -751,10 +751,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not chosen_line:
             log.error("Empty line textbox.")
             QtWidgets.QMessageBox.information(
-                    self,
-                    "Empty line textbox",
-                    "Please choose a line from the dropdown list first.",
-                )
+                self,
+                "Empty line textbox",
+                "Please choose a line from the dropdown list first.",
+            )
             return
 
         else:
