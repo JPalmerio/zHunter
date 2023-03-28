@@ -344,8 +344,8 @@ def read_fits_2D_spectrum(fname, verbose=False):
 
     flux_unit = header.get("BUNIT")
     if flux_unit is not None:
-        if flux_unit == 'ADU':
-            flux_unit = 'adu'
+        if flux_unit == "ADU":
+            flux_unit = "adu"
         flux_unit = u.Unit(flux_unit)
     else:
         flux_unit = u.Unit()
@@ -741,7 +741,8 @@ def get_constructor(header, axis=2):
         reference_pixel = header[f"CRPIX{axis}"]
         log.debug(f"PIX={reference_pixel} VAL={start} DELT={step}")
 
-    constructor = lambda x: ((x - reference_pixel + 1) * step + start)
+    def constructor(x):
+        return (x - reference_pixel + 1) * step + start
 
     return constructor
 
@@ -782,12 +783,12 @@ def get_wavelength_constructor(header, waxis=1):
 
     # Deal with logarithmic wavelength binning if necessary
     if header.get("WFITTYPE") == "LOG-LINEAR":
-        constructor = lambda x: 10 ** (
-            (x - reference_pixel + 1) * wave_step + wave_base
-        )
+        def constructor(x):
+            return 10 ** ((x - reference_pixel + 1) * wave_step + wave_base)
         log.info("Log scale for wavelength constructor.")
     else:
-        constructor = lambda x: ((x - reference_pixel + 1) * wave_step + wave_base)
+        def constructor(x):
+            return (x - reference_pixel + 1) * wave_step + wave_base
 
     return constructor
 

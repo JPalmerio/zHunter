@@ -1,4 +1,3 @@
-
 from PyQt6 import uic
 from PyQt6 import QtWidgets
 from PyQt6 import QtCore

@@ -1,6 +1,7 @@
 import logging
 
 from PyQt6 import QtCore
+
 # from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 
@@ -214,7 +215,6 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
                 self.pan(key, vb)
 
     def add_integration_bounds(self, pos):
-
         # If an integration region already exists, remove it
         if self.integration_region is not None:
             # self.integration_region.sigRegionChangeFinished.disconnect(self.measure_flux)
