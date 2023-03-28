@@ -121,7 +121,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.add_ratio_btn.clicked.connect(self.add_specsys_from_ratio)
 
-        self.add_line_btn.clicked.connect(self.add_specsys_from_line)
+        self.add_em_line_btn.clicked.connect(self.add_specsys_from_em_line)
+
+        self.add_abs_line_btn.clicked.connect(self.add_specsys_from_abs_line)
+
+        self.set_up_line_cbb()
 
         # self.reset_smooth_btn.clicked.connect(self.reset_smoothing)
 
@@ -130,6 +134,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.reset_width_btn.clicked.connect(self.reset_width)
 
         self.txb_extraction_width.editingFinished.connect(self.set_extraction_width)
+
+    def set_up_line_cbb(self):
+        self.cbb_em_line.addItems(list(self.em_lines["name"]))
+        self.cbb_abs_line.addItems(list(self.abs_lines["name"]))
 
     # Set up the MainGraphicsWidget
     def set_up_plot(self):
@@ -688,7 +696,7 @@ class MainWindow(QtWidgets.QMainWindow):
             l_name = chosen_ratio.text().split("/")[0].strip()
             log.debug(f"Line name to search for is: {l_name}")
 
-            cond = self.check_line_name(l_name)
+            cond = self.check_line_name(l_name, self.abs_lines)
             l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
             log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
             try:
@@ -697,7 +705,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 l_wvlg_obs = np.max([l1, l2])
                 # Use the max wavelength because we chose the first
                 # of the line names
-                l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
+                l_wvlg_obs = l_wvlg_obs * self.graphLayout.wvlg_unit
             except Exception:
                 QtWidgets.QMessageBox.information(
                     self,
@@ -712,7 +720,13 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug(f"Calculated corresponding redshift: {z}")
             self.add_specsys(z=z, sys_type="abs")
 
-    def add_specsys_from_line(self):
+    def add_specsys_from_em_line(self):
+        self.__add_specsys_from_line(sys_type='em')
+
+    def add_specsys_from_abs_line(self):
+        self.__add_specsys_from_line(sys_type='abs')
+
+    def __add_specsys_from_line(self, sys_type):
         """
         Add a spectroscopic system from a specific chosen line name.
         """
@@ -720,26 +734,44 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        chosen_line = str(self.txb_line.text())
+        if sys_type == 'em':
+            sys_type_str = "emission"
+            cbb = self.cbb_em_line
+            l_list = self.em_lines
+            wave_key = "awav"
+
+        elif sys_type == 'abs':
+            sys_type_str = "absorption"
+            cbb = self.cbb_abs_line
+            l_list = self.abs_lines
+            wave_key = "wave"
+
+        chosen_line = str(cbb.currentText())
 
         if not chosen_line:
-            log.debug("Empty line textbox.")
+            log.error("Empty line textbox.")
+            QtWidgets.QMessageBox.information(
+                    self,
+                    "Empty line textbox",
+                    "Please choose a line from the dropdown list first.",
+                )
             return
 
         else:
-            log.debug(f"Chosen line is: {chosen_line}")
-            cond = self.check_line_name(chosen_line)
+            log.debug(f"Chosen {sys_type_str} line is: {chosen_line}")
+            cond = self.check_line_name(chosen_line, l_list)
+
             if cond is not None:
-                l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
+                l_wvlg_rest = Quantity(l_list[cond][wave_key])[0]
                 log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
                 try:
                     l_wvlg_obs = float(self.txb_wvlg1.text())
-                    l_wvlg_obs = l_wvlg_obs * self.data["wvlg"].unit
-                except Exception:
+                    l_wvlg_obs = l_wvlg_obs * self.graphLayout.wvlg_unit
+                except Exception as e:
                     QtWidgets.QMessageBox.information(
                         self,
                         "Invalid spectral system",
-                        "Lambda 1 must be convertible to Quantity or float",
+                        f"Couldn't add spectroscopic system because: {e}",
                     )
                     self.txb_wvlg1.setFocus()
                     return
@@ -747,7 +779,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 l_wvlg_rest = l_wvlg_rest.to(l_wvlg_obs.unit)
                 z = (l_wvlg_obs / l_wvlg_rest).value - 1.0
                 log.debug(f"Calculated corresponding redshift: {z}")
-                self.add_specsys(z=z, sys_type="abs")
+                self.add_specsys(z=z, sys_type=sys_type)
 
     def add_absorber(self):
         if not self.data:
@@ -837,31 +869,30 @@ class MainWindow(QtWidgets.QMainWindow):
             # Clear the selection (as it is no longer valid).
             self.specsysView.clearSelection()
 
-    def check_line_name(self, l_name):
+    def check_line_name(self, l_name, l_list):
         """
         Make sure line name exists in list of lines provided.
         """
-        cond = [i for i, name in enumerate(self.abs_lines["name"]) if l_name in name]
+        cond = [i for i, name in enumerate(l_list["name"]) if l_name in name]
 
-        if len(self.abs_lines[cond]) == 0:
+        if len(l_list[cond]) == 0:
             QtWidgets.QMessageBox.information(
                 self,
                 "No lines found",
                 "Could not find any line names associated with "
                 f"{l_name}. Check line list provided.",
             )
-            self.txb_line.setFocus()
             return None
-        elif len(self.abs_lines[cond]) >= 2:
+        elif len(l_list[cond]) >= 2:
             QtWidgets.QMessageBox.information(
                 self,
                 "Too many lines found",
-                f"Found more than one line for {l_name}. " "Check line list provided.",
+                f"Found {l_list[cond]['name']} corresponding to {l_name}."
+                "Check line list provided.",
             )
-            self.txb_line.setFocus()
             return None
         else:
-            log.debug(f"Found line: {self.abs_lines[cond]['name'][0]}")
+            log.debug(f"Found line: {l_list[cond]['name'][0]}")
             return cond
 
     # Colors
