@@ -1,22 +1,14 @@
-import pyqtgraph as pg
 
 from PyQt6 import uic
 from PyQt6 import QtWidgets
 from PyQt6 import QtCore
-from PyQt6.QtCore import Qt
 
-import astropy.units as u
-from astropy.units.quantity import Quantity
-import numpy as np
 
 from astropalmerio.spectra import EmissionLine
 
-from pathlib import Path
-from itertools import product
 import logging
 from zhunter import DIRS
-from .misc import load_lines, convert_to_bins
-from .LineFitGraphicsWidget import ContinuumRegion, ExcludedRegion
+from .misc import load_lines
 
 log = logging.getLogger(__name__)
 

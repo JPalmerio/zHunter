@@ -344,6 +344,8 @@ def read_fits_2D_spectrum(fname, verbose=False):
 
     flux_unit = header.get("BUNIT")
     if flux_unit is not None:
+        if flux_unit == 'ADU':
+            flux_unit = 'adu'
         flux_unit = u.Unit(flux_unit)
     else:
         flux_unit = u.Unit()

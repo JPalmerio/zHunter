@@ -26,20 +26,20 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
 
         # regions
         self.continuum_regions = []
-        self.excluded_regions = []
+        self.exclude_regions = []
         self.current_reg = None
         self.fit_bounds = None
         self.integration_region = None
         self.line = None
 
     def reset_plot(self):
+        self.reset_fit()
         self.continuum_regions = []
-        self.excluded_regions = []
+        self.exclude_regions = []
         self.current_reg = None
         self.fit_bounds = None
         self.integration_region = None
         self.line = None
-        self.reset_fit()
         super().clear_all()
 
     def set_up_plot(self, mode, line, colors=None, show_roi=False, name=None):
@@ -266,14 +266,14 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         """
         # Add region
         if self.current_reg is None:
-            self.__add_region(region=ExcludedRegion, pos=pos)
+            self.__add_region(region=ExcludeRegion, pos=pos)
         else:
-            if not self.__check_region_is(ExcludedRegion):
+            if not self.__check_region_is(ExcludeRegion):
                 return
 
             self.scene().sigMouseMoved.disconnect(self.update_region)
             # Add finished region to list of regions
-            self.excluded_regions.append(self.current_reg)
+            self.exclude_regions.append(self.current_reg)
             # Clear current region
             self.current_reg = None
 
@@ -318,8 +318,8 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
                     self.fit_continuum()
                 else:
                     self.reset_continuum()
-            elif isinstance(r, ExcludedRegion):
-                self.excluded_regions.remove(r)
+            elif isinstance(r, ExcludeRegion):
+                self.exclude_regions.remove(r)
 
     def get_continuum_regions(self):
         """
@@ -332,13 +332,13 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
             regions.append((r[0] * self.wvlg_unit, r[1] * self.wvlg_unit))
         return regions
 
-    def get_excluded_regions(self):
+    def get_exclude_regions(self):
         """
         Return a list of tuples containing the excluded
         regions with their units
         """
         regions = []
-        for reg in self.excluded_regions:
+        for reg in self.exclude_regions:
             r = reg.getRegion()
             regions.append((r[0] * self.wvlg_unit, r[1] * self.wvlg_unit))
         return regions
@@ -395,6 +395,8 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
 
     def reset_fit(self):
         log.debug("Resetting fit.")
+        self.__delete_regions(self.exclude_regions)
+
         self.fit_spec.setData(
             np.zeros(2),
             np.zeros(2),
@@ -450,7 +452,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
 
         log.info("Starting Gaussian line fitting.")
 
-        excl_regions = self.get_excluded_regions()
+        excl_regions = self.get_exclude_regions()
         if excl_regions:
             excl_regions = SpectralRegion(excl_regions)
         else:
@@ -555,9 +557,9 @@ class ContinuumRegion(pg.LinearRegionItem):
         )
 
 
-class ExcludedRegion(pg.LinearRegionItem):
+class ExcludeRegion(pg.LinearRegionItem):
     def __init__(self, colors=None):
-        self.name = "excluded"
+        self.name = "exclude"
         self.key = "x"
         if colors is None:
             colors = load_colors(style="kraken9")
