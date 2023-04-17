@@ -3,6 +3,8 @@ import logging
 import sys
 from pathlib import Path
 
+import setproctitle
+
 from PyQt6 import uic
 from PyQt6 import QtWidgets
 from PyQt6 import QtCore
@@ -27,6 +29,7 @@ from .colors import load_colors, ZHUNTER_LOGO
 from .initialize import load_config, get_config_fname
 from .data_handler import DataHandler
 
+setproctitle.setproctitle('zHunter')
 logging.getLogger("PyQt6").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.INFO)
 log = logging.getLogger(__name__)

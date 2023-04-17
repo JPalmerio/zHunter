@@ -19,7 +19,7 @@ ergscm2AA = u.def_unit(
 GREEK_LETTERS = ["alpha", "beta", "gamma", "delta"]
 ERROR_KEYS = ["ERR", "NOISE", "SIGMA", "UNC"]
 WAVE_KEYS = ["WAVE", "AWAV", "WVLG", "LAM"]
-FLUX_KEYS = ["FLUX"]
+FLUX_KEYS = ["FLUX", "SCI"]
 
 
 def read_line_list(fname):
@@ -155,8 +155,10 @@ def read_generic_1D_spectrum(
     flux = None
     uncertainty = None
 
-    wave_unit = None
-    flux_unit = None
+    if wave_unit is not None:
+        log.debug(f"Using wave unit: '{wave_unit}' provided by user.")
+    if flux_unit is not None:
+        log.debug(f"Using flux unit: '{flux_unit}' provided by user.")
 
     if ".ecsv" in fname.name.lower():
         log.debug("ECSV file, reading with astropy ascii.read function")
@@ -209,7 +211,7 @@ def read_generic_1D_spectrum(
     if any(k is None for k in [wave_key, flux_key]):
         log.debug(
             f"Could not find any reasonable column names for file {fname}."
-            " Trying to extract data assuming default format: wave, flux, uncertainty."
+            " Extracting data assuming default format: wave, flux, uncertainty."
         )
 
         wave_key, flux_key, uncertainty_key = ("wave", "flux", "uncertainty")
@@ -783,10 +785,13 @@ def get_wavelength_constructor(header, waxis=1):
 
     # Deal with logarithmic wavelength binning if necessary
     if header.get("WFITTYPE") == "LOG-LINEAR":
+
         def constructor(x):
             return 10 ** ((x - reference_pixel + 1) * wave_step + wave_base)
+
         log.info("Log scale for wavelength constructor.")
     else:
+
         def constructor(x):
             return (x - reference_pixel + 1) * wave_step + wave_base
 
