@@ -35,7 +35,7 @@ def get_config_fname():
             default_config_fname = DIRS["CONFIG"] / "default_config.yaml"
             shutil.copyfile(default_config_fname, config_fname)
 
-    log.debug(f"Found {config_fname} !")
+    log.debug(f"Config file found:\n{config_fname}")
 
     return config_fname
 
@@ -52,6 +52,6 @@ def load_config(fname):
     # Load config file
     with open(fname, "r") as f:
         config = yaml.safe_load(f)
-        log.info(f"Loaded configuration from: {fname}")
+        log.info(f"Loaded configuration from:\n{fname}")
 
     return config
