@@ -16,7 +16,7 @@ class DataHandler(dict):
 
     # Loading data
     def load(self, fname, mode):
-        log.debug(f"Loading data from '{fname}'")
+        log.debug(f"Loading data from:\n{fname}")
         # Read data
         if mode == "1D":
             spec_1D, header = io.read_1D_spectrum(fname)
@@ -27,7 +27,7 @@ class DataHandler(dict):
                 # Uncertainty is not a Quantity but a StdDevUncertainty object
                 unc_1D = spec_1D.uncertainty.array * flux_1D.unit
             else:
-                log.warning(f"No uncertainty/error spectrum found in {fname}, using 0.")
+                log.warning(f"No uncertainty/error spectrum found in:\n{fname}\nusing 0.")
                 unc_1D = np.zeros(wvlg_1D.shape) * flux_1D.unit
         elif mode == "2D":
             wvlg, spat, flux, unc, header = io.read_fits_2D_spectrum(fname)
@@ -36,7 +36,7 @@ class DataHandler(dict):
         if header is not None:
             self["header"] = header
         else:
-            log.warning(f"No header could be loaded for file {fname}.")
+            log.warning(f"No header could be loaded for file:\n{fname}")
             self["header"] = None
 
         if mode == "1D":

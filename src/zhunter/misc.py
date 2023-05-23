@@ -159,7 +159,7 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     to a file.
     Input file must contain 2 columns for the name and the wavelength
     """
-    log.info(f"Calculating line ratios from {input_fname}")
+    log.info(f"Calculating line ratios from:\n{input_fname}")
     lines = read_line_list(input_fname)
     ratio = []
     ratio_name = []
@@ -185,6 +185,6 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
     output_fname = line_dir / output_fname
     if save:
         df_ratios.to_csv(output_fname, index=False)
-        log.info(f"Saved line ratios in {output_fname}")
+        log.info(f"Saved line ratios in:\n{output_fname}")
 
     return df_ratios

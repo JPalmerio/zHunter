@@ -47,8 +47,8 @@ def read_line_list(fname):
         tab = ascii_read(fname)
     else:
         raise ValueError(
-            f"Wrong format for file '{fname}'."
-            " The format must be '.ecsv'."
+            f"Wrong format for file:\n {fname}"
+            "\nThe format must be '.ecsv'."
             " See https://docs.astropy.org/en/stable/io/ascii/ecsv.html"
         )
 
@@ -62,7 +62,7 @@ def read_line_list(fname):
 
     if wave_key is None:
         raise ValueError(
-            f"No wavelength key could be parsed from column names for file '{fname}'."
+            f"No wavelength key could be parsed from column names for file:\n{fname}"
         )
     else:
         wave_unit = tab[wave_key].unit
@@ -70,13 +70,13 @@ def read_line_list(fname):
             # Try to get units from the column name
             wave_unit = parse_units_from_column_name(wave_key)
         if wave_unit is None:
-            log.info(f"No units found in file '{fname}', assuming Angstrom.")
+            log.info(f"No units found in file {fname}, assuming Angstrom.")
             tab[wave_key].unit = u.Unit("Angstrom")
 
     if "name" not in column_names:
         raise ValueError(
-            "Column 'name' must exist in line list file. (did not find it for file "
-            f"'{fname}'"
+            "Column 'name' must exist in line list file. (did not find it for file:"
+            f"\n{fname}"
         )
 
     return tab
@@ -92,9 +92,9 @@ def read_1D_spectrum(fname):
         fname = Path(fname)
 
     if not fname.exists():
-        raise FileNotFoundError(f"No such file: {fname}")
+        raise FileNotFoundError(f"No such file:\n{fname}")
 
-    log.debug(f"Read 1D spectrum from file {fname}")
+    log.debug(f"Read 1D spectrum from file:\n{fname}")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -146,7 +146,7 @@ def read_generic_1D_spectrum(
         Spectrum1D: Spectrum containing the data
     """
 
-    log.info(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file:\n{fname}")
 
     if not isinstance(fname, Path):
         fname = Path(fname)
@@ -210,7 +210,7 @@ def read_generic_1D_spectrum(
     # If no column names, assume wave, flux, error/uncertainty
     if any(k is None for k in [wave_key, flux_key]):
         log.debug(
-            f"Could not find any reasonable column names for file {fname}."
+            f"Could not find any reasonable column names for file:\n{fname}\n"
             " Extracting data assuming default format: wave, flux, uncertainty."
         )
 
@@ -274,9 +274,9 @@ def read_generic_1D_spectrum(
             spectrum.uncertainty = StdDevUncertainty(uncertainty)
         else:
             if ignore_unc_warning:
-                log.debug(f"No error/uncertainty found in file {fname}.")
+                log.debug(f"No error/uncertainty found in file:\n{fname}")
             else:
-                log.warning(f"No error/uncertainty found in file {fname}.")
+                log.warning(f"No error/uncertainty found in file:\n{fname}")
     else:
         raise IOError("Unknown file format")
     return spectrum
@@ -295,7 +295,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
     the header of the HDU where it found the flux.
     """
 
-    log.info(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file:\n{fname}")
 
     with fits.open(fname) as hdulist:
         hdu_names = [hdu.name for hdu in hdulist]
@@ -322,7 +322,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
                     if flux is None:
                         continue
                     elif len(flux.shape) == 2:
-                        log.debug(f"Found HDU: {hdu.name} which contains a 2D array")
+                        log.debug(f"Found HDU: '{hdu.name}' which contains a 2D array")
                         header = hdu.header
                         break
 
@@ -395,7 +395,7 @@ def read_fits_1D_spectrum(fname):
     returns a Spectrum1D object
     """
 
-    log.info(f"Attempting to read file: {fname}")
+    log.info(f"Attempting to read file:\n{fname}")
 
     with fits.open(fname) as hdulist:
         # By default start with PRIMARY HDU
@@ -483,7 +483,7 @@ def read_fits_1D_spectrum(fname):
                     bin_tab = Table.read(hdu)
                     column_names = list(bin_tab.columns)
                     log.debug(
-                        f"Found the following columns: {column_names} in HDU: {hdu.name}"
+                        f"Found the following columns: {column_names} in HDU: '{hdu.name}'"
                     )
 
                     # Wavelength
@@ -504,7 +504,7 @@ def read_fits_1D_spectrum(fname):
 
                     if any(k is None for k in [wave_key, flux_key]):
                         log.debug(
-                            f"Could not find any reasonable column names for HDU {hdu.name}."
+                            f"Could not find any reasonable column names for HDU '{hdu.name}'"
                         )
                         continue
                     else:
@@ -533,17 +533,18 @@ def read_fits_1D_spectrum(fname):
                     if flux is not None and waveobs is not None:
                         header = hdu.header
                         log.debug(
-                            f"Found HDU: {hdu.name} which contains a binary table with wave and flux keys: {wave_key}, {flux_key}"
+                            f"Found HDU: '{hdu.name}' which contains a binary table "
+                            f"with wave and flux keys: {wave_key}, {flux_key}"
                         )
                         break
 
     # Default units if no units were found
     if wave_unit is None:
         wave_unit = u.AA
-        log.info("No units specified for wave, assuming Angstrom.")
+        log.info("No units specified for wave, assuming 'Angstrom'.")
     if flux_unit is None:
         flux_unit = ergscm2AA
-        log.info(f"No units specified for flux, assuming {ergscm2AA}.")
+        log.info(f"No units specified for flux, assuming '{ergscm2AA}'.")
 
     if flux is not None and waveobs is not None:
         # Create the spectrum object
@@ -615,7 +616,7 @@ def convert_line_name_to_latex(lname):
                 break
 
         if elem is None:
-            log.error(f"Could not parse line name {lname} to convert to latex")
+            log.error(f"Could not parse line name '{lname}' to convert to latex")
             return lname
 
         latex_string = (
@@ -642,7 +643,7 @@ def parse_units_from_column_name(col_name):
     try:
         units_str = col_name.split("(")[1].strip(")")
         units = u.Unit(units_str)
-        log.debug(f"Parsed unit {units_str} from column name '{col_name}'")
+        log.debug(f"Parsed unit '{units_str}' from column name '{col_name}'")
     except Exception:
         units = None
         log.debug(f"No unit could be parsed from column name '{col_name}'")
@@ -656,7 +657,7 @@ def get_units(header, axis=2, default_units=None):
         units = u.Unit(cunit2)
     except KeyError:
         if default_units is not None:
-            log.info(f"No unit found in header, assuming {default_units}")
+            log.info(f"No unit found in header, assuming '{default_units}'")
             units = default_units
         else:
             units = None
@@ -674,15 +675,15 @@ def get_flux_units(header, axis=2, default_units=None):
     if cunit2:
         if cunit2 == "ADU":
             cunit2 = "adu"
-        log.debug(f"Using CUNIT: {cunit2} for flux units")
+        log.debug(f"Using CUNIT: '{cunit2}' for flux units")
         flux_units = u.Unit(cunit2)
     elif bunit:
         if bunit == "ADU":
             bunit = "adu"
-        log.debug(f"Using BUNIT: {bunit} for flux units")
+        log.debug(f"Using BUNIT: '{bunit}' for flux units")
         flux_units = u.Unit(bunit)
     elif default_units:
-        log.info(f"No unit found in header, assuming {default_units}")
+        log.info(f"No unit found in header, assuming '{default_units}'")
         flux_units = default_units
     else:
         flux_units = None
@@ -703,7 +704,7 @@ def get_wavelength_units(header, waxis=1, default_units=u.nm):
         wave_unit = u.Unit(cunit1)
     except KeyError:
         log.info(
-            f"No unit found in header for wavelength (axis {waxis}), assuming {default_units}"
+            f"No unit found in header for wavelength (axis {waxis}), assuming '{default_units}'"
         )
         wave_unit = default_units
     return wave_unit

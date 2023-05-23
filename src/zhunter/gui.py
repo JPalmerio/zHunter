@@ -33,7 +33,8 @@ log = logging.getLogger(__name__)
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.DEBUG,
-    format="%(asctime)s.%(msecs)03d | %(levelname)s | [%(name)s] - %(funcName)s : %(message)s",
+    # format="%(asctime)s.%(msecs)03d | %(levelname)s | [%(name)s] - %(funcName)s : %(message)s",
+    format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(funcName)s - %(filename)s:%(lineno)d : %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
@@ -185,14 +186,14 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         try:
             log.debug(
-                f"Reading absorption lines from: {self.fnames['intervening_lines']}"
+                f"Reading absorption lines from:\n{self.fnames['intervening_lines']}"
             )
             self.abs_lines = io.read_line_list(self.fnames["intervening_lines"])
 
-            log.debug(f"Reading emission lines from: {self.fnames['emission_lines']}")
+            log.debug(f"Reading emission lines from:\n{self.fnames['emission_lines']}")
             self.em_lines = io.read_line_list(self.fnames["emission_lines"])
 
-            log.debug(f"Reading GRB lines from: {self.fnames['GRB_lines']}")
+            log.debug(f"Reading GRB lines from:\n{self.fnames['GRB_lines']}")
             self.GRB_lines = io.read_line_list(self.fnames["GRB_lines"])
 
         except Exception as e:
@@ -203,7 +204,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.line_ratios = create_line_ratios(self.fnames["intervening_lines"])
         else:
             self.line_ratios = ascii_read(self.fnames["line_ratio"])
-            log.debug(f"Read line ratios: {self.fnames['line_ratio']}")
+            log.debug(f"Read line ratios fron:\n{self.fnames['line_ratio']}")
 
     # Sky plots
     def plot_telluric(self):
@@ -363,7 +364,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fnames["data"] = Path(fname)
             if self.fnames["data"].exists():
                 log.debug(
-                    f"File: '{self.fnames['data']}' is valid and exists, proceeding"
+                    f"File:\n{self.fnames['data']}\nis valid and exists, proceeding"
                 )
                 self.reset_plot()
                 self.set_up_plot()
