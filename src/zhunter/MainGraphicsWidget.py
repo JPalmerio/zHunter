@@ -106,7 +106,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
 
     def set_up_1D_plot(self, name):
         # Add title on row 0
-        self.addLabel("Andrea look at pip magic", row=0)
+        self.addLabel(name, row=0)
         # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
         self.ax1D = self.addPlot(row=1, col=0, name="1D")
 
