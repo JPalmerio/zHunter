@@ -123,7 +123,7 @@ class VelocityPlot(QtWidgets.QMainWindow):
             )
             return
 
-        wvlg = self.parent.data["wvlg_1D_disp"]
+        wvlg = self.parent.data["wvlg_bins_disp"]
         flux = self.parent.data["flux_1D_disp"]
         unc = self.parent.data["unc_1D_disp"]
 
