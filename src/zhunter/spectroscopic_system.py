@@ -209,7 +209,7 @@ class SpecSystem(QtCore.QObject):
 
 class Telluric:
 
-    """Telluric data is in vacuum from iSpec in the optical
+    """Telluric data is in air from iSpec in the optical
     (https://github.com/marblestation/iSpec)
     and Gemini Observatory in the NIR
     (https://www.gemini.edu/observing/telescopes-and-sites/sites#SkyBackground)
