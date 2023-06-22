@@ -7,10 +7,152 @@ import numpy as np
 from astropy.units.quantity import Quantity
 import astropy.units as u
 import pyqtgraph as pg
+import astropalmerio.spectra as sp
 
 from zhunter.io import read_line_list, find_column_name, WAVE_KEYS
 
 log = logging.getLogger(__name__)
+
+
+def generate_fake_1D_spectrum(
+    SNR=10,
+    continuum=1,
+    flux_scale=1e-17,
+    spec_start=650,
+    N_spec=1001,
+    spec_pix_scale=0.02,
+    spec_unit='nm',
+    flux_unit='erg s-1 cm-2 AA-1',
+    emission_line=None,
+):
+    """
+    """
+
+    # Spectral dimension
+    spec_end = spec_start + N_spec*spec_pix_scale
+    spec_mid = np.linspace(spec_start, spec_end, N_spec)
+
+    # Spatial dimension
+
+    flux = continuum*np.ones(N_spec)
+
+    if emission_line:
+        if isinstance(emission_line, bool):
+            emission_line = {}
+
+        # add an emission line
+        em_line_1D = sp.gaussian_fct(
+            spec_mid,
+            mean=emission_line.get('mean',656.28),
+            stddev=emission_line.get('stddev',1),
+            amplitude=emission_line.get('amplitude', continuum+3),
+        )
+        flux += em_line_1D
+
+    # add noise
+    flux += np.random.normal(0, 1./SNR, size=flux.shape)
+    flux *= flux_scale
+    unc = flux_scale/SNR * np.ones(flux.shape)
+
+    # Add units
+    if spec_unit is not None:
+        spec_mid = spec_mid * u.Unit(spec_unit)
+    if flux_unit is not None:
+        flux = flux * u.Unit(flux_unit)
+        unc = unc * u.Unit(flux_unit)
+
+    return spec_mid, flux, unc
+
+
+def generate_fake_2D_spectrum(
+    SNR=10,
+    flux_scale=1e-17,
+    seeing=1,
+    spec_start=650,
+    spat_start=-10,
+    N_spec=1001,
+    N_spat=101,
+    spec_pix_scale=0.02,
+    spat_pix_scale=0.16,
+    spec_unit='nm',
+    spat_unit='arcsec',
+    flux_unit='erg s-1 cm-2 AA-1',
+    emission_line=None,
+    nodding=True,
+    nod_throw=5,
+):
+    """
+    """
+    seeing_px = seeing/spat_pix_scale
+
+    # Spectral dimension
+    spec_end = spec_start + N_spec*spec_pix_scale
+    spec_mid = np.linspace(spec_start, spec_end, N_spec)
+
+    # Spatial dimension
+    spat_end = spat_start + N_spat*spat_pix_scale
+    spat_mid = np.linspace(spat_start, spat_end, N_spat)
+
+    flux = np.zeros((N_spat, N_spec))
+
+    # Center trace
+    trace_profile = sp.gaussian_fct(spat_mid, mean=np.median(spat_mid), stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
+    trace = trace_profile.reshape(N_spat,1) * np.ones(flux.shape)
+
+    if emission_line:
+        if isinstance(emission_line, bool):
+            emission_line = {}
+
+        # add an emission line
+        em_line_1D = sp.gaussian_fct(
+            spec_mid,
+            mean=emission_line.get('mean',656.28),
+            stddev=emission_line.get('stddev',1),
+            amplitude=emission_line.get('amplitude',3),
+        )
+        em_line = np.outer(
+            trace_profile.reshape(N_spat,1),
+            em_line_1D.reshape(N_spec,1)
+        )
+        trace += em_line
+
+    if nodding:
+        # Negative traces to mimick nodding
+        neg_trace_profile_u = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)+nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
+        neg_trace_profile_l = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)-nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
+
+        neg_trace_l = neg_trace_profile_l.reshape(N_spat,1) * np.ones(flux.shape)
+        neg_trace_u = neg_trace_profile_u.reshape(N_spat,1) * np.ones(flux.shape)
+
+        if emission_line:
+            # add negative emission line
+            neg_em_line_l = np.outer(
+                neg_trace_profile_l.reshape(N_spat,1),
+                em_line_1D.reshape(N_spec,1)
+            )
+            neg_em_line_u = np.outer(
+                neg_trace_profile_u.reshape(N_spat,1),
+                em_line_1D.reshape(N_spec,1)
+            )
+            neg_trace_l += neg_em_line_l
+            neg_trace_u += neg_em_line_u
+
+    # add noise
+    flux += np.random.normal(0, 1./SNR, size=flux.shape)
+    flux += trace + neg_trace_l + neg_trace_u
+    flux *= flux_scale
+    unc = flux_scale/SNR * np.ones(flux.shape)
+
+    # Add units
+    if spec_unit is not None:
+        spec_mid = spec_mid * u.Unit(spec_unit)
+    if spat_unit is not None:
+        spat_mid = spat_mid * u.Unit(spat_unit)
+    if flux_unit is not None:
+        flux = flux * u.Unit(flux_unit)
+        unc = unc * u.Unit(flux_unit)
+
+    return spec_mid, spat_mid, flux, unc
 
 
 def convert_to_bins(array):
