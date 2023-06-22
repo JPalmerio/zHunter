@@ -60,7 +60,7 @@ class DataHandler(dict):
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
-        self["wvlg_med"] = wvlg
+        self["wvlg"] = wvlg
         self["wvlg_bins"] = convert_to_bins(wvlg)
         self["flux_1D"] = flux
         self["unc_1D"] = unc
@@ -68,7 +68,7 @@ class DataHandler(dict):
         self["resh_1D"] = resh
 
         self.set_1D_displayed(
-            wvlg_bins=self["wvlg_bins"],
+            wvlg=self["wvlg"],
             flux=self["flux_1D"],
             unc=self["unc_1D"],
             res=self["res_1D"],
@@ -85,42 +85,42 @@ class DataHandler(dict):
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
 
-        self["wvlg_med"] = wvlg
+        self["wvlg"] = wvlg
         self["wvlg_bins"] = convert_to_bins(wvlg)
         self["flux_2D"] = flux
         self["unc_2D"] = unc
-        self["spat_med"] = spat
+        self["spat"] = spat
         self["spat_bins"] = convert_to_bins(spat)
 
         self.set_2D_displayed(
-            wvlg_bins=self["wvlg_bins"],
+            wvlg=self["wvlg"],
             flux=self["flux_2D"],
             unc=self["unc_2D"],
-            spat_bins=self["spat_bins"],
+            spat=self["spat"],
         )
         self.calculate_2D_displayed_range()
 
-    def set_2D_displayed(self, wvlg_bins, flux, unc, spat_bins):
+    def set_2D_displayed(self, wvlg, flux, unc, spat):
         """
         Saves into memory the data that is actually being displayed
         on the interface (after smoothing for example).
         """
 
-        self["wvlg_mid_disp"] = 0.5 * (wvlg_bins[1:] + wvlg_bins[:-1])
-        self["wvlg_bins_disp"] = wvlg_bins
+        self["wvlg_disp"] = wvlg
+        self["wvlg_bins_disp"] = convert_to_bins(wvlg)
         self["flux_2D_disp"] = flux
         self["unc_2D_disp"] = unc
-        self["spat_mid_disp"] = 0.5 * (spat_bins[1:] + spat_bins[:-1])
-        self["spat_bins_disp"] = spat_bins
+        self["spat_disp"] = spat
+        self["spat_bins_disp"] = convert_to_bins(spat)
 
-    def set_1D_displayed(self, wvlg_bins, flux, unc, res=None, resh=None):
+    def set_1D_displayed(self, wvlg, flux, unc, res=None, resh=None):
         """
         Saves into memory the data that is actually being displayed
         on the interface (after smoothing for example).
         """
 
-        self["wvlg_mid_disp"] = 0.5 * (wvlg_bins[1:] + wvlg_bins[:-1])
-        self["wvlg_bins_disp"] = wvlg_bins
+        self["wvlg_disp"] = wvlg
+        self["wvlg_bins_disp"] = convert_to_bins(wvlg)
         self["flux_1D_disp"] = flux
         self["unc_1D_disp"] = unc
         self["res_1D_disp"] = res
@@ -155,7 +155,7 @@ class DataHandler(dict):
         self["spat_span"] = self["spat_max"] - self["spat_min"]
 
     def calculate_residuals(self, model):
-        self["res_1D"] = (self["flux_1D"] - model(self["wvlg_med"])) / self["unc_1D"]
+        self["res_1D"] = (self["flux_1D"] - model(self["wvlg"])) / self["unc_1D"]
         self["res_1D_disp"] = (
-            self["flux_1D_disp"] - model(self["wvlg_mid_disp"])
+            self["flux_1D_disp"] - model(self["wvlg_disp"])
         ) / self["unc_1D_disp"]

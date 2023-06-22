@@ -477,24 +477,31 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.roi.sigRegionChanged.emit(self.roi)
         self.roi.sigRegionChangeFinished.emit(self.roi)
 
-    def set_2D_units(self, data):
-        self.wvlg_unit = data["wvlg_bins_disp"].unit
-        self.flux_2D_unit = data["flux_2D_disp"].unit
-        self.spat_unit = data["spat_mid_disp"].unit
+    def set_2D_units(self, wvlg_unit, flux_unit, spat_unit):
+        self.wvlg_unit = wvlg_unit
+        self.flux_2D_unit = flux_unit
+        self.spat_unit = spat_unit
 
-    def set_1D_units(self, data):
-        self.wvlg_unit = data["wvlg_bins_disp"].unit
-        self.flux_1D_unit = data["flux_1D_disp"].unit
+    def set_1D_units(self, wvlg_unit, flux_unit):
+        self.wvlg_unit = wvlg_unit
+        self.flux_1D_unit = flux_unit
 
     def set_2D_labels(self, data):
-        self.set_2D_units(data)
+        self.set_2D_units(
+            wvlg_unit=data["wvlg_bins_disp"].unit,
+            flux_unit=data["flux_2D_disp"].unit,
+            spat_unit=data["spat_disp"].unit,
+        )
         self.ax2D.setLabel(
             "left",
             "Spatial" + f" ({self.spat_unit})",
         )
 
     def set_1D_labels(self, data):
-        self.set_1D_units(data)
+        self.set_1D_units(
+            wvlg_unit=data["wvlg_bins_disp"].unit,
+            flux_unit=data["flux_1D_disp"].unit,
+        )
         self.ax1D.setLabel(
             "left",
             "Flux" + f" ({self.flux_1D_unit})",
@@ -592,7 +599,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         i = int(np.clip(i, 0, self.data["flux_2D_disp"].shape[0] - 1))
         j = int(np.clip(j, 0, self.data["flux_2D_disp"].shape[1] - 1))
         z = self.data["flux_2D_disp"][i, j]
-        x, y = self.data["wvlg_mid_disp"][j], self.data["spat_mid_disp"][i]
+        x, y = self.data["wvlg_disp"][j], self.data["spat_disp"][i]
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
                 f"Wavelength = {x.value:0.3f} {x.unit},"
