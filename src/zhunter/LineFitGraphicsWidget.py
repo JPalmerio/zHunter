@@ -162,7 +162,10 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
         self.vbs_with_chx.append(self.ax_res.vb)
 
     def set_1D_labels(self, data):
-        self.set_1D_units(data)
+        self.set_1D_units(
+            wvlg_unit=data["wvlg_bins_disp"].unit,
+            flux_unit=data["flux_1D_disp"].unit,
+        )
         self.ax1D.setLabel(
             "left",
             "Flux" + f" ({self.flux_1D_unit})",
@@ -509,7 +512,7 @@ class LineFitGraphicsWidget(MainGraphicsWidget):
 
         self.line.extract_line_region(
             spectrum=Spectrum1D(
-                spectral_axis=self.data["wvlg_mid_disp"],
+                spectral_axis=self.data["wvlg_disp"],
                 flux=self.data["flux_1D_disp"],
                 uncertainty=StdDevUncertainty(self.data["unc_1D_disp"]),
             ),

@@ -108,14 +108,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.fine_structure_btn.clicked.connect(self.show_hide_fine_structure)
 
-        self.to_vacuum_btn.clicked.connect(self.wvlg_to_vacuum)
+        # Wavelength correction actions
 
-        self.to_air_btn.clicked.connect(self.wvlg_to_air)
+        # self.to_air_btn.clicked.connect(self.wvlg_to_air)
+        # self.to_vacuum_btn.clicked.connect(self.wvlg_to_vacuum)
+
+        # self.action_to_vacuum.triggered.connect(self.wvlg_to_vacuum)
+        # self.action_to_air.triggered.connect(self.wvlg_to_air)
 
         self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
 
         self.actionHeliocentric.triggered.connect(self.wvlg_helio_correction)
 
+        # Line ratio
         self.ratio_btn.clicked.connect(self.calculate_ratio)
 
         self.find_line_ratios_btn.clicked.connect(self.find_ratio_names)
@@ -165,7 +170,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load extra parameters defined on the GUI
         ext_width = float(self.txb_extraction_width.text())
         if self.mode == "2D":
-            self.data["extraction_width"] = ext_width * self.data["spat_mid_disp"].unit
+            self.data["extraction_width"] = ext_width * self.data["spat_disp"].unit
         # self.data["smooth"] = int(self.txb_smooth.text())
 
         # Main plotting function
@@ -395,6 +400,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "heliocentric": False,
             "barycentric": False,
         }
+
         log.debug("Done !")
 
     def select_line_lists(self):
@@ -559,9 +565,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from vacuum " "to air.",
             )
         else:
-            wvlg = self.data["wvlg_mid_disp"]
+            wvlg = self.data["wvlg_disp"]
             wvlg_in_air = sf.vac_to_air(wvlg)
-            self.data["wvlg_mid_disp"] = wvlg_in_air
+            self.data["wvlg_disp"] = wvlg_in_air
             self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_air)
             if not self.wvlg_corrections["to_vacuum"]:
                 self.wvlg_corrections["to_air"] = True
@@ -584,9 +590,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from air " "to vacuum.",
             )
         else:
-            wvlg = self.data["wvlg_mid_disp"]
+            wvlg = self.data["wvlg_disp"]
             wvlg_in_vac = sf.air_to_vac(wvlg)
-            self.data["wvlg_mid_disp"] = wvlg_in_vac
+            self.data["wvlg_disp"] = wvlg_in_vac
             self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_vac)
             if not self.wvlg_corrections["to_air"]:
                 self.wvlg_corrections["to_vacuum"] = True
@@ -628,11 +634,11 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         else:
             try:
-                wvlg = self.data["wvlg_mid_disp"]
+                wvlg = self.data["wvlg_disp"]
                 c = cst.c.to("km/s")
                 vcorr = sf.calc_vel_corr(header=self.data["header"], kind=kind)
                 wvlg_corr = wvlg * (1.0 + vcorr / c)
-                self.data["wvlg_mid_disp"] = wvlg_corr
+                self.data["wvlg_disp"] = wvlg_corr
                 self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_corr)
                 self.wvlg_corrections["barycentric"] = True
                 self.wvlg_corrections["heliocentric"] = True
