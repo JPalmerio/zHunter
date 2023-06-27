@@ -1,7 +1,8 @@
 import logging
 import numpy as np
-from .misc import check_flux_scale, convert_to_bins
+from zhunter.misc import check_flux_scale, convert_to_bins
 import zhunter.io as io
+from astropy.units import Quantity
 
 log = logging.getLogger(__name__)
 
@@ -55,17 +56,39 @@ class DataHandler(dict):
     def load_1D(self, wvlg, flux, unc, res=None, resh=None):
         """
         Save wvlg, flux and unc arrays into memory.
+
+        Parameters
+        ----------
+        wvlg : Quantity
+            Wavelength array
+        flux : Quantity
+            Flux array
+        unc : Quantity
+            Uncertainty array
+        res : Quantity or None, optional
+            Residuals array
+        resh : Quantity or None, optional
+            Residuals histogram
+
         """
         # Multiply flux and unc to have them in reasonable units
         # and allow y crosshair to work (otherwise the code considers
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
-        self["wvlg"] = wvlg
-        self["wvlg_bins"] = convert_to_bins(wvlg)
-        self["flux_1D"] = flux
-        self["unc_1D"] = unc
-        self["res_1D"] = res
-        self["resh_1D"] = resh
+
+        self["wvlg"] = wvlg.value
+        self["wvlg_bins"] = convert_to_bins(wvlg.value)
+        self["flux_1D"] = flux.value
+        self["unc_1D"] = unc.value
+        self["res_1D"] = res.value if isinstance(res, Quantity) else res
+        self["resh_1D"] = resh.value if isinstance(resh, Quantity) else res
+
+        self.set_units(
+            {
+                'wvlg':wvlg.unit,
+                'flux_1D':flux.unit,
+            }
+        )
 
         self.set_1D_displayed(
             wvlg=self["wvlg"],
@@ -85,12 +108,20 @@ class DataHandler(dict):
         # it to be zero)
         flux, unc = check_flux_scale(flux, unc)
 
-        self["wvlg"] = wvlg
-        self["wvlg_bins"] = convert_to_bins(wvlg)
-        self["flux_2D"] = flux
-        self["unc_2D"] = unc
-        self["spat"] = spat
-        self["spat_bins"] = convert_to_bins(spat)
+        self["wvlg"] = wvlg.value
+        self["wvlg_bins"] = convert_to_bins(wvlg.value)
+        self["flux_2D"] = flux.value
+        self["unc_2D"] = unc.value
+        self["spat"] = spat.value
+        self["spat_bins"] = convert_to_bins(spat.value)
+
+        self.set_units(
+            {
+                'wvlg':wvlg.unit,
+                'flux_2D':flux.unit,
+                'spat':spat.unit,
+            }
+        )
 
         self.set_2D_displayed(
             wvlg=self["wvlg"],
@@ -99,6 +130,22 @@ class DataHandler(dict):
             spat=self["spat"],
         )
         self.calculate_2D_displayed_range()
+
+    def set_units(self, units):
+        """Units should be a dictionary with a key:value.
+        Example:
+        units = {'wvlg':u.nm, 'flux_1D':u.Jy}
+
+        Parameters
+        ----------
+        units : dict
+            Dictionary containing the units.
+        """
+        if "units" not in self.keys():
+            self["units"] = {}
+
+        # Update dictionary
+        self["units"] = {**self["units"], **units}
 
     def set_2D_displayed(self, wvlg, flux, unc, spat):
         """
