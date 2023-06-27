@@ -1,6 +1,6 @@
 from PyQt6 import uic
 from PyQt6 import QtWidgets
-from zhunter import DIRS
+from zhunter.initialize import DIRS
 import astropy.units as u
 from astropy.units.core import UnitConversionError
 import logging
@@ -11,21 +11,17 @@ log = logging.getLogger(__name__)
 u.set_enabled_equivalencies(u.spectral())
 
 
-class UnitsWindow(QtWidgets.QWidget):
-    def __init__(self, data):
-        super().__init__()
+class UnitsWindow(QtWidgets.QDialog):
+    def __init__(self, parent):
+        super(UnitsWindow, self).__init__(parent)
+        self.parent = parent
         uic.loadUi(DIRS["UI"] / "units.ui", self)
 
+    def activate(self, data):
         self.data = data
-        self.units = {
-            'wvlg': data['wvlg'].unit,
-            'flux_1D': data['flux_1D'].unit,
-            'flux_2D': data['flux_2D'].unit,
-            'spat': data['spat'].unit,
-        }
 
-        self.cbb_quantity.currentIndexChanged.connect(self.update_current_units_disp)
-        self.cbb_quantity.addItems(list(self.units.keys()))
+        self.cbb_axis.currentIndexChanged.connect(self.update_current_units_disp)
+        self.cbb_axis.addItems(list(self.data["units"].keys()))
 
         self.connect_signals_and_slots()
 
@@ -46,46 +42,45 @@ class UnitsWindow(QtWidgets.QWidget):
             return None
 
     def set_units(self):
-        quant = str(self.cbb_quantity.currentText())
+        axis = str(self.cbb_axis.currentText())
 
         new_units = self.get_valid_units(textbox=self.txb_set_units)
 
         # If user provided units are valid
         if new_units:
-            self.data[quant] = self.data[quant].value * new_units
-            self.units[quant] = new_units
+            log.info(f"Redefining {axis} axis units as {new_units}")
+            self.data.set_unit({axis: new_units})
 
             self.update_current_units_disp()
 
     def convert_units(self):
 
-        quant = str(self.cbb_quantity.currentText())
+        axis = str(self.cbb_axis.currentText())
 
-        current_units = u.Unit(self.units[quant])
+        current_units = u.Unit(self.data["units"][axis])
         new_units = self.get_valid_units(textbox=self.txb_convert_units)
 
         if new_units:
-            log.debug(f"Converting {current_units} to {new_units}")
-            try:
-                self.data[quant] = self.data[quant].to(
-                    new_units,
-                    # Add equivalency in case converting Fnu/Flam
-                    equivalencies=u.spectral_density(self.data['wvlg'])
-                )
-                self.units[quant] = new_units
-                self.update_current_units_disp()
+            log.debug(f"Converting {axis} units from {current_units} to {new_units}")
+            raise NotImplementedError
+            # try:
+            #     self.data[quant] = self.data[quant].to(
+            #         new_units,
+            #         # Add equivalency in case converting Fnu/Flam
+            #         equivalencies=u.spectral_density(self.data['wvlg'])
+            #     )
+            #     self.data["units"][quant] = new_units
+            #     self.update_current_units_disp()
 
-            except UnitConversionError as e:
-
-                log.warning(f"Invalid unit conversion: {e}")
-                QtWidgets.QMessageBox.warning(
-                    self, "Invalid unit conversion", f"{e}"
-                )
+            # except UnitConversionError as e:
+            #     log.warning(f"Invalid unit conversion: {e}")
+            #     QtWidgets.QMessageBox.warning(
+            #         self, "Invalid unit conversion", f"{e}"
+            #     )
 
             # self.data.set_1D_displayed()
 
     def update_current_units_disp(self):
-        ax = str(self.cbb_quantity.currentText())
+        axis = str(self.cbb_axis.currentText())
 
-        # self.txb_current_unit.setText(str(self.units[ax]))
-        self.current_units_label.setText(str(self.units[ax]))
+        self.current_units_label.setText(str(self.data["units"][axis]))
