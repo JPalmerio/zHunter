@@ -5,38 +5,19 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def load_colors(style, default="kraken9"):
-    """Load colors
-
-    Parameters
-    ----------
-    config : dict
-        Description
-    """
-    # Define color style
-    try:
-        colors = COLORS[style]
-    except KeyError:
-        log.error(
-            "This color palette doest not exist. Please use one of "
-            f"{list(COLORS.keys())}. Falling back to default colors: '{default}'"
-        )
-        colors = COLORS[default]
-    return colors
-
-
 def get_gradient(color, reverse=False):
-    """Summary
+    """Create a shading gradient from a QColor.
+    Essentially changes the alpha of the color.
 
     Parameters
     ----------
     color : QColor
-        Description
+        QColor from which to create the gradient.
 
     Returns
     -------
-    TYPE
-        Description
+    grad : QLinearGradient
+        Gradient created.
     """
     lighter_color = QtGui.QColor(color.name())
     lighter_color.setAlpha(64)  # out of 255
@@ -90,6 +71,7 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
 
 
 KRAKEN9 = {
+    "style_name": 'kraken9',
     "spec": "#EBEBEB",
     "unc": "#BC271B",  # Rust
     "specsys": [
@@ -114,6 +96,7 @@ KRAKEN9 = {
 }
 
 KRAKEN17 = {
+    "style_name": 'kraken17',
     "spec": "#EBEBEB",
     "unc": "#BC271B",  # Rust
     "specsys": [
@@ -146,6 +129,7 @@ KRAKEN17 = {
 
 
 CVD = {
+    "style_name": 'cvd',
     "spec": "white",
     "unc": "red",
     "specsys": get_cblind_colors(rtype=list, fmt="hex"),
@@ -159,6 +143,7 @@ CVD = {
 }
 
 OLD = {
+    "style_name": 'old',
     "spec": "white",
     "unc": "red",
     "specsys": [
@@ -185,6 +170,7 @@ OLD = {
 }
 
 CYBERPUNK = {
+    "style_name": 'cyberpunk',
     "spec": "white",
     "unc": "red",
     "specsys": ["#08F7FE", "#FE53BB", "#F5D300", "#41ff41", "#ff4141", "#9467bd"],
