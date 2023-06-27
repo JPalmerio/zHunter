@@ -651,59 +651,67 @@ class MainWindow(QtWidgets.QMainWindow):
             ratio_error_margin = float(self.txb_ratio_error_margin.text())
             ratio_value = float(self.txb_ratio.text())
 
-            cond = abs(self.line_ratios["ratio"] - ratio_value) <= ratio_error_margin
+            mask = abs(self.config['lines']['ratios']["ratio"] - ratio_value) <= ratio_error_margin
             self.ratio_name_list.clear()
-            for name in self.line_ratios[cond]["name"]:
+            for name in self.config['lines']['ratios']["name"][mask]:
                 self.ratio_name_list.addItem(name)
 
-        except ValueError:
+        except ValueError as e:
+            log.error(f"Could not find ratio names because: {e}")
+            QtWidgets.QMessageBox.warning(
+                self, "Invalid input", f"Could not find ratio names because: {e}"
+            )
             self.ratio_name_list.clear()
-            self.ratio_name_list.addItem("Invalid input")
 
     # Spectroscopic systems
     def add_specsys_from_ratio(self):
         """
         Add a spectroscopic system from a given selected line ratio.
         """
-        if not self.data:
-            log.debug("You pushed a button but did not load any data. Ignoring.")
-            return
+        # if not self.data:
+        #     log.debug("You pushed a button but did not load any data. Ignoring.")
+        #     return
 
-        try:
-            chosen_ratio = self.ratio_name_list.selectedItems()[0]
-        except IndexError:
-            log.debug("Empty ratio list")
-            return
+        # try:
+        #     chosen_ratio = self.ratio_name_list.selectedItems()[0]
+        # except IndexError:
+        #     log.error("No selected ratio")
+        #     QtWidgets.QMessageBox.warning(
+        #         self, "No selected ratio", "Please select a line ratio first."
+        #     )
+        #     return
+        # try:
+        #     l1 = float(self.txb_wvlg1.text())
+        #     l2 = float(self.txb_wvlg2.text())
+        #     l_wvlg_obs = np.max([l1, l2])
+        #     # Use the max wavelength because we chose the first
+        #     # of the line names
+        #     l_wvlg_obs = l_wvlg_obs * self.data["units"]["wvlg"]
+        # except Exception:
+        #     QtWidgets.QMessageBox.information(
+        #         self,
+        #         "Invalid spectral system",
+        #         "Lambda 1 and Lambda 2 must be convertible to Quantity or float",
+        #     )
 
-        log.debug(f"Chosen ratio is: {chosen_ratio.text()}")
-        if chosen_ratio:
-            # Choose the first line name with [0]
-            l_name = chosen_ratio.text().split("/")[0].strip()
-            log.debug(f"Line name to search for is: {l_name}")
+        # log.debug(f"Chosen ratio is: {chosen_ratio.text()}")
 
-            cond = self.check_line_name(l_name, self.abs_lines)
-            l_wvlg_rest = Quantity(self.abs_lines[cond]["wave"])[0]
-            log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
-            try:
-                l1 = float(self.txb_wvlg1.text())
-                l2 = float(self.txb_wvlg2.text())
-                l_wvlg_obs = np.max([l1, l2])
-                # Use the max wavelength because we chose the first
-                # of the line names
-                l_wvlg_obs = l_wvlg_obs * self.graphLayout.wvlg_unit
-            except Exception:
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Invalid spectral system",
-                    "Lambda 1 and Lambda 2 must be convertible to Quantity or float",
-                )
-                self.txb_wvlg1.setFocus()
-                return
-            log.debug(f"Collecting observed wavelength: {l_wvlg_obs}")
-            l_wvlg_rest = l_wvlg_rest.to(l_wvlg_obs.unit)
-            z = l_wvlg_obs / l_wvlg_rest - 1.0
-            log.debug(f"Calculated corresponding redshift: {z}")
-            self.add_specsys(z=z, sys_type="abs")
+        # if chosen_ratio:
+        #     # Choose the first line name with [0]
+        #     l_name = chosen_ratio.text().split("/")[0].strip()
+        #     log.debug(f"Line name to search for is: {l_name}")
+
+        #     cond = self.check_line_name(l_name, self.config['lines']['intervening'])
+        #     l_wvlg_rest = Quantity(self.config['lines']['intervening'][cond]["wave"])[0]
+        #     log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
+            
+        #         self.txb_wvlg1.setFocus()
+        #         return
+        #     log.debug(f"Collecting observed wavelength: {l_wvlg_obs}")
+        #     l_wvlg_rest = l_wvlg_rest.to(l_wvlg_obs.unit)
+        #     z = l_wvlg_obs / l_wvlg_rest - 1.0
+        #     log.debug(f"Calculated corresponding redshift: {z}")
+        #     self.add_specsys(z=z, sys_type="abs")
 
     def add_specsys_from_em_line(self):
         self.__add_specsys_from_line(sys_type="em")

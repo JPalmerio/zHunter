@@ -12,9 +12,9 @@ import numpy as np
 from pathlib import Path
 from itertools import product
 import logging
-from zhunter import DIRS
-from .line_list_selection import select_file
-from .misc import load_lines
+from zhunter.initialize import DIRS
+from zhunter.misc import select_file
+import zhunter.io as io
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,11 @@ class VelocityPlot(QtWidgets.QMainWindow):
         if lines is None:
             self.linelist_file_textbox.setText(str(parent.fnames["intervening_lines"]))
             self.fname = parent.fnames["intervening_lines"]
-            self.lines = load_lines(self, self.fname)
+            try:
+                self.lines = io.read_line_list(self.fname)
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Invalid input file", str(e))
+                self.lines = None
         else:
             self.fname = None
             self.lines = lines

@@ -6,9 +6,10 @@ from PyQt6 import QtCore
 from PyQt6 import QtGui
 import pyqtgraph as pg
 import numpy as np
-from .colors import load_colors
-
-from .misc import set_up_linked_vb, add_crosshair, get_vb_containing
+import zhunter.initialize as init
+from zhunter.spectroscopic_system import Telluric, SkyBackground
+from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
+from zhunter.spectral_functions import extract_1d_from_2d
 
 log = logging.getLogger(__name__)
 
@@ -265,10 +266,6 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             },
         )
 
-        # Units
-        self.flux_1D_unit = None
-        self.wvlg_unit = None
-
         if self.mode == "2D":
             self.flux_2D_img = pg.ImageItem()
             # Monkey-patch the image to use our custom hover function.
@@ -289,10 +286,6 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
                 self.set_up_ROI()
 
             self.set_2D_ZValues()
-
-            # Units
-            self.flux_2D_unit = None
-            self.spat_unit = None
 
     def add_placeholders(self):
         self.ax1D.addItem(self.flux_1D_spec)
@@ -357,8 +350,11 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
 
     def clear_all(self):
         try:
+            self.ax1D.vb.sigResized.disconnect()
             self.telluric_vb.clear()
             self.sky_bkg_vb.clear()
+            # del self.telluric_vb
+            # del self.sky_bkg_vb
         except AttributeError:
             pass
         self.data = None
@@ -406,10 +402,10 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         """
         log.debug("Drawing 1D data")
         self.flux_1D_spec.setData(
-            data["wvlg_bins_disp"].value, data["flux_1D_disp"].value
+            data["wvlg_bins_disp"], data["flux_1D_disp"]
         )
         self.unc_1D_spec.setData(
-            data["wvlg_bins_disp"].value, data["unc_1D_disp"].value
+            data["wvlg_bins_disp"], data["unc_1D_disp"]
         )
         self.set_1D_labels(data)
         self.set_1D_viewing_limits(data)
@@ -422,21 +418,21 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Use the transpose here so that the wavelength and spatial dimensions
         # are in the right order
         self.flux_2D_img.setImage(
-            data["flux_2D_disp"].T.value,
-            levels=(data["q025_2D"].value, data["q975_2D"].value),
+            data["flux_2D_disp"].T,
+            levels=(data["q025_2D"], data["q975_2D"]),
         )
 
         # This is will not be seen but is needed when doing the ROI extraction
         # Essentially, we're overlaying 2 images, one of the flux and one of the errors
-        self.unc_2D_img.setImage(data["unc_2D_disp"].T.value)
+        self.unc_2D_img.setImage(data["unc_2D_disp"].T)
 
         # Transform image indexes to physical coordinates
         # these are defined from the bin edges
         rect = QtCore.QRectF(
-            data["wvlg_min"].value,  # lower edge of the first wvlg bin
-            data["spat_min"].value,  # lower edge of the first spatial bin
-            data["wvlg_span"].value,  # x-span of the rectangle
-            data["spat_span"].value,  # y-span of the rectangle
+            data["wvlg_min"],  # lower edge of the first wvlg bin
+            data["spat_min"],  # lower edge of the first spatial bin
+            data["wvlg_span"],  # x-span of the rectangle
+            data["spat_span"],  # y-span of the rectangle
         )
 
         self.flux_2D_img.setRect(rect)
@@ -462,7 +458,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         y_dist = np.median(data["flux_2D_disp"], axis=1)
         # Have to use a minus sign here for the x-value to make sure
         # things are aligned (because of the -90 degrees rotation)
-        self.collapsed_2D.setData(-data["spat_bins_disp"].value, y_dist.value)
+        self.collapsed_2D.setData(-data["spat_bins_disp"], y_dist)
 
     def update_ROI(self, data):
         """
@@ -470,7 +466,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         the 2D.
         """
         try:
-            width = data["extraction_width"].value
+            width = data["extraction_width"]
         except KeyError:
             log.warning("No extraction width specified, using 1 by default")
             width = 1
@@ -478,78 +474,60 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Don't send signals until everything is updated
         # This is to avoid extracting with the wrong ROI dimensions
         self.roi.blockSignals(True)
-        self.roi.setSize([data["wvlg_span"].value, width])
-        self.roi.setPos([data["wvlg_min"].value, data["spat_med"].value - width / 2])
+        self.roi.setSize([data["wvlg_span"], width])
+        self.roi.setPos([data["wvlg_min"], data["spat_med"] - width / 2])
         self.roi.blockSignals(False)
         # Now send signals
         self.roi.sigRegionChanged.emit(self.roi)
         self.roi.sigRegionChangeFinished.emit(self.roi)
 
-    def set_2D_units(self, wvlg_unit, flux_unit, spat_unit):
-        self.wvlg_unit = wvlg_unit
-        self.flux_2D_unit = flux_unit
-        self.spat_unit = spat_unit
-
-    def set_1D_units(self, wvlg_unit, flux_unit):
-        self.wvlg_unit = wvlg_unit
-        self.flux_1D_unit = flux_unit
-
     def set_2D_labels(self, data):
-        self.set_2D_units(
-            wvlg_unit=data["wvlg_bins_disp"].unit,
-            flux_unit=data["flux_2D_disp"].unit,
-            spat_unit=data["spat_disp"].unit,
-        )
         self.ax2D.setLabel(
             "left",
-            "Spatial" + f" ({self.spat_unit})",
+            "Spatial" + f" ({self.data['units']['spat']})",
         )
 
     def set_1D_labels(self, data):
-        self.set_1D_units(
-            wvlg_unit=data["wvlg_bins_disp"].unit,
-            flux_unit=data["flux_1D_disp"].unit,
-        )
         self.ax1D.setLabel(
             "left",
-            "Flux" + f" ({self.flux_1D_unit})",
+            "Flux" + f" ({self.data['units']['flux_1D']})",
             # useful if you want pyqtgraph to automatically display k in front
             # of units if you zoom out to thousands for example
             # units=f"{data['flux_1D'].unit}",
         )
         self.ax1D.setLabel(
             "bottom",
-            "Observed wavelength" + f" ({self.wvlg_unit})",
+            "Observed wavelength" + f" ({self.data['units']['wvlg']})",
         )
 
     def adjust_1D_yrange(self, data):
         # Adjust the default viewing range to be reasonable
         # and avoid really large values from bad pixels
         self.ax1D.setYRange(
-            min=data["q025_1D"].value,
-            max=data["q975_1D"].value,
+            min=data["q025_1D"],
+            max=data["q975_1D"],
         )
 
     def set_2D_viewing_limits(self, data):
         self.ax2D.vb.setLimits(
-            xMin=data["wvlg_min"].value,
-            xMax=data["wvlg_max"].value,
-            yMin=data["spat_min"].value,
-            yMax=data["spat_max"].value,
+            xMin=data["wvlg_min"],
+            xMax=data["wvlg_max"],
+            yMin=data["spat_min"],
+            yMax=data["spat_max"],
         )
         self.vb2D_collapsed.setLimits(
-            yMin=data["spat_min"].value, yMax=data["spat_max"].value
+            yMin=data["spat_min"], yMax=data["spat_max"]
         )
 
     def set_1D_viewing_limits(self, data):
-        self.ax1D.vb.setLimits(xMin=data["wvlg_min"].value, xMax=data["wvlg_max"].value)
+        self.ax1D.vb.setLimits(xMin=data["wvlg_min"], xMax=data["wvlg_max"])
 
     def set_up_img_colobar(self, data):
         self.img_colorbar.setImageItem(self.flux_2D_img)
         self.img_colorbar.setHistogramRange(
-            data["q025_2D"].value, data["q975_2D"].value
+            data["q025_2D"], data["q975_2D"]
         )
-        self.img_colorbar.setLevels(data["q025_2D"].value, data["q975_2D"].value)
+        self.img_colorbar.setLevels(data["q025_2D"], data["q975_2D"])
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
 
@@ -612,24 +590,23 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
 
     def get_data_from_ROI(self):
         """
-        Return the mean of the flux and uncertaintyin the area selected
+        Return the mean of the flux and uncertainty in the area selected
         by the Region Of Interest widget.
         """
-        flux_selected = self.roi.getArrayRegion(
-            self.data["flux_2D_disp"].T.value,
-            self.flux_2D_img,
-            returnMappedCoords=True,
+
+        arcsec_min = self.roi.pos()[1]
+        arcsec_max = (self.roi.pos()[1] + self.roi.size()[1])
+
+        flux_1D, unc_1D = extract_1d_from_2d(
+            spatial=self.data["spat_disp"],
+            flux=self.data["flux_2D_disp"],
+            spat_bounds=(arcsec_min, arcsec_max),
+            uncertainty=self.data["unc_2D_disp"],
         )
 
-        unc_selected = self.roi.getArrayRegion(
-            self.data["unc_2D_disp"].T.value,
-            self.unc_2D_img,
-            returnMappedCoords=True,
-        )
-
-        flux_1D = flux_selected[0].sum(axis=1) * self.flux_2D_unit
-        unc_1D = np.sqrt((unc_selected[0] ** 2).sum(axis=1)) * self.flux_2D_unit
-        wvlg_1D = flux_selected[1][0, :, 0] * self.wvlg_unit
+        flux_1D = flux_1D * self.data['units']['flux_2D']
+        unc_1D = unc_1D * self.data['units']['flux_2D']
+        wvlg_1D = self.data["wvlg_disp"] * self.data['units']['wvlg']
 
         return wvlg_1D, flux_1D, unc_1D
 
@@ -653,9 +630,9 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         x, y = self.data["wvlg_disp"][j], self.data["spat_disp"][i]
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Wavelength = {x.value:0.3f} {x.unit},"
-                f" Spatial = {y.value:0.3f} {y.unit},"
-                f" Flux = {z.value:.4f} {z.unit}"
+                f"Wavelength = {x:0.3f} {self.data['units']['wvlg']},"
+                f" Spatial = {y:0.3f} {self.data['units']['spat']},"
+                f" Flux = {z:.4f} {self.data['units']['flux_2D']}"
             )
 
     def keyPressEvent(self, ev):
@@ -702,7 +679,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Setting lambda 1
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_1 at {x_pos:0.5f} {self.wvlg_unit}"
+                f"Setting Lambda_1 at {x_pos:0.5f} {self.data['units']['wvlg']}"
             )
             self.parentWidget.txb_wvlg1.setText("{:.5f}".format(x_pos))
         self.lam1_line.setPos(x_pos)
@@ -711,7 +688,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Setting lambda 2
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_2 at {x_pos:0.5f} {self.wvlg_unit}"
+                f"Setting Lambda_2 at {x_pos:0.5f} {self.data['units']['wvlg']}"
             )
             self.parentWidget.txb_wvlg2.setText("{:.5f}".format(x_pos))
         self.lam2_line.setPos(x_pos)
@@ -748,16 +725,16 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         msg = ""
         if vb is self.ax1D.vb:
             msg = (
-                f"Wavelength = {view_pos.x():0.3f} {self.wvlg_unit}, "
-                + f"Flux = {view_pos.y():0.3f} {self.flux_1D_unit}"
+                f"Wavelength = {view_pos.x():0.3f} {self.data['units']['wvlg']}, "
+                + f"Flux = {view_pos.y():0.3f} {self.data['units']['flux_1D']}"
             )
         if self.mode == "2D":
             if vb is self.ax2D.vb:
-                # msg = f"Wavelength = {view_pos.x():0.3f} {self.wvlg_unit}, "
-                # f"Flux = {view_pos.y():0.3f} {self.flux_2D_unit}"
+                # msg = f"Wavelength = {view_pos.x():0.3f} {self.data['units']['wvlg']}, "
+                # f"Flux = {view_pos.y():0.3f} {self.data['units']['flux_2D']}"
                 msg = ""
             elif vb is self.vb2D_collapsed:
-                msg = f"Spatial = {view_pos.y():0.3f} {self.spat_unit}"
+                msg = f"Spatial = {view_pos.y():0.3f} {self.data['units']['spat']}"
 
         self.parentWidget.statusBar().showMessage(msg)
 
@@ -798,8 +775,8 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         log.info(
             "Extraction 2D spectrum from "
             f"{self.roi.pos()[0]:.4f} to "
-            f"{self.roi.pos()[0] + self.roi.size()[0]:.4f} {self.wvlg_unit} "
+            f"{self.roi.pos()[0] + self.roi.size()[0]:.4f} {self.data['units']['wvlg']} "
             "and from "
             f"{self.roi.pos()[1]:.3f} to "
-            f"{self.roi.pos()[1] + self.roi.size()[1]:.3f} {self.spat_unit}"
+            f"{self.roi.pos()[1] + self.roi.size()[1]:.3f} {self.data['units']['spat']}"
         )

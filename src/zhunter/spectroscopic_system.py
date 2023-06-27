@@ -4,7 +4,7 @@ from PyQt6 import QtCore
 import logging
 import numpy as np
 from astropy.units.quantity import Quantity
-from zhunter import DIRS
+from zhunter.initialize import DIRS
 from spectres import spectres
 from .colors import get_gradient
 from zhunter import io
