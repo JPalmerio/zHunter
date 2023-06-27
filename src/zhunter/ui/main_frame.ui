@@ -26,6 +26,9 @@
       <property name="leftMargin">
        <number>5</number>
       </property>
+      <property name="topMargin">
+       <number>5</number>
+      </property>
       <property name="rightMargin">
        <number>5</number>
       </property>
@@ -82,7 +85,7 @@
              </size>
             </property>
             <property name="text">
-             <string>1.0000000</string>
+             <string/>
             </property>
             <property name="alignment">
              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -142,7 +145,7 @@
              </size>
             </property>
             <property name="text">
-             <string>1.0003000</string>
+             <string/>
             </property>
            </widget>
           </item>
@@ -165,7 +168,7 @@
           <property name="maximumSize">
            <size>
             <width>200</width>
-            <height>40</height>
+            <height>32</height>
            </size>
           </property>
           <property name="cursor">
@@ -228,6 +231,12 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>32</height>
+           </size>
           </property>
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
@@ -295,13 +304,13 @@
              </size>
             </property>
             <property name="text">
-             <string>1.0003</string>
+             <string/>
             </property>
             <property name="frame">
              <bool>true</bool>
             </property>
             <property name="cursorPosition">
-             <number>6</number>
+             <number>0</number>
             </property>
             <property name="alignment">
              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -390,7 +399,7 @@
           <property name="maximumSize">
            <size>
             <width>200</width>
-            <height>40</height>
+            <height>32</height>
            </size>
           </property>
           <property name="cursor">
@@ -437,6 +446,12 @@
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>32</height>
+             </size>
+            </property>
             <property name="cursor">
              <cursorShape>PointingHandCursor</cursorShape>
             </property>
@@ -479,6 +494,12 @@
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>32</height>
+             </size>
+            </property>
             <property name="cursor">
              <cursorShape>PointingHandCursor</cursorShape>
             </property>
@@ -516,16 +537,6 @@
           </property>
          </widget>
         </item>
-        <item>
-         <widget class="QPushButton" name="file_line_list_btn">
-          <property name="cursor">
-           <cursorShape>PointingHandCursor</cursorShape>
-          </property>
-          <property name="text">
-           <string>Line Lists</string>
-          </property>
-         </widget>
-        </item>
        </layout>
       </item>
       <item row="0" column="1">
@@ -533,7 +544,7 @@
         <item>
          <widget class="QCheckBox" name="show_uncertainty_chb">
           <property name="text">
-           <string>Show error</string>
+           <string>Uncertainty</string>
           </property>
           <property name="checked">
            <bool>true</bool>
@@ -649,6 +660,12 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>32</height>
+           </size>
+          </property>
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
           </property>
@@ -720,6 +737,12 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>32</height>
+           </size>
           </property>
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
@@ -899,6 +922,12 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>64</height>
+           </size>
+          </property>
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
           </property>
@@ -1012,6 +1041,9 @@
    <property name="text">
     <string>Key Bindings</string>
    </property>
+   <property name="shortcut">
+    <string>H</string>
+   </property>
   </action>
   <action name="action_to_vacuum">
    <property name="text">
@@ -1041,7 +1073,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Show error</string>
+    <string>Show uncertainty</string>
    </property>
   </action>
   <action name="actionShow_telluric_absorption">
