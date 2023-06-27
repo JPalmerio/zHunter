@@ -6,8 +6,8 @@ from PyQt6 import QtCore
 from astropalmerio.spectra import EmissionLine
 
 import logging
-from zhunter import DIRS
-from .misc import load_lines
+from zhunter.initialize import DIRS
+import zhunter.io as io
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,12 @@ class LineFitPlot(QtWidgets.QMainWindow):
             if self.parentWidget is None:
                 raise ValueError("Please provide lines or parentWidget")
             self.fname = self.parentWidget.fnames["emission_lines"]
-            self.lines = load_lines(self, self.fname)
+            try:
+                self.lines = io.read_line_list(self.fname)
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Invalid input file", str(e))
+                self.lines = None
+
         else:
             self.fname = None
             self.lines = lines

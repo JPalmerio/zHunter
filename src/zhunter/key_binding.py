@@ -1,6 +1,6 @@
 from PyQt6 import uic
 from PyQt6 import QtWidgets
-from zhunter import DIRS
+from zhunter.initialize import DIRS
 
 
 class KeyBindingHelpDialog(QtWidgets.QDialog):

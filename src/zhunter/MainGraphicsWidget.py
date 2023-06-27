@@ -67,7 +67,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.show_roi = show_roi
         self.mode = mode
         if colors is None:
-            self.colors = load_colors(style="kraken9")
+            self.colors = init.load_colors()
         else:
             self.colors = colors
 
@@ -96,8 +96,10 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
 
         # ViewBox for Tellurics
         self.telluric_vb = set_up_linked_vb(self.ax1D)
+        self.telluric_1D_spec = None
         # ViewBox for sky background
         self.sky_bkg_vb = set_up_linked_vb(self.ax1D)
+        self.sky_bkg_1D_spec = None
 
         # Create empty objects that will hold the data to be displayed
         self.create_placeholders()
@@ -370,7 +372,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         """
         self.data = data
 
-    def draw_data(self, data=None):
+    def draw_data(self, data=None, show_telluric=False, show_sky_bkg=False):
         """
         A wrapper function to draw data. Look at draw_1D and
         draw_2D for more details.
@@ -389,6 +391,12 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
                 self.draw_1D(data)
         elif self.mode == "1D":
             self.draw_1D(data)
+
+        if show_telluric:
+            self.plot_telluric()
+
+        if show_sky_bkg:
+            self.plot_sky_bkg()
 
         self.adjust_1D_yrange(data)
 
@@ -544,6 +552,49 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.img_colorbar.setLevels(data["q025_2D"].value, data["q975_2D"].value)
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
+
+    # Sky plots
+    def plot_telluric(self):
+        self.telluric_1D_spec = Telluric(
+            vb=self.telluric_vb,
+            color=self.colors["sky"],
+        )
+        self.telluric_1D_spec.load_spectrum()
+        self.telluric_1D_spec.draw(
+            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+        )
+
+    def plot_sky_bkg(self):
+        self.sky_bkg_1D_spec = SkyBackground(
+            vb=self.sky_bkg_vb,
+            color=self.colors["sky"],
+        )
+        self.sky_bkg_1D_spec.load_spectrum()
+        self.sky_bkg_1D_spec.draw(
+            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+        )
+
+    def show_hide_telluric(self, show):
+        if self.telluric_1D_spec is None:
+            self.plot_telluric()
+        if show:
+            self.telluric_1D_spec.show()
+        else:
+            self.telluric_1D_spec.hide()
+
+    def show_hide_sky_bkg(self, show):
+        if self.sky_bkg_1D_spec is None:
+            self.plot_sky_bkg()
+        if show:
+            self.sky_bkg_1D_spec.show()
+        else:
+            self.sky_bkg_1D_spec.hide()
+
+    def show_hide_uncertainty(self, show):
+        if show:
+            self.unc_1D_spec.show()
+        else:
+            self.unc_1D_spec.hide()
 
     # Modify data
     def extract_and_draw_1D(self):
