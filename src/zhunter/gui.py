@@ -40,128 +40,171 @@ logging.basicConfig(
 
 
 class MainWindow(QtWidgets.QMainWindow):
+
+    """Main high-level Graphical User Interface (GUI).
+
+    This class defines the GUI elements/widgets, such as the menu,
+    the various buttons and their associated actions.
+    It connects the signals from buttons to actions to be performed,
+    but the various actions are defined outside of this module.
+
+    It is responsible for directly interacting with the user, handling
+    errors and informing them of what is going on.
+
+    """
+
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
-        # Configuration
-        self.config_fname = get_config_fname()
-        self.config = load_config(self.config_fname)
-
-        # Colors
-        self.colors = load_colors(style=self.config["colors"])
+        # Define the self.config dictionnary with all the loaded
+        # configurations (file names, line lists, colors...)
+        self.config = self.configure()
 
         # Have to do this before loading UI for it to work
-        pg.setConfigOption("foreground", self.colors["foreground"])
-        pg.setConfigOption("background", self.colors["background"])
+        pg.setConfigOption("foreground", self.config["colors"]["foreground"])
+        pg.setConfigOption("background", self.config["colors"]["background"])
 
         # Load the UI Page
         uic.loadUi(DIRS["UI"] / "main_frame.ui", self)
 
-        # Load the paths to line lists
-        self.fnames = define_paths(
-            config=self.config,
-            default="default" in self.config_fname.stem,
-        )
-        self.load_line_lists(calc_ratio=True)
-
         # Spectroscopic systems and their buttons
         self.set_up_specsys()
-        self.telluric_1D_spec = None
-        self.sky_bkg_1D_spec = None
-
-        # Help
-        self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
-        self.actionKey_Bindings.setShortcut(QtCore.Qt.Key.Key_H)
-
         self.connect_signals_and_slots()
 
         self.graphLayout.setFocus()
-        self.graphLayout.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.graphLayout.set_parent(self)
         # Call reset to set general properties that will be used
         self.reset_plot()
 
+    def configure(self):
+        """Load the configuration into a dictionary
+
+        Returns
+        -------
+        config : dict
+            Dictionary containing the loaded configuration.
+        """
+
+        # Configuration
+        conf_fname = init.get_config_fname()
+        config = init.load_config(conf_fname)
+
+        # Colors
+        config["colors"] = init.load_colors(style=config["colors"])
+
+        # File names
+        config["fnames"] = init.define_paths(
+            input_fnames=config["fnames"],
+            default="default" in conf_fname.stem,
+        )
+
+        # Line lists
+        config["lines"] = init.load_line_lists(
+            fnames=config["fnames"],
+            calc_ratio=True
+        )
+
+        return config
+
     def set_up_specsys(self):
+        """Create the model (which contains the data) and the view
+        (which displays the data) for spectroscopic systems.
+        Connect the buttons with their functions
+        """
         self.specsysModel = SpecSystemModel()
         self.specsysView.setModel(self.specsysModel)
         self.specsysView.setStyleSheet(
-            f"QListView{{background-color: {self.colors['background']};}}"
+            f"QListView{{background-color: {self.config['colors']['background']};}}"
         )
 
+        # Fill combo boxes with emission and absorption line names
+        self.set_up_line_cbb()
+
         # Signals and slots of spectroscopic systems
+        # Line ratio
+        self.ratio_btn.clicked.connect(self.calculate_ratio)
+        self.find_line_ratios_btn.clicked.connect(self.find_ratio_names)
+
+        # Add specsys
+        self.add_ratio_btn.clicked.connect(self.add_specsys_from_ratio)
+        self.add_em_line_btn.clicked.connect(self.add_specsys_from_em_line)
+        self.add_abs_line_btn.clicked.connect(self.add_specsys_from_abs_line)
         self.add_abs_btn.clicked.connect(self.add_absorber)
         self.add_em_btn.clicked.connect(self.add_emitter)
+
         self.del_specsys_btn.clicked.connect(self.delete_specsys)
-        self.file_1D_btn.clicked.connect(self.select_1D_file)
-        self.file_2D_btn.clicked.connect(self.select_2D_file)
-        self.file_line_list_btn.clicked.connect(self.select_line_lists)
         self.velocity_plot_btn.clicked.connect(self.velocity_plot)
         self.line_fit_plot_btn.clicked.connect(self.line_fit_plot)
-
-    def connect_signals_and_slots(self):
-        # Connect all signals and slots
-        self.show_uncertainty_chb.stateChanged.connect(self.show_hide_uncertainty)
-
-        self.telluric_chb.stateChanged.connect(self.show_hide_telluric)
-
-        self.sky_bkg_chb.stateChanged.connect(self.show_hide_sky_bkg)
-
         self.fine_structure_btn.clicked.connect(self.show_hide_fine_structure)
 
-        # Wavelength correction actions
+    def connect_signals_and_slots(self):
+        """Connect all the signals and slots (actions to perform)
+        """
+        # File loading
+        self.file_1D_btn.clicked.connect(self.select_1D_file)
+        self.file_2D_btn.clicked.connect(self.select_2D_file)
 
+        # Additional auxiliary spectra to display
+        # Uncertainty
+        self.show_uncertainty_chb.stateChanged.connect(self.show_hide_uncertainty)
+        # Telluric absorption
+        self.telluric_chb.stateChanged.connect(self.show_hide_telluric)
+        # Sky emission
+        self.sky_bkg_chb.stateChanged.connect(self.show_hide_sky_bkg)
+
+        # Wavelength correction actions
         # self.to_air_btn.clicked.connect(self.wvlg_to_air)
         # self.to_vacuum_btn.clicked.connect(self.wvlg_to_vacuum)
 
-        # self.action_to_vacuum.triggered.connect(self.wvlg_to_vacuum)
-        # self.action_to_air.triggered.connect(self.wvlg_to_air)
+        # self.actionTo_vacuum.triggered.connect(self.wvlg_to_vacuum)
+        # self.actionTo_air.triggered.connect(self.wvlg_to_air)
 
         self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
-
         self.actionHeliocentric.triggered.connect(self.wvlg_helio_correction)
 
-        # Line ratio
-        self.ratio_btn.clicked.connect(self.calculate_ratio)
+        # Key binding dialog
+        self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
 
-        self.find_line_ratios_btn.clicked.connect(self.find_ratio_names)
+        # Units dialog
+        self.actionUnits.triggered.connect(UnitsWindow(self).show)
 
-        self.add_ratio_btn.clicked.connect(self.add_specsys_from_ratio)
+        # Smoothing dialog
+        self.actionSmoothing.triggered.connect(SmoothingWindow(self).show)
 
-        self.add_em_line_btn.clicked.connect(self.add_specsys_from_em_line)
+        # Wavelength correction dialog
+        self.actionWavelength_correction.triggered.connect(WavelengthCorrectionWindow(self).show)
 
-        self.add_abs_line_btn.clicked.connect(self.add_specsys_from_abs_line)
-
-        self.set_up_line_cbb()
-
-        # self.reset_smooth_btn.clicked.connect(self.reset_smoothing)
-
-        # self.txb_smooth.editingFinished.connect(self.apply_smoothing)
-
+        # Extraction width
         self.reset_width_btn.clicked.connect(self.reset_width)
-
         self.txb_extraction_width.editingFinished.connect(self.set_extraction_width)
 
     def set_up_line_cbb(self):
-        self.cbb_em_line.addItems(list(self.em_lines["name"]))
-        self.cbb_abs_line.addItems(list(self.abs_lines["name"]))
+        self.cbb_em_line.addItems(list(self.config['lines']['emission']["name"]))
+        self.cbb_abs_line.addItems(list(self.config['lines']['intervening']["name"]))
 
     # Set up the MainGraphicsWidget
     def set_up_plot(self):
+        """Prepares the plotting widget with the set up
+        (i.e. whether its a 1D or 2D plot, what colors...)
+        """
         self.__reset_colors()
         self.graphLayout.set_up_plot(
-            mode=self.mode, colors=self.colors, name=self.fnames["data"].name
+            mode=self.mode,
+            colors=self.config['colors'],
+            name=self.config['fnames']["data"].name
         )
 
-    def visualize_spec(self):
+    def display_data(self):
         """
-        Main function to be called once to set up the visualization.
+        Main function to be called once to display the data using the
+        MainGraphicsWidget.
         """
         # load data
         try:
-            self.data.load(fname=self.fnames["data"], mode=self.mode)
+            self.data.load(fname=self.config['fnames']["data"], mode=self.mode)
         except Exception as e:
             log.error(f"Could not read input file because: {e}")
-            QtWidgets.QMessageBox.information(
+            QtWidgets.QMessageBox.warning(
                 self, "Invalid input file", f"Could not read input file because: {e}"
             )
             self.reset_plot()
@@ -170,66 +213,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load extra parameters defined on the GUI
         ext_width = float(self.txb_extraction_width.text())
         if self.mode == "2D":
-            self.data["extraction_width"] = ext_width * self.data["spat_disp"].unit
+            self.data["extraction_width"] = ext_width
         # self.data["smooth"] = int(self.txb_smooth.text())
 
         # Main plotting function
         # Here self.data should be the same as self.graphLayout.data
         # So no need to specify which data to draw
-        self.graphLayout.draw_data()
-
-        # Plot telluric
-        if self.telluric_chb.isChecked():
-            self.plot_telluric()
-        # Plot sky background
-        if self.sky_bkg_chb.isChecked():
-            self.plot_sky_bkg()
-
-    def load_line_lists(self, calc_ratio):
-        """
-        Load the input line lists and check the format is ok.
-        """
-        try:
-            log.debug(
-                f"Reading absorption lines from:\n{self.fnames['intervening_lines']}"
-            )
-            self.abs_lines = io.read_line_list(self.fnames["intervening_lines"])
-
-            log.debug(f"Reading emission lines from:\n{self.fnames['emission_lines']}")
-            self.em_lines = io.read_line_list(self.fnames["emission_lines"])
-
-            log.debug(f"Reading GRB lines from:\n{self.fnames['GRB_lines']}")
-            self.GRB_lines = io.read_line_list(self.fnames["GRB_lines"])
-
-        except Exception as e:
-            QtWidgets.QMessageBox.information(self, "Invalid line list format", f"{e}")
-            return
-
-        if calc_ratio:
-            self.line_ratios = create_line_ratios(self.fnames["intervening_lines"])
-        else:
-            self.line_ratios = ascii_read(self.fnames["line_ratio"])
-            log.debug(f"Read line ratios fron:\n{self.fnames['line_ratio']}")
-
-    # Sky plots
-    def plot_telluric(self):
-        self.telluric_1D_spec = Telluric(
-            vb=self.graphLayout.telluric_vb,
-            color=self.colors["sky"],
-        )
-        self.telluric_1D_spec.load_spectrum()
-        self.telluric_1D_spec.draw(
-            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
-        )
-
-    def plot_sky_bkg(self):
-        self.sky_bkg_1D_spec = SkyBackground(
-            vb=self.graphLayout.sky_bkg_vb,
-            color=self.colors["sky"],
-        )
-        self.sky_bkg_1D_spec.load_spectrum()
-        self.sky_bkg_1D_spec.draw(
-            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+        self.graphLayout.draw_data(
+            show_telluric=self.telluric_chb.isChecked(),
+            show_sky_bkg=self.sky_bkg_chb.isChecked(),
         )
 
     # Showing/hiding plots
@@ -241,10 +233,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        if self.show_uncertainty_chb.isChecked():
-            self.unc_1D_spec.show()
-        else:
-            self.unc_1D_spec.hide()
+        self.graphLayout.show_hide_uncertainty(show=self.show_uncertainty_chb.isChecked())
 
     def show_hide_telluric(self):
         """
@@ -254,12 +243,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        if self.telluric_1D_spec is None:
-            self.plot_telluric()
-        if self.telluric_chb.isChecked():
-            self.telluric_1D_spec.show()
-        else:
-            self.telluric_1D_spec.hide()
+        self.graphLayout.show_hide_telluric(show=self.telluric_chb.isChecked())
 
     def show_hide_sky_bkg(self):
         """
@@ -269,12 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        if self.sky_bkg_1D_spec is None:
-            self.plot_sky_bkg()
-        if self.sky_bkg_chb.isChecked():
-            self.sky_bkg_1D_spec.show()
-        else:
-            self.sky_bkg_1D_spec.hide()
+        self.graphLayout.show_hide_sky_bkg(show=self.sky_bkg_chb.isChecked())
 
     def show_hide_fine_structure(self):
         """
@@ -318,7 +297,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     )
                     return
                 self.data["extraction_width"] = (
-                    ext_width * self.data["spat_mid_disp"].unit
+                    ext_width
                 )
                 self.graphLayout.roi.setSize([self.data["wvlg_span"].value, ext_width])
             except ValueError:
@@ -362,18 +341,18 @@ class MainWindow(QtWidgets.QMainWindow):
     def select_file_and_plot(self):
         fname = select_file(
             self,
-            self.fnames["data"],
+            self.config['fnames']["data"],
             file_type="(*.fits *.dat *.txt *.csv *.ecsv *.gz)",
         )
         if fname:
-            self.fnames["data"] = Path(fname)
-            if self.fnames["data"].exists():
+            self.config['fnames']["data"] = Path(fname)
+            if self.config['fnames']["data"].exists():
                 log.debug(
-                    f"File:\n{self.fnames['data']}\nis valid and exists, proceeding"
+                    f"File:\n{self.config['fnames']['data']}\nis valid and exists, proceeding"
                 )
                 self.reset_plot()
                 self.set_up_plot()
-                self.visualize_spec()
+                self.display_data()
 
     def reset_plot(self):
         """
@@ -402,9 +381,6 @@ class MainWindow(QtWidgets.QMainWindow):
         }
 
         log.debug("Done !")
-
-    def select_line_lists(self):
-        SelectLineListsDialog(self)
 
     # Additional plots
     def velocity_plot(self):
@@ -458,7 +434,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     lines=specsys.lines,
                     data=self.data,
                     mode=self.mode,
-                    colors=self.colors,
+                    colors=self.config['colors'],
                 )
 
                 self.linefitWidget.show()
@@ -664,8 +640,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if ratio_value < 0:
                 raise ValueError("Your ratio should never be negative")
             self.txb_ratio.setText("{:.5f}".format(ratio_value))
-        except ValueError:
-            self.txb_ratio.setText("Invalid input")
+        except ValueError as e:
+            log.error(f"Could not calculate ratio because: {e}")
+            QtWidgets.QMessageBox.warning(
+                self, "Invalid input", f"Could not calculate ratio because: {e}"
+            )
 
     def find_ratio_names(self):
         """Finds a list of close ratios given an error margin"""
@@ -744,13 +723,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if sys_type == "em":
             sys_type_str = "emission"
             cbb = self.cbb_em_line
-            l_list = self.em_lines
+            l_list = self.config['lines']['emission']
             wave_key = "awav"
 
         elif sys_type == "abs":
             sys_type_str = "absorption"
             cbb = self.cbb_abs_line
-            l_list = self.abs_lines
+            l_list = self.config['lines']['intervening']
             wave_key = "wave"
 
         chosen_line = str(cbb.currentText())
@@ -829,9 +808,9 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             if sys_type == "abs":
                 sys_type_str = "absorber"
-                lines = join(self.abs_lines, self.GRB_lines, join_type="outer")
+                lines = join(self.config['lines']['intervening'], self.config['lines']['GRB'], join_type="outer")
             elif sys_type == "em":
-                lines = self.em_lines
+                lines = self.config['lines']['emission']
                 sys_type_str = "emitter"
             color = self.get_color()
             specsys = SpecSystem(
@@ -907,7 +886,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Reset the color palet.
         """
-        self.available_colors = self.colors["specsys"].copy()
+        self.available_colors = self.config['colors']["specsys"].copy()
         self.available_colors_cycler = cycle(self.available_colors)
 
     def get_color(self):
@@ -973,9 +952,9 @@ def testmode1D():
         str(Path(__file__).resolve().parents[2])
         + "/dev/data/test_input_files/XSHOOTER_bintable_1D.fits"
     )
-    main.fnames["data"] = fname
+    main.config["fnames"]["data"] = fname
     main.set_up_plot()
-    main.visualize_spec()
+    main.display_data()
     main.add_specsys(z=6.317, sys_type="abs")
     main.show()
     sys.exit(app.exec())
@@ -1005,9 +984,9 @@ def testmode2D():
     fname = Path(
         str(Path(__file__).resolve().parents[2]) + "/dev/data/test_input_files/2D.fits"
     )
-    main.fnames["data"] = fname
+    main.config["fnames"]["data"] = fname
     main.set_up_plot()
-    main.visualize_spec()
+    main.display_data()
     main.add_specsys(z=0.15135, sys_type="em")
     main.show()
     sys.exit(app.exec())
