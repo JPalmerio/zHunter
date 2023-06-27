@@ -11,6 +11,37 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def extract_1d_from_2d(spatial, flux, spat_bounds, uncertainty=None):
+    arcsec_min, arcsec_max = spat_bounds
+    # Finds the index corresponding to the min and max spatial positions
+    index_min = spatial.searchsorted(arcsec_min) - 1
+    index_max = spatial.searchsorted(arcsec_max) - 1
+    log.debug(
+        f"Extracting from {arcsec_min:.3f} to {arcsec_max:.3f} corresponding to "
+        f"{index_min} to {index_max} pixels."
+    )
+    if index_min >= index_max:
+        temp = index_max
+        index_max = index_min
+        index_min = temp
+
+    # Extract the 1D flux
+    extracted_flux = np.zeros(flux.shape[1])
+    for i in range(index_max-index_min):
+        extracted_flux += flux[index_min+i]
+
+    # if uncertainty
+    if uncertainty is not None:
+        extracted_unc = np.zeros(uncertainty.shape[1])
+        for i in range(index_max-index_min):
+            extracted_unc += uncertainty[index_min+i]**2  # quadratic sum for error propagation
+        extracted_unc = np.sqrt(extracted_unc)    # quadratic sum for error propagation
+    else:
+        extracted_unc = np.zeros(flux.shape[1])
+
+    return extracted_flux, extracted_unc
+
+
 def smooth(wvlg, flux, unc=None, smoothing=3):
     """
     A function to smooth a spectrum.
