@@ -32,7 +32,6 @@ def read_line_list(fname):
     Returns:
         astropy Table
 
-
     """
 
     # Make sure fname is a Path instance
@@ -42,7 +41,7 @@ def read_line_list(fname):
     if not fname.exists():
         raise FileNotFoundError("File does not exist")
 
-    log.debug(f"Reading line list {fname}")
+    log.debug(f"Reading line list:\n{fname}")
     if ".ecsv" in fname.name.lower():
         tab = ascii_read(fname)
     else:
