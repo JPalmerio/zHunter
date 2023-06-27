@@ -1,17 +1,36 @@
 import logging
 from pathlib import Path
-from PyQt6 import QtWidgets
 
-import pandas as pd
 import numpy as np
 from astropy.units.quantity import Quantity
+from astropy.table import Table
 import astropy.units as u
 import pyqtgraph as pg
 import astropalmerio.spectra as sp
 
-from zhunter.io import read_line_list, find_column_name, WAVE_KEYS
+from PyQt6 import QtWidgets
+from PyQt6 import QtCore
+
+import zhunter.io as io
 
 log = logging.getLogger(__name__)
+
+
+def select_file(parent, fname, file_type):
+    if fname is not None and Path(fname).exists():
+        line_dir = Path(fname).parent
+    else:
+        line_dir = QtCore.QDir.currentPath()
+    dialog = QtWidgets.QFileDialog(parent)
+    dialog.setWindowTitle("Open file")
+    dialog.setNameFilter(file_type)
+    dialog.setDirectory(str(line_dir))
+    dialog.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+    filename = None
+    if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+        filename = dialog.selectedFiles()
+    if filename:
+        return str(filename[0])
 
 
 def generate_fake_1D_spectrum(
@@ -173,15 +192,6 @@ def convert_to_bins(array):
     return bins
 
 
-def load_lines(widget, fname):
-    try:
-        lines = read_line_list(fname)
-        return lines
-    except Exception as e:
-        QtWidgets.QMessageBox.information(widget, "Invalid input file", str(e))
-        return None
-
-
 def get_vb_containing(pos, axes):
     vb = None
     # Find which ViewBox contains the mouse to get the position
@@ -294,23 +304,24 @@ def set_up_linked_vb(pi):
     return new_vb
 
 
-def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save=True):
+def create_line_ratios(input_fname, output_fname="line_ratio.ecsv", save=True):
     """
     Takes a line list and calculate all possible ratios between the
     line wavelengths. Then keep only 1 < ratio <= 2 and write them
     to a file.
     Input file must contain 2 columns for the name and the wavelength
     """
+
     log.info(f"Calculating line ratios from:\n{input_fname}")
-    lines = read_line_list(input_fname)
+    lines = io.read_line_list(input_fname)
     ratio = []
     ratio_name = []
     column_names = list(lines.columns)
 
     # Wavelength
-    wave_key = find_column_name(
+    wave_key = io.find_column_name(
         column_names,
-        possible_names=WAVE_KEYS,
+        possible_names=io.WAVE_KEYS,
     )
 
     for n1, w1 in zip(lines["name"], lines[wave_key]):
@@ -318,15 +329,14 @@ def create_line_ratios(input_fname, sep=",", output_fname="line_ratio.csv", save
             ratio_name.append("/".join([n1.strip(), n2.strip()]))
             ratio.append(w1 / w2)
 
-    df_ratios = pd.DataFrame({"ratio": ratio, "name": ratio_name})
-    usable_ratios = (df_ratios["ratio"] > 1) & (df_ratios["ratio"] <= 2)
-    df_ratios = df_ratios[usable_ratios]
-    df_ratios = df_ratios.sort_values("ratio")
+    ratios = Table({"ratio": ratio, "name": ratio_name})
+    usable_ratios = (ratios["ratio"] > 1) & (ratios["ratio"] <= 2)
+    ratios = ratios[usable_ratios].group_by("ratio")
 
-    line_dir = Path(str(input_fname)).resolve().parent
-    output_fname = line_dir / output_fname
     if save:
-        df_ratios.to_csv(output_fname, index=False)
+        line_dir = Path(str(input_fname)).resolve().parent
+        output_fname = line_dir / output_fname
+        ratios.write(output_fname, overwrite=True)
         log.info(f"Saved line ratios in:\n{output_fname}")
 
-    return df_ratios
+    return ratios
