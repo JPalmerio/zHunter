@@ -14,7 +14,7 @@ from .misc import get_vb_containing
 from .colors import load_colors
 from astropalmerio.spectra.utils import gaussian_fct
 from specutils import Spectrum1D, SpectralRegion
-from .misc import convert_to_bins
+from zhunter.conversions import convert_to_bins
 
 log = logging.getLogger(__name__)
 

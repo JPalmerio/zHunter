@@ -174,24 +174,6 @@ def generate_fake_2D_spectrum(
     return spec_mid, spat_mid, flux, unc
 
 
-def convert_to_bins(array):
-    # Modify array to be of size len(array)+1 by adding the right
-    # edge of the last bin and shifting everything by step/2.
-    # This is to allow for accurate visualization with stepMode='center'
-    if isinstance(array, Quantity):
-        array_unit = array.unit
-        array = array.value
-    else:
-        array_unit = 1
-    delta = array[1] - array[0]
-    n_bin_edges = len(array) + 1
-    bins = (
-        np.linspace(array[0] - delta / 2, array[-1] + delta / 2, n_bin_edges)
-        * array_unit
-    )
-    return bins
-
-
 def get_vb_containing(pos, axes):
     vb = None
     # Find which ViewBox contains the mouse to get the position
