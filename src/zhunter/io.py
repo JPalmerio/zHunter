@@ -2,8 +2,6 @@ from astropy.io import fits
 from astropy.io.ascii import read as ascii_read
 from astropy.table import Table
 import astropy.units as u
-from astropy.nddata import StdDevUncertainty
-from specutils import Spectrum1D
 import numpy as np
 import pandas as pd
 import logging
@@ -81,7 +79,7 @@ def read_line_list(fname):
     return tab
 
 
-def read_1D_spectrum(fname):
+def read_1D_spectrum(fname, **args):
     """
     A wrapper function to handle case for fits extension or generic txt
     or dat file
@@ -104,13 +102,13 @@ def read_1D_spectrum(fname):
 
     # Load data
     if fname_extension in [".fits", ".fit"]:
-        spectrum, header = read_fits_1D_spectrum(fname)
+        waveobs, flux, uncertainty, header = read_fits_1D_spectrum(fname, **args)
 
     else:
-        spectrum = read_generic_1D_spectrum(fname)
+        waveobs, flux, uncertainty, = read_generic_1D_spectrum(fname, **args)
         header = None
 
-    return spectrum, header
+    return waveobs, flux, uncertainty, header
 
 
 def read_generic_1D_spectrum(
@@ -142,7 +140,7 @@ def read_generic_1D_spectrum(
         flux_unit (None, optional): Description
 
     Returns:
-        Spectrum1D: Spectrum containing the data
+        waveobs, flux, uncertainty: Tuple of quantities containing the data.
     """
 
     log.info(f"Attempting to read file:\n{fname}")
@@ -263,22 +261,19 @@ def read_generic_1D_spectrum(
         flux_unit = u.Unit("adu")
         log.info("No units specified for flux, assuming ADU.")
 
-    if flux is not None and waveobs is not None:
-        # Create the spectrum object
-        spectrum = Spectrum1D(
-            spectral_axis=waveobs * wave_unit,
-            flux=flux * flux_unit,
-        )
+    if flux is None or waveobs is None:
+        raise IOError("Unknown file format")
+    else:
+        waveobs = waveobs * wave_unit
+        flux = flux * flux_unit
         if uncertainty is not None:
-            spectrum.uncertainty = StdDevUncertainty(uncertainty)
+            uncertainty = uncertainty * flux_unit
         else:
             if ignore_unc_warning:
                 log.debug(f"No error/uncertainty found in file:\n{fname}")
             else:
                 log.warning(f"No error/uncertainty found in file:\n{fname}")
-    else:
-        raise IOError("Unknown file format")
-    return spectrum
+        return waveobs, flux, uncertainty
 
 
 def read_fits_2D_spectrum(fname, verbose=False):
@@ -391,7 +386,7 @@ def read_fits_1D_spectrum(fname):
     a flux column with a name containing: 'FLUX'
     and an error/uncertainty column with a name containing: 'ERR', 'NOISE', 'SIGMA', 'UNC'
 
-    returns a Spectrum1D object
+    returns a tuple of (waveobs, flux, uncertainty, header)
     """
 
     log.info(f"Attempting to read file:\n{fname}")
@@ -526,8 +521,8 @@ def read_fits_1D_spectrum(fname):
                             if uncertainty is not None:
                                 # Need to call .flatten() here (see wavelength above)
                                 uncertainty = np.array(uncertainty).flatten()
-                                # Don't check for error/uncertainty units, Spectrum1D assumes they
-                                # have same units as flux
+                                # Don't check for error/uncertainty units
+                                # assumes they have same units as flux
 
                     if flux is not None and waveobs is not None:
                         header = hdu.header
@@ -545,20 +540,16 @@ def read_fits_1D_spectrum(fname):
         flux_unit = ergscm2AA
         log.info(f"No units specified for flux, assuming '{ergscm2AA}'.")
 
-    if flux is not None and waveobs is not None:
-        # Create the spectrum object
-        spectrum = Spectrum1D(
-            spectral_axis=waveobs * wave_unit,
-            flux=flux * flux_unit,
-        )
-        if uncertainty is not None:
-            spectrum.uncertainty = StdDevUncertainty(uncertainty)
-
-        return spectrum, header
-    else:
+    if flux is None or waveobs is None:
         # If didn't return a spectrum with Primary
         # Or didn't find any binary table with the right columns
         raise IOError("Unknown FITS file format")
+    else:
+        waveobs = waveobs * wave_unit
+        flux = flux * flux_unit
+        if uncertainty is not None:
+            uncertainty = uncertainty * flux_unit
+        return waveobs, flux, uncertainty, header
 
 
 def convert_to_ecsv(fname, delimiter=" ", units=None):
