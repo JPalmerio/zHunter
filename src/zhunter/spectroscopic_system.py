@@ -197,7 +197,8 @@ class SpecSystem(QtCore.QObject):
             rest_wave = rest_wave[0] * self.lines[self.wave_key].unit
         else:
             raise ValueError(
-                f"Line name {lname} found more (or less) than one corresponding wavelength : {rest_wave}. Can't calculate a redshift."
+                f"Line name {lname} found more (or less) than one corresponding "
+                f"wavelength : {rest_wave}. Can't calculate a redshift."
             )
         new_z = new_wave / rest_wave - 1
         self.redshift = new_z.value

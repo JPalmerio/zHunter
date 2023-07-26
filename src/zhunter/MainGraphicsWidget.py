@@ -10,6 +10,7 @@ import zhunter.initialize as init
 from zhunter.spectroscopic_system import Telluric, SkyBackground
 from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
 from zhunter.spectral_functions import extract_1d_from_2d
+from zhunter.data_handler import DataHandler
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.scene().sigMouseMoved.connect(self.update_mouse_pos)
         self.active = False
         self.parentWidget = None
+        self.data = None
 
     def set_parent(self, parent):
         log.debug(f"Setting parent Widget to {parent}")
@@ -362,31 +364,37 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.active = False
 
     # Display data
-    def set_data(self, data):
-        """
-        data must be an instance of `DataHandler`.
-        """
-        self.data = data
+    def load_data(self, data):
+        """Load a `DataHandler` instance
 
-    def draw_data(self, data=None, show_telluric=False, show_sky_bkg=False):
+        Parameters
+        ----------
+        data : DataHandler
+            DataHandler instance containing the data
+        """
+        if not isinstance(data, DataHandler):
+            raise TypeError("Data provided must be a DataHandler instance")
+
+        self.data = data
+        self.data.sigUnitsUpdated.connect(self.refresh_units_displayed)
+        self.data.sigDataChanged.connect(self.draw)
+
+    def draw(self, show_telluric=False, show_sky_bkg=False):
         """
         A wrapper function to draw data. Look at draw_1D and
         draw_2D for more details.
         """
-        if data is None:
-            if self.data is None:
-                raise ValueError("No data provided, cannot draw anything.")
-            else:
-                data = self.data
+        if self.data is None:
+            raise ValueError("Please load data before attempting to draw.")
 
         if self.mode == "2D":
-            self.draw_2D(data)
+            self.draw_2D()
             if self.show_roi:
                 self.extract_and_draw_1D()  # this function calls draw_1D
             else:
-                self.draw_1D(data)
+                self.draw_1D()
         elif self.mode == "1D":
-            self.draw_1D(data)
+            self.draw_1D()
 
         if show_telluric:
             self.plot_telluric()
@@ -394,23 +402,23 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         if show_sky_bkg:
             self.plot_sky_bkg()
 
-        self.adjust_1D_yrange(data)
+        self.adjust_1D_yrange()
 
-    def draw_1D(self, data):
+    def draw_1D(self):
         """
         Takes the 1D display data loaded and plots it on the interface.
         """
         log.debug("Drawing 1D data")
         self.flux_1D_spec.setData(
-            data["wvlg_bins_disp"], data["flux_1D_disp"]
+            self.data.values["wvlg_bins_disp"], self.data.values["flux_1D_disp"]
         )
         self.unc_1D_spec.setData(
-            data["wvlg_bins_disp"], data["unc_1D_disp"]
+            self.data.values["wvlg_bins_disp"], self.data.values["unc_1D_disp"]
         )
-        self.set_1D_labels(data)
-        self.set_1D_viewing_limits(data)
+        self.set_1D_labels()
+        self.set_1D_viewing_limits()
 
-    def draw_2D(self, data):
+    def draw_2D(self):
         """
         Takes the 2D display data loaded and plots it on the interface.
         """
@@ -418,21 +426,21 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Use the transpose here so that the wavelength and spatial dimensions
         # are in the right order
         self.flux_2D_img.setImage(
-            data["flux_2D_disp"].T,
-            levels=(data["q025_2D"], data["q975_2D"]),
+            self.data.values["flux_2D_disp"].T,
+            levels=(self.data.values["q025_2D"], self.data.values["q975_2D"]),
         )
 
         # This is will not be seen but is needed when doing the ROI extraction
         # Essentially, we're overlaying 2 images, one of the flux and one of the errors
-        self.unc_2D_img.setImage(data["unc_2D_disp"].T)
+        self.unc_2D_img.setImage(self.data.values["unc_2D_disp"].T)
 
         # Transform image indexes to physical coordinates
         # these are defined from the bin edges
         rect = QtCore.QRectF(
-            data["wvlg_min"],  # lower edge of the first wvlg bin
-            data["spat_min"],  # lower edge of the first spatial bin
-            data["wvlg_span"],  # x-span of the rectangle
-            data["spat_span"],  # y-span of the rectangle
+            self.data.values["wvlg_min"],  # lower edge of the first wvlg bin
+            self.data.values["spat_min"],  # lower edge of the first spatial bin
+            self.data.values["wvlg_span"],  # x-span of the rectangle
+            self.data.values["spat_span"],  # y-span of the rectangle
         )
 
         self.flux_2D_img.setRect(rect)
@@ -442,31 +450,31 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.unc_2D_img.hide()
 
         # Add the side histogram of the pixel intensities
-        self.set_up_img_colobar(data)
+        self.set_up_img_colobar()
         # Add the collapsed 2D spectrum of the flux as a function of spatial position
-        self.plot_collapsed_2D(data)
+        self.plot_collapsed_2D()
 
-        self.set_2D_labels(data)
+        self.set_2D_labels()
 
-        self.set_2D_viewing_limits(data)
+        self.set_2D_viewing_limits()
 
         if self.show_roi:
             self.roi.maxBounds = rect
-            self.update_ROI(data)
+            self.update_ROI()
 
-    def plot_collapsed_2D(self, data):
-        y_dist = np.median(data["flux_2D_disp"], axis=1)
+    def plot_collapsed_2D(self):
+        y_dist = np.median(self.data.values["flux_2D_disp"], axis=1)
         # Have to use a minus sign here for the x-value to make sure
         # things are aligned (because of the -90 degrees rotation)
-        self.collapsed_2D.setData(-data["spat_bins_disp"], y_dist)
+        self.collapsed_2D.setData(-self.data.values["spat_bins_disp"], y_dist)
 
-    def update_ROI(self, data):
+    def update_ROI(self):
         """
         Set the data for the Region Of Interest that is used to extract the 1D from
         the 2D.
         """
         try:
-            width = data["extraction_width"]
+            width = self.data.values["extraction_width"]
         except KeyError:
             log.warning("No extraction width specified, using 1 by default")
             width = 1
@@ -474,60 +482,66 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Don't send signals until everything is updated
         # This is to avoid extracting with the wrong ROI dimensions
         self.roi.blockSignals(True)
-        self.roi.setSize([data["wvlg_span"], width])
-        self.roi.setPos([data["wvlg_min"], data["spat_med"] - width / 2])
+        self.roi.setSize([self.data.values["wvlg_span"], width])
+        self.roi.setPos([self.data.values["wvlg_min"], self.data.values["spat_med"] - width / 2])
         self.roi.blockSignals(False)
         # Now send signals
         self.roi.sigRegionChanged.emit(self.roi)
         self.roi.sigRegionChangeFinished.emit(self.roi)
 
-    def set_2D_labels(self, data):
+    def refresh_units_displayed(self):
+        if self.active:
+            self.set_1D_labels()
+            if self.mode == '2D':
+                self.set_2D_labels()
+
+    def set_2D_labels(self):
         self.ax2D.setLabel(
             "left",
-            "Spatial" + f" ({self.data['units']['spat']})",
+            "Spatial" + f" ({self.data.units['spat']})",
         )
 
-    def set_1D_labels(self, data):
+    def set_1D_labels(self):
         self.ax1D.setLabel(
             "left",
-            "Flux" + f" ({self.data['units']['flux_1D']})",
+            "Flux" + f" ({self.data.units['flux_1D']})",
             # useful if you want pyqtgraph to automatically display k in front
             # of units if you zoom out to thousands for example
-            # units=f"{data['flux_1D'].unit}",
+            # units=f"{data.values['flux_1D'].unit}",
         )
         self.ax1D.setLabel(
             "bottom",
-            "Observed wavelength" + f" ({self.data['units']['wvlg']})",
+            "Observed wavelength" + f" ({self.data.units['wvlg']})",
         )
 
-    def adjust_1D_yrange(self, data):
+    def adjust_1D_yrange(self):
         # Adjust the default viewing range to be reasonable
         # and avoid really large values from bad pixels
         self.ax1D.setYRange(
-            min=data["q025_1D"],
-            max=data["q975_1D"],
+            min=self.data.values["q025_1D"],
+            max=self.data.values["q975_1D"],
         )
 
-    def set_2D_viewing_limits(self, data):
+    def set_2D_viewing_limits(self):
         self.ax2D.vb.setLimits(
-            xMin=data["wvlg_min"],
-            xMax=data["wvlg_max"],
-            yMin=data["spat_min"],
-            yMax=data["spat_max"],
+            xMin=self.data.values["wvlg_min"],
+            xMax=self.data.values["wvlg_max"],
+            yMin=self.data.values["spat_min"],
+            yMax=self.data.values["spat_max"],
         )
         self.vb2D_collapsed.setLimits(
-            yMin=data["spat_min"], yMax=data["spat_max"]
+            yMin=self.data.values["spat_min"], yMax=self.data.values["spat_max"]
         )
 
-    def set_1D_viewing_limits(self, data):
-        self.ax1D.vb.setLimits(xMin=data["wvlg_min"], xMax=data["wvlg_max"])
+    def set_1D_viewing_limits(self):
+        self.ax1D.vb.setLimits(xMin=self.data.values["wvlg_min"], xMax=self.data.values["wvlg_max"])
 
-    def set_up_img_colobar(self, data):
+    def set_up_img_colobar(self):
         self.img_colorbar.setImageItem(self.flux_2D_img)
         self.img_colorbar.setHistogramRange(
-            data["q025_2D"], data["q975_2D"]
+            self.data.values["q025_2D"], self.data.values["q975_2D"]
         )
-        self.img_colorbar.setLevels(data["q025_2D"], data["q975_2D"])
+        self.img_colorbar.setLevels(self.data.values["q025_2D"], self.data.values["q975_2D"])
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
 
@@ -539,7 +553,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         )
         self.telluric_1D_spec.load_spectrum()
         self.telluric_1D_spec.draw(
-            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+            xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
         )
 
     def plot_sky_bkg(self):
@@ -549,7 +563,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         )
         self.sky_bkg_1D_spec.load_spectrum()
         self.sky_bkg_1D_spec.draw(
-            xmin=self.data["wvlg_min"], xmax=self.data["wvlg_max"]
+            xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
         )
 
     def show_hide_telluric(self, show):
@@ -584,9 +598,9 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         wvlg, flux, unc = self.get_data_from_ROI()
         self.data.load_1D(wvlg, flux, unc)
         # if self.parentWidget:
-        #     if int(self.data["smooth"]) != 1:
+        #     if int(self.data.values["smooth"]) != 1:
         #         wvlg, flux, unc = self.parentWidget.smooth()
-        self.draw_1D(self.data)
+        self.draw_1D()
 
     def get_data_from_ROI(self):
         """
@@ -598,15 +612,15 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         arcsec_max = (self.roi.pos()[1] + self.roi.size()[1])
 
         flux_1D, unc_1D = extract_1d_from_2d(
-            spatial=self.data["spat_disp"],
-            flux=self.data["flux_2D_disp"],
+            spatial=self.data.values["spat_disp"],
+            flux=self.data.values["flux_2D_disp"],
             spat_bounds=(arcsec_min, arcsec_max),
-            uncertainty=self.data["unc_2D_disp"],
+            uncertainty=self.data.values["unc_2D_disp"],
         )
 
-        flux_1D = flux_1D * self.data['units']['flux_2D']
-        unc_1D = unc_1D * self.data['units']['flux_2D']
-        wvlg_1D = self.data["wvlg_disp"] * self.data['units']['wvlg']
+        flux_1D = flux_1D * self.data.units['flux_2D']
+        unc_1D = unc_1D * self.data.units['flux_2D']
+        wvlg_1D = self.data.values["wvlg_disp"] * self.data.units['wvlg']
 
         return wvlg_1D, flux_1D, unc_1D
 
@@ -624,15 +638,15 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # x and y are reversed because the transpose of the flux is displayed
         i, j = pos.y(), pos.x()
         # Clip indexes to be 0 at minimum and len(flux)-1 at maximum
-        i = int(np.clip(i, 0, self.data["flux_2D_disp"].shape[0] - 1))
-        j = int(np.clip(j, 0, self.data["flux_2D_disp"].shape[1] - 1))
-        z = self.data["flux_2D_disp"][i, j]
-        x, y = self.data["wvlg_disp"][j], self.data["spat_disp"][i]
+        i = int(np.clip(i, 0, self.data.values["flux_2D_disp"].shape[0] - 1))
+        j = int(np.clip(j, 0, self.data.values["flux_2D_disp"].shape[1] - 1))
+        z = self.data.values["flux_2D_disp"][i, j]
+        x, y = self.data.values["wvlg_disp"][j], self.data.values["spat_disp"][i]
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Wavelength = {x:0.3f} {self.data['units']['wvlg']},"
-                f" Spatial = {y:0.3f} {self.data['units']['spat']},"
-                f" Flux = {z:.4f} {self.data['units']['flux_2D']}"
+                f"Wavelength = {x:0.3f} {self.data.units['wvlg']},"
+                f" Spatial = {y:0.3f} {self.data.units['spat']},"
+                f" Flux = {z:.4f} {self.data.units['flux_2D']}"
             )
 
     def keyPressEvent(self, ev):
@@ -679,7 +693,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Setting lambda 1
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_1 at {x_pos:0.5f} {self.data['units']['wvlg']}"
+                f"Setting Lambda_1 at {x_pos:0.5f} {self.data.units['wvlg']}"
             )
             self.parentWidget.txb_wvlg1.setText("{:.5f}".format(x_pos))
         self.lam1_line.setPos(x_pos)
@@ -688,7 +702,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # Setting lambda 2
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_2 at {x_pos:0.5f} {self.data['units']['wvlg']}"
+                f"Setting Lambda_2 at {x_pos:0.5f} {self.data.units['wvlg']}"
             )
             self.parentWidget.txb_wvlg2.setText("{:.5f}".format(x_pos))
         self.lam2_line.setPos(x_pos)
@@ -725,16 +739,16 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         msg = ""
         if vb is self.ax1D.vb:
             msg = (
-                f"Wavelength = {view_pos.x():0.3f} {self.data['units']['wvlg']}, "
-                + f"Flux = {view_pos.y():0.3f} {self.data['units']['flux_1D']}"
+                f"Wavelength = {view_pos.x():0.3f} {self.data.units['wvlg']}, "
+                + f"Flux = {view_pos.y():0.3f} {self.data.units['flux_1D']}"
             )
         if self.mode == "2D":
             if vb is self.ax2D.vb:
-                # msg = f"Wavelength = {view_pos.x():0.3f} {self.data['units']['wvlg']}, "
-                # f"Flux = {view_pos.y():0.3f} {self.data['units']['flux_2D']}"
+                # msg = f"Wavelength = {view_pos.x():0.3f} {self.data.units['wvlg']}, "
+                # f"Flux = {view_pos.y():0.3f} {self.data.units['flux_2D']}"
                 msg = ""
             elif vb is self.vb2D_collapsed:
-                msg = f"Spatial = {view_pos.y():0.3f} {self.data['units']['spat']}"
+                msg = f"Spatial = {view_pos.y():0.3f} {self.data.units['spat']}"
 
         self.parentWidget.statusBar().showMessage(msg)
 
@@ -775,8 +789,8 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         log.info(
             "Extraction 2D spectrum from "
             f"{self.roi.pos()[0]:.4f} to "
-            f"{self.roi.pos()[0] + self.roi.size()[0]:.4f} {self.data['units']['wvlg']} "
+            f"{self.roi.pos()[0] + self.roi.size()[0]:.4f} {self.data.units['wvlg']} "
             "and from "
             f"{self.roi.pos()[1]:.3f} to "
-            f"{self.roi.pos()[1] + self.roi.size()[1]:.3f} {self.data['units']['spat']}"
+            f"{self.roi.pos()[1] + self.roi.size()[1]:.3f} {self.data.units['spat']}"
         )
