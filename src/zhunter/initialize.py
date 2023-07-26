@@ -102,7 +102,7 @@ def define_paths(input_fnames, default=True):
     return fnames
 
 
-def load_colors(style, default="kraken17"):
+def load_colors(style="kraken17", default="kraken17"):
     """Load colors into dictionary.
 
     Parameters
