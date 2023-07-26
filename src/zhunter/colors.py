@@ -1,8 +1,52 @@
 import pyqtgraph as pg
 from PyQt6 import QtGui
 import logging
+from itertools import cycle
 
 log = logging.getLogger(__name__)
+
+
+class ColorCycler:
+
+    def __init__(self, color_list):
+        # self.available_colors = .copy()
+        self.colors = color_list
+        self.reset_colors()
+
+    def reset_colors(self):
+        """
+        Reset the color palet.
+        """
+        self.available_colors = self.colors.copy()
+        self.available_colors_cycler = cycle(self.available_colors)
+
+    def get_color(self):
+        """
+        Get the next color from the list of available colors.
+        If all colors have been used, reset the color cycler.
+        """
+        try:
+            color = next(self.available_colors_cycler)
+        except StopIteration:
+            log.info("Exhausted all colors, resetting color cycler.")
+            self.reset_colors()
+            color = next(self.available_colors_cycler)
+        log.debug("There are %d unused colors left", len(self.available_colors))
+        return color
+
+    def clear_color_from_available_list(self, color):
+        """
+        Remove the color from the pool of available colors.
+        """
+        self.available_colors.remove(color)
+        self.available_colors_cycler = cycle(self.available_colors)
+
+    def add_color_to_available_list(self, color):
+        """
+        Add the color from the pool of available colors.
+        """
+        self.available_colors.append(color)
+        self.available_colors_cycler = cycle(self.available_colors)
 
 
 def get_gradient(color, reverse=False):

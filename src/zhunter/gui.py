@@ -1,4 +1,3 @@
-from itertools import cycle
 import logging
 import sys
 from pathlib import Path
@@ -21,8 +20,9 @@ from zhunter.key_binding import KeyBindingHelpDialog
 from zhunter.smoothing import SmoothingWindow
 from zhunter.wavelength_correction import WavelengthCorrectionWindow
 from zhunter.units import UnitsWindow
-from zhunter.misc import convert_to_bins, select_file
-from zhunter.colors import ZHUNTER_LOGO
+from zhunter.misc import select_file
+from zhunter.conversions import convert_to_bins
+from zhunter.colors import ZHUNTER_LOGO, ColorCycler
 import zhunter.initialize as init
 from zhunter.data_handler import DataHandler
 
@@ -38,7 +38,7 @@ logging.basicConfig(
 )
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainGUI(QtWidgets.QMainWindow):
 
     """Main high-level Graphical User Interface (GUI).
 
@@ -53,22 +53,20 @@ class MainWindow(QtWidgets.QMainWindow):
     """
 
     def __init__(self, *args, **kwargs):
-        super(MainWindow, self).__init__(*args, **kwargs)
+        super(MainGUI, self).__init__(*args, **kwargs)
 
         # Define the self.config dictionnary with all the loaded
         # configurations (file names, line lists, colors...)
         self.config = self.configure()
 
-        # Have to do this before loading UI for it to work
-        pg.setConfigOption("foreground", self.config["colors"]["foreground"])
-        pg.setConfigOption("background", self.config["colors"]["background"])
-
         # Load the UI Page
-        uic.loadUi(DIRS["UI"] / "main_frame.ui", self)
+        uic.loadUi(DIRS["UI"] / "gui.ui", self)
 
         # Spectroscopic systems and their buttons
+        self.set_up_windows()
         self.set_up_specsys()
         self.connect_signals_and_slots()
+        self.connect_actions()
 
         self.graphLayout.setFocus()
         self.graphLayout.set_parent(self)
@@ -90,6 +88,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Colors
         config["colors"] = init.load_colors(style=config["colors"])
+        # Have to do this before loading UI for it to work
+        pg.setConfigOption("foreground", config["colors"]["foreground"])
+        pg.setConfigOption("background", config["colors"]["background"])
 
         # File names
         config["fnames"] = init.define_paths(
@@ -108,7 +109,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_up_specsys(self):
         """Create the model (which contains the data) and the view
         (which displays the data) for spectroscopic systems.
-        Connect the buttons with their functions
+        Connect the buttons with their actions
         """
         self.specsysModel = SpecSystemModel()
         self.specsysView.setModel(self.specsysModel)
@@ -136,6 +137,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.line_fit_plot_btn.clicked.connect(self.line_fit_plot)
         self.fine_structure_btn.clicked.connect(self.show_hide_fine_structure)
 
+    def set_up_windows(self):
+        self.windows = {
+            "units": UnitsWindow(self),
+            "help": KeyBindingHelpDialog(self),
+            "smooth": SmoothingWindow(self),
+            "wvlg_corr": WavelengthCorrectionWindow(self),
+        }
+
     def connect_signals_and_slots(self):
         """Connect all the signals and slots (actions to perform)
         """
@@ -151,6 +160,25 @@ class MainWindow(QtWidgets.QMainWindow):
         # Sky emission
         self.sky_bkg_chb.stateChanged.connect(self.show_hide_sky_bkg)
 
+        # Extraction width
+        self.reset_width_btn.clicked.connect(self.reset_width)
+        self.txb_spat_ext_width.editingFinished.connect(self.set_spat_ext_width)
+
+    def connect_actions(self):
+        self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
+        self.actionHeliocentric.triggered.connect(self.wvlg_helio_correction)
+
+        # Key binding dialog
+        self.actionKey_Bindings.triggered.connect(self.windows["help"].show)
+
+        # Units dialog
+        self.actionUnits.triggered.connect(self.display_units_window)
+
+        # Smoothing dialog
+        self.actionSmoothing.triggered.connect(self.windows["smooth"].show)
+
+        # Wavelength correction dialog
+        self.actionWavelength_correction.triggered.connect(self.windows["wvlg_corr"].show)
         # Wavelength correction actions
         # self.to_air_btn.clicked.connect(self.wvlg_to_air)
         # self.to_vacuum_btn.clicked.connect(self.wvlg_to_vacuum)
@@ -158,47 +186,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.actionTo_vacuum.triggered.connect(self.wvlg_to_vacuum)
         # self.actionTo_air.triggered.connect(self.wvlg_to_air)
 
-        self.actionBarycentric.triggered.connect(self.wvlg_bary_correction)
-        self.actionHeliocentric.triggered.connect(self.wvlg_helio_correction)
-
-        # Key binding dialog
-        self.actionKey_Bindings.triggered.connect(KeyBindingHelpDialog(self).show)
-
-        # Units dialog
-        self.actionUnits.triggered.connect(UnitsWindow(self).show)
-
-        # Smoothing dialog
-        self.actionSmoothing.triggered.connect(SmoothingWindow(self).show)
-
-        # Wavelength correction dialog
-        self.actionWavelength_correction.triggered.connect(WavelengthCorrectionWindow(self).show)
-
-        # Extraction width
-        self.reset_width_btn.clicked.connect(self.reset_width)
-        self.txb_extraction_width.editingFinished.connect(self.set_extraction_width)
-
     def set_up_line_cbb(self):
         self.cbb_em_line.addItems(list(self.config['lines']['emission']["name"]))
         self.cbb_abs_line.addItems(list(self.config['lines']['intervening']["name"]))
 
     # Set up the MainGraphicsWidget
-    def set_up_plot(self):
-        """Prepares the plotting widget with the set up
-        (i.e. whether its a 1D or 2D plot, what colors...)
-        """
-        self.__reset_colors()
-        self.graphLayout.set_up_plot(
-            mode=self.mode,
-            colors=self.config['colors'],
-            name=self.config['fnames']["data"].name
-        )
 
-    def display_data(self):
+    def load_data(self):
+        """Load data from file and propagate to all windows.
         """
-        Main function to be called once to display the data using the
-        MainGraphicsWidget.
-        """
-        # load data
+        log.info(f"Loading data from:\n{self.config['fnames']['data']}")
         try:
             self.data.load(fname=self.config['fnames']["data"], mode=self.mode)
         except Exception as e:
@@ -210,15 +207,27 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         # Load extra parameters defined on the GUI
-        ext_width = float(self.txb_extraction_width.text())
+        ext_width = float(self.txb_spat_ext_width.text())
         if self.mode == "2D":
-            self.data["extraction_width"] = ext_width
-        # self.data["smooth"] = int(self.txb_smooth.text())
+            self.data.values["spat_ext_width"] = ext_width
+        # self.data.values["smooth"] = int(self.txb_smooth.text())
 
-        # Main plotting function
+    def display_data(self):
+        """
+        Main function to be called once to display the data using the
+        MainGraphicsWidget.
+        """
+        # Prepares the plotting widget with the set up
+        # (i.e. whether its a 1D or 2D plot, what colors...)
+        self.graphLayout.set_up_plot(
+            mode=self.mode,
+            colors=self.config['colors'],
+            name=self.config['fnames']["data"].name
+        )
+
         # Here self.data should be the same as self.graphLayout.data
         # So no need to specify which data to draw
-        self.graphLayout.draw_data(
+        self.graphLayout.draw(
             show_telluric=self.telluric_chb.isChecked(),
             show_sky_bkg=self.sky_bkg_chb.isChecked(),
         )
@@ -226,7 +235,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # Showing/hiding plots
     def show_hide_uncertainty(self):
         """
-        Show or hide the 1D uncertaintyspectrum.
+        Show or hide the 1D uncertainty spectrum.
         """
         if not self.data:
             log.debug("You pushed a button but did not load any data. Ignoring.")
@@ -268,7 +277,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             self.specsysModel.show_hide_fine_structure(
-                index, bounds=[self.data["wvlg_min"], self.data["wvlg_max"]]
+                index, bounds=[self.data.values["wvlg_min"], self.data.values["wvlg_max"]]
             )
         else:
             QtWidgets.QMessageBox.information(
@@ -278,15 +287,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 "to show/hide the fine structure lines.",
             )
 
-    def set_extraction_width(self):
+    def set_spat_ext_width(self):
         if not self.data:
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
         if self.mode == "2D":
             try:
-                ext_width = float(self.txb_extraction_width.text())
-                if ext_width >= self.data["spat_span"].value:
+                ext_width = float(self.txb_spat_ext_width.text())
+                if ext_width >= self.data.values["spat_span"].value:
                     QtWidgets.QMessageBox.information(
                         self,
                         "Invalid extraction width",
@@ -295,10 +304,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         "spectrum",
                     )
                     return
-                self.data["extraction_width"] = (
+                self.data.values["spat_ext_width"] = (
                     ext_width
                 )
-                self.graphLayout.roi.setSize([self.data["wvlg_span"].value, ext_width])
+                self.graphLayout.roi.setSize([self.data.values["wvlg_span"].value, ext_width])
             except ValueError:
                 QtWidgets.QMessageBox.information(
                     self,
@@ -316,7 +325,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         if self.mode == "2D":
-            self.txb_extraction_width.setText("1")
+            self.txb_spat_ext_width.setText("1")
             self.graphLayout.reset_ROI()
             self.graphLayout.extract_and_plot_1D()
         elif self.mode == "1D":
@@ -349,9 +358,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 log.debug(
                     f"File:\n{self.config['fnames']['data']}\nis valid and exists, proceeding"
                 )
-                self.reset_plot()
-                self.set_up_plot()
-                self.display_data()
+                self.plot()
+
+    def plot(self):
+        self.reset_plot()
+        self.load_data()
+        self.display_data()
 
     def reset_plot(self):
         """
@@ -367,11 +379,15 @@ class MainWindow(QtWidgets.QMainWindow):
         log.debug("Resetting spectroscopic system model")
         self.specsysModel.clear()
 
-        # Clear data and corrections
+        # Reset DataHandler and propagate to all children
         log.debug("Resetting data handler")
         self.data = DataHandler()
-        self.graphLayout.set_data(self.data)
+        # MainGraphicWidget
+        self.graphLayout.load_data(self.data)
+        # Units window
+        self.windows["units"].load_data(self.data)
 
+        # Reset wavelength corrections
         self.wvlg_corrections = {
             "to_air": False,
             "to_vacuum": False,
@@ -379,7 +395,15 @@ class MainWindow(QtWidgets.QMainWindow):
             "barycentric": False,
         }
 
+        # Reset colors
+        self.color_cycler = ColorCycler(color_list=self.config['colors']["specsys"])
+
         log.debug("Done !")
+
+    def display_units_window(self):
+
+        self.windows["units"].refresh()
+        self.windows["units"].show()
 
     # Additional plots
     def velocity_plot(self):
@@ -460,15 +484,15 @@ class MainWindow(QtWidgets.QMainWindow):
     #     log.debug(f"Smoothing by {smoothing} pixels")
     #     self.statusBar().showMessage("Smoothing by {} pixels".format(smoothing), 2000)
     #     wvlg_sm, flux_sm, unc_sm = sf.smooth(
-    #         self.data["wvlg_1D"].value,
-    #         self.data["flux_1D"].value,
-    #         unc=self.data["unc_1D"].value,
+    #         self.data.values["wvlg_1D"].value,
+    #         self.data.values["flux_1D"].value,
+    #         unc=self.data.values["unc_1D"].value,
     #         smoothing=smoothing,
     #     )
-    #     wvlg_sm = wvlg_sm * self.data["wvlg"].unit
-    #     flux_sm = flux_sm * self.data["flux_1D"].unit
-    #     unc_sm = unc_sm * self.data["unc_1D"].unit
-    #     self.data["smooth"] = smoothing
+    #     wvlg_sm = wvlg_sm * self.data.values["wvlg"].unit
+    #     flux_sm = flux_sm * self.data.values["flux_1D"].unit
+    #     unc_sm = unc_sm * self.data.values["unc_1D"].unit
+    #     self.data.values["smooth"] = smoothing
 
     #     return wvlg_sm, flux_sm, unc_sm
 
@@ -516,12 +540,12 @@ class MainWindow(QtWidgets.QMainWindow):
     #         return
 
     #     self.data.set_1D_displayed(
-    #         wvlg=self.data["wvlg_1D"],
-    #         flux=self.data["flux_1D"],
-    #         unc=self.data["unc_1D"],
+    #         wvlg=self.data.values["wvlg_1D"],
+    #         flux=self.data.values["flux_1D"],
+    #         unc=self.data.values["unc_1D"],
     #     )
     #     self.data.calculate_1D_displayed_range()
-    #     self.graphLayout.draw_data()
+    #     self.graphLayout.draw()
     #     self.txb_smooth.setText("1")
     #     # TODO : implement 2D smoothing
 
@@ -540,14 +564,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from vacuum " "to air.",
             )
         else:
-            wvlg = self.data["wvlg_disp"]
+            wvlg = self.data.values["wvlg_disp"]
             wvlg_in_air = sf.vac_to_air(wvlg)
-            self.data["wvlg_disp"] = wvlg_in_air
-            self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_air)
+            self.data.values["wvlg_disp"] = wvlg_in_air
+            self.data.values["wvlg_bins_disp"] = convert_to_bins(wvlg_in_air)
             if not self.wvlg_corrections["to_vacuum"]:
                 self.wvlg_corrections["to_air"] = True
             self.wvlg_corrections["to_vacuum"] = False
-            self.graphLayout.draw_data()
+            self.graphLayout.draw()
             log.info("Converted wavelength from vacuum to air.")
 
     def wvlg_to_vacuum(self):
@@ -565,14 +589,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 "You have already converted wavelength from air " "to vacuum.",
             )
         else:
-            wvlg = self.data["wvlg_disp"]
+            wvlg = self.data.values["wvlg_disp"]
             wvlg_in_vac = sf.air_to_vac(wvlg)
-            self.data["wvlg_disp"] = wvlg_in_vac
-            self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_in_vac)
+            self.data.values["wvlg_disp"] = wvlg_in_vac
+            self.data.values["wvlg_bins_disp"] = convert_to_bins(wvlg_in_vac)
             if not self.wvlg_corrections["to_air"]:
                 self.wvlg_corrections["to_vacuum"] = True
             self.wvlg_corrections["to_air"] = False
-            self.graphLayout.draw_data()
+            self.graphLayout.draw()
             log.info("Converted wavelength from air to vacuum.")
 
     def wvlg_bary_correction(self):
@@ -600,7 +624,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 "Invalid action",
                 "You have already corrected for barycentric or " "heliocentric motion.",
             )
-        elif self.data["header"] is None:
+        elif self.data.header is None:
             QtWidgets.QMessageBox.information(
                 self,
                 "Invalid action",
@@ -609,15 +633,15 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         else:
             try:
-                wvlg = self.data["wvlg_disp"]
+                wvlg = self.data.values["wvlg_disp"]
                 c = cst.c.to("km/s")
-                vcorr = sf.calc_vel_corr(header=self.data["header"], kind=kind)
+                vcorr = sf.calc_vel_corr(header=self.data.header, kind=kind)
                 wvlg_corr = wvlg * (1.0 + vcorr / c)
-                self.data["wvlg_disp"] = wvlg_corr
-                self.data["wvlg_bins_disp"] = convert_to_bins(wvlg_corr)
+                self.data.values["wvlg_disp"] = wvlg_corr
+                self.data.values["wvlg_bins_disp"] = convert_to_bins(wvlg_corr)
                 self.wvlg_corrections["barycentric"] = True
                 self.wvlg_corrections["heliocentric"] = True
-                self.graphLayout.draw_data()
+                self.graphLayout.draw()
                 log.info(f"Converted wavelength from {kind} motion")
             except KeyError as e:
                 log.error(e)
@@ -686,7 +710,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #     l_wvlg_obs = np.max([l1, l2])
         #     # Use the max wavelength because we chose the first
         #     # of the line names
-        #     l_wvlg_obs = l_wvlg_obs * self.data["units"]["wvlg"]
+        #     l_wvlg_obs = l_wvlg_obs * self.data.units["wvlg"]
         # except Exception:
         #     QtWidgets.QMessageBox.information(
         #         self,
@@ -759,7 +783,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 log.debug(f"Found corresponding wavelength: {l_wvlg_rest}")
                 try:
                     l_wvlg_obs = float(self.txb_wvlg1.text())
-                    l_wvlg_obs = l_wvlg_obs * self.graphLayout.wvlg_unit
+                    l_wvlg_obs = l_wvlg_obs * self.data.units["wvlg"]
                 except Exception as e:
                     QtWidgets.QMessageBox.information(
                         self,
@@ -819,7 +843,7 @@ class MainWindow(QtWidgets.QMainWindow):
             elif sys_type == "em":
                 lines = self.config['lines']['emission']
                 sys_type_str = "emitter"
-            color = self.get_color()
+            color = self.color_cycler.get_color()
             specsys = SpecSystem(
                 z=z,
                 sys_type=sys_type,
@@ -830,8 +854,8 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             self.statusBar().showMessage(f"Adding system at redshift {z:.5f}", 2000)
             specsys.draw(
-                xmin=self.data["wvlg_min"],
-                xmax=self.data["wvlg_max"],
+                xmin=self.data.values["wvlg_min"],
+                xmax=self.data.values["wvlg_max"],
             )
             # Store the spectroscopic system in the model
             self.specsysModel.specsystems.append((True, specsys))
@@ -841,7 +865,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # in order to update the model as soon as it receives the signal
             specsys.edited.connect(self.specsysModel.layoutChanged.emit)
             self.txb_z.setText("")
-            self.clear_color_from_available_list(color)
+            self.color_cycler.clear_color_from_available_list(color)
             log.info(f"Added {sys_type_str} at redshift {z:.5f}")
         except ValueError as e:
             log.error(f"Can't add system: {e}")
@@ -856,7 +880,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             # Re-add the color to the available pool
-            self.available_colors.append(self.specsysModel.get_color(index))
+            self.color_cycler.add_color_to_available_list(
+                color=self.specsysModel.get_color(index)
+            )
             self.specsysModel.delete(index)
             self.specsysModel.sort()
             # Clear the selection (as it is no longer valid).
@@ -888,35 +914,6 @@ class MainWindow(QtWidgets.QMainWindow):
             log.debug(f"Found line: {l_list[cond]['name'][0]}")
             return cond
 
-    # Colors
-    def __reset_colors(self):
-        """
-        Reset the color palet.
-        """
-        self.available_colors = self.config['colors']["specsys"].copy()
-        self.available_colors_cycler = cycle(self.available_colors)
-
-    def get_color(self):
-        """
-        Get the next color from the list of available colors.
-        If all colors have been used, reset the color cycler.
-        """
-        try:
-            color = next(self.available_colors_cycler)
-        except StopIteration:
-            log.info("Exhausted all colors, resetting color cycler.")
-            self.__reset_colors()
-            color = next(self.available_colors_cycler)
-        log.debug("There are %d unused colors left", len(self.available_colors))
-        return color
-
-    def clear_color_from_available_list(self, color):
-        """
-        Remove the color from the pool of available colors.
-        """
-        self.available_colors.remove(color)
-        self.available_colors_cycler = cycle(self.available_colors)
-
 
 def main():
     log.info(
@@ -929,8 +926,8 @@ def main():
         + 36 * "-"
     )
     app = QtWidgets.QApplication(sys.argv)
-    main = MainWindow()
-    main.show()
+    gui = MainGUI()
+    gui.show()
     sys.exit(app.exec())
 
 
@@ -953,17 +950,16 @@ def testmode1D():
         + 36 * "-"
     )
     app = QtWidgets.QApplication(sys.argv)
-    main = MainWindow()
-    main.mode = "1D"
+    gui = MainGUI()
+    gui.mode = "1D"
     fname = Path(
         str(Path(__file__).resolve().parents[2])
         + "/dev/data/test_input_files/XSHOOTER_bintable_1D.fits"
     )
-    main.config["fnames"]["data"] = fname
-    main.set_up_plot()
-    main.display_data()
-    main.add_specsys(z=6.317, sys_type="abs")
-    main.show()
+    gui.config["fnames"]["data"] = fname
+    gui.plot()
+    gui.add_specsys(z=6.317, sys_type="abs")
+    gui.show()
     sys.exit(app.exec())
 
 
@@ -986,16 +982,15 @@ def testmode2D():
         + 36 * "-"
     )
     app = QtWidgets.QApplication(sys.argv)
-    main = MainWindow()
-    main.mode = "2D"
+    gui = MainGUI()
+    gui.mode = "2D"
     fname = Path(
         str(Path(__file__).resolve().parents[2]) + "/dev/data/test_input_files/2D.fits"
     )
-    main.config["fnames"]["data"] = fname
-    main.set_up_plot()
-    main.display_data()
-    main.add_specsys(z=0.15135, sys_type="em")
-    main.show()
+    gui.config["fnames"]["data"] = fname
+    gui.plot()
+    gui.add_specsys(z=0.15135, sys_type="em")
+    gui.show()
     sys.exit(app.exec())
 
 
