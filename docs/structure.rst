@@ -12,3 +12,8 @@ The main modules are:
     - GraphicsWidget (composed of `OneDGraphicsWidget.py`, `MainGraphicsWidget.py`,
     `LineFitGraphicsWidget.py`, `VelocityGraphicsWidget.py`): These modules contain the
     various widget that will display and take care of plotting.
+
+
+Configuration
+=============
+zHunter can be configure via its configuration file located in `~/.config/zhunter/`

@@ -16,9 +16,9 @@ import zhunter.io as io
 log = logging.getLogger(__name__)
 
 
-def select_file(parent, fname, file_type):
-    if fname is not None and Path(fname).exists():
-        line_dir = Path(fname).parent
+def select_file(parent, last_fname, file_type):
+    if last_fname is not None and Path(last_fname).exists():
+        line_dir = Path(last_fname).parent
     else:
         line_dir = QtCore.QDir.currentPath()
     dialog = QtWidgets.QFileDialog(parent)

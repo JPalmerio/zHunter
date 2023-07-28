@@ -46,7 +46,10 @@ def get_config_fname():
         # if the default config file doesn't exist, it means it is the first
         # time zhunter is installed on the computer, so copy the file
         if not config_fname.exists():
-            log.debug("No configuration on this computer, creating one")
+            log.debug(
+                "No configuration under '~/.config/zhunter/default_config.yaml'"
+                " on this computer, creating one"
+            )
             config_fname.parent.mkdir(parents=True, exist_ok=True)
             default_config_fname = DIRS["CONFIG"] / "default_config.yaml"
             shutil.copyfile(default_config_fname, config_fname)
@@ -98,7 +101,14 @@ def define_paths(input_fnames, default=True):
         if not f.exists():
             raise FileNotFoundError(f"File '{f}' does not exist.")
 
-    fnames["data"] = None
+    fnames['config'] = input_fnames['config']
+
+    # Get last opened file
+    if Path(input_fnames['last_opened']).expanduser().exists():
+        fnames["last_opened"] = input_fnames['last_opened']
+    else:
+        fnames["last_opened"] = Path('~').expanduser()
+
     return fnames
 
 
@@ -143,6 +153,7 @@ def load_config(fname):
         config = yaml.safe_load(f)
         log.info(f"Loaded configuration from:\n{fname}")
 
+    config['fnames']['config'] = fname
     return config
 
 
@@ -186,3 +197,18 @@ def load_line_lists(fnames, calc_ratio=True):
     lines['ratios'] = ratios
 
     return lines
+
+
+def update_last_opened(fnames):
+    # Get the path to the configuration file
+    config_fname = fnames['config']
+    last_opened = fnames['last_opened']
+
+    with open(str(config_fname), "r") as f:
+        config = yaml.safe_load(f)
+
+    config['fnames']['last_opened'] = str(last_opened)
+
+    with open(str(config_fname), "w") as f:
+        yaml.dump(config, stream=f)
+        log.debug(f"Updated last opened file with:\n{last_opened}")

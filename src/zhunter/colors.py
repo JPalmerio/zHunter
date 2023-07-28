@@ -6,18 +6,35 @@ from itertools import cycle
 log = logging.getLogger(__name__)
 
 
-class ColorCycler:
+class ColorManager:
 
-    def __init__(self, color_list):
-        # self.available_colors = .copy()
-        self.colors = color_list
-        self.reset_colors()
+    """Class to handle all colors for zHunter
 
-    def reset_colors(self):
+    Attributes
+    ----------
+    available_colors : list
+        List of available colors for adding spectroscopic systems
+        or additional spectra.
+    available_colors_cycler : cycle
+        A cycler of available_colors.
+    colors : dict
+        Color scheme
+    main_color_used : bool
+        Whether the main color for a spectrum has already been
+        used or not. This is used for overplotting additional
+        spectra using a different color than the main spectrum.
+    """
+
+    def __init__(self, color_scheme):
+        self.colors = color_scheme
+        self.main_color_used = False
+        self.reset_color_cycler()
+
+    def reset_color_cycler(self):
         """
         Reset the color palet.
         """
-        self.available_colors = self.colors.copy()
+        self.available_colors = self.colors["specsys"].copy()
         self.available_colors_cycler = cycle(self.available_colors)
 
     def get_color(self):
@@ -29,10 +46,29 @@ class ColorCycler:
             color = next(self.available_colors_cycler)
         except StopIteration:
             log.info("Exhausted all colors, resetting color cycler.")
-            self.reset_colors()
+            self.reset_color_cycler()
             color = next(self.available_colors_cycler)
         log.debug("There are %d unused colors left", len(self.available_colors))
         return color
+
+    def get_main_spectrum_color(self):
+        """Get the color for the main spectrum.
+        If that color has already been used because a spectrum
+        is already plotted, pick from the list of available
+        colors instead.
+
+        Returns
+        -------
+        color, color_unc
+            Strings containing the hexadecimal color code for
+            the main spectrum and the uncertainty.
+        """
+        if self.main_color_used:
+            color = self.get_color()
+            return color, color
+        else:
+            self.main_color_used = True
+            return self.colors['spec'], self.colors['unc']
 
     def clear_color_from_available_list(self, color):
         """
