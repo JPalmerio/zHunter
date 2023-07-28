@@ -37,34 +37,59 @@ def generate_fake_1D_spectrum(
     SNR=10,
     continuum=1,
     flux_scale=1e-17,
-    spec_start=650,
-    N_spec=1001,
-    spec_pix_scale=0.02,
+    spec_start=550,
+    spec_end=700,
+    N_spec=7500,
     spec_unit='nm',
     flux_unit='erg s-1 cm-2 AA-1',
     emission_line=None,
 ):
     """
+    Generate a fake 1D spectrum.
+
+    Parameters
+    ----------
+    SNR : int, optional
+        Signal to noise ratio
+    continuum : int, optional
+        Value of the continuum
+    flux_scale : float, optional
+        Multiplicative factor to scale the flux
+    spec_start : int, optional
+        Starting wavelength
+    spec_end : int, optional
+        Ending wavelength
+    N_spec : int, optional
+        Number of pixels in the spectrum
+    spec_unit : str, optional
+        Units of the spectral axis
+    flux_unit : str, optional
+        Units of the flux
+    emission_line : None or dict, optional
+        Dictionary containing the properties of a gaussian.
+        Expected keys are 'mean', 'stddev', 'amplitude'
+
     """
 
     # Spectral dimension
-    spec_end = spec_start + N_spec*spec_pix_scale
     spec_mid = np.linspace(spec_start, spec_end, N_spec)
 
-    # Spatial dimension
-
-    flux = continuum*np.ones(N_spec)
+    flux = continuum + np.zeros(N_spec)
 
     if emission_line:
         if isinstance(emission_line, bool):
             emission_line = {}
 
         # add an emission line
+        mean = emission_line.get('mean', 656.28)
+        stddev = emission_line.get('stddev', 1)
+        amplitude = emission_line.get('amplitude', continuum+3)
+        log.debug(f"Adding an emission line with mean: {mean}, stddev: {stddev}, amplitude: {amplitude}")
         em_line_1D = sp.gaussian_fct(
             spec_mid,
-            mean=emission_line.get('mean',656.28),
-            stddev=emission_line.get('stddev',1),
-            amplitude=emission_line.get('amplitude', continuum+3),
+            mean=mean,
+            stddev=stddev,
+            amplitude=amplitude,
         )
         flux += em_line_1D
 
