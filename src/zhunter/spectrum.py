@@ -49,13 +49,25 @@ class OneDSpectrum(QtCore.QObject):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, name='', **kwargs):
         super().__init__()
-        self.plot_properties = {**kwargs}
+        self.name = name
+        self.plot_properties = {}
         self.data = {}
         self.displayed_data = {}
         self.properties = {}
         self.displayed_properties = {}
+
+        # Get the plotting properties from keyword arguments
+        color = kwargs.pop('color', 'white')
+        color_unc = kwargs.pop('color', 'red')
+        width = kwargs.pop('width', 1)
+        width_unc = kwargs.pop('width_unc', 0.5*width)
+        self.plot_properties['color'] = color
+        self.plot_properties['color_unc'] = color_unc
+        self.plot_properties['width'] = width
+        self.plot_properties['width_unc'] = width_unc
+        self.plot_properties = {**self.plot_properties, **kwargs}
 
         # Main plot item
         self.PlotItem = pg.PlotCurveItem(
@@ -63,13 +75,14 @@ class OneDSpectrum(QtCore.QObject):
             np.zeros(1),
             stepMode="center",
             pen=pg.mkPen(
-                color=self.plot_properties.get('color', 'white'),
-                width=self.plot_properties.get('width', 1),
+                color=self.plot_properties['color'],
+                width=self.plot_properties['width'],
             ),
         )
 
         # Uncertainty plot item
-        brush_color = QtGui.QColor(self.plot_properties.get('color', 'red'))
+        brush_color = QtGui.QColor(self.plot_properties['color_unc'])
+        # Make the brush slightly transparent for filling down to 0.
         brush_color.setAlpha(60)
         self.PlotItem_unc = pg.PlotCurveItem(
             np.zeros(2),
@@ -79,10 +92,7 @@ class OneDSpectrum(QtCore.QObject):
                 color=brush_color,
                 # Try to get the width_unc keyword
                 # Or use the width keyword divided by 2
-                width=self.plot_properties.get(
-                    'width_unc',
-                    0.5*self.plot_properties.get('width', 1)
-                ),
+                width=self.plot_properties['width_unc'],
             ),
             brush=pg.mkBrush(
                 color=brush_color,
@@ -91,8 +101,12 @@ class OneDSpectrum(QtCore.QObject):
             fillLevel=0,
         )
 
-    def load_spectrum_from_file(self, fname, **args):
+    def load_from_file(self, fname, **args):
+
         self.properties["filename"] = fname
+        if not self.name:
+            self.name = fname.name
+
         wvlg, flux, unc, self.header = io.read_1D_spectrum(
             fname,
             **args
@@ -102,13 +116,13 @@ class OneDSpectrum(QtCore.QObject):
             log.warning(f"No uncertainty/error spectrum found in:\n{fname}\nusing 0.")
             unc = np.zeros(wvlg.shape) * flux.unit
 
-        self.load_spectrum_from_data(
+        self.load_from_data(
             wvlg=wvlg,
             flux=flux,
             unc=unc,
             )
 
-    def load_spectrum_from_data(self, wvlg, flux, unc=None):
+    def load_from_data(self, wvlg, flux, unc=None):
         """Loads data into memory. Inputs must be astropy Quantity
 
         Parameters
@@ -321,6 +335,10 @@ class OneDSpectrum(QtCore.QObject):
         self.PlotItem.hide()
         self.PlotItem_unc.hide()
 
+    def clear(self):
+        self.PlotItem.clear()
+        self.PlotItem_unc.clear()
+
     def info(self):
         log.info(
             f"Properties of {self}:\n" + pformat(self.properties) +
@@ -389,3 +407,8 @@ class OneDSpectrum(QtCore.QObject):
             }
         )
         self.displayed_properties['smoothing_pixels'] = pixels
+
+
+class TwoDSpectrum(OneDSpectrum):
+    def __init__(self, name='', **kwargs):
+        super().__init__()

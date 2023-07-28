@@ -8,12 +8,14 @@ from PyQt6 import QtWidgets
 from astropy.units.quantity import Quantity
 import astropy.constants as cst
 from astropy.table import join
+from pprint import pformat
 
 import pyqtgraph as pg
 from zhunter import __version__
 from zhunter.initialize import DIRS
 import zhunter.spectral_functions as sf
 from zhunter.spectroscopic_system import SpecSystem, SpecSystemModel
+from zhunter.spectraModel import SpectraModel
 from zhunter.velocity_plot import VelocityPlot
 from zhunter.fit_plot import LineFitPlot
 from zhunter.key_binding import KeyBindingHelpDialog
@@ -22,9 +24,9 @@ from zhunter.wavelength_correction import WavelengthCorrectionWindow
 from zhunter.units import UnitsWindow
 from zhunter.misc import select_file
 from zhunter.conversions import convert_to_bins
-from zhunter.colors import ZHUNTER_LOGO, ColorCycler
+from zhunter.colors import ZHUNTER_LOGO, ColorManager
 import zhunter.initialize as init
-from zhunter.data_handler import DataHandler
+from zhunter.spectrum import OneDSpectrum, TwoDSpectrum
 
 logging.getLogger("PyQt6").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.INFO)
@@ -65,11 +67,12 @@ class MainGUI(QtWidgets.QMainWindow):
         # Spectroscopic systems and their buttons
         self.set_up_windows()
         self.set_up_specsys()
+        self.set_up_spectra()
         self.connect_signals_and_slots()
         self.connect_actions()
 
-        self.graphLayout.setFocus()
-        self.graphLayout.set_parent(self)
+        self.GraphicWidget.setFocus()
+        self.GraphicWidget.set_parent(self)
         # Call reset to set general properties that will be used
         self.reset_plot()
 
@@ -103,7 +106,7 @@ class MainGUI(QtWidgets.QMainWindow):
             fnames=config["fnames"],
             calc_ratio=True
         )
-
+        # log.debug("Loaded config:\n" + pformat(config))
         return config
 
     def set_up_specsys(self):
@@ -136,6 +139,19 @@ class MainGUI(QtWidgets.QMainWindow):
         self.velocity_plot_btn.clicked.connect(self.velocity_plot)
         self.line_fit_plot_btn.clicked.connect(self.line_fit_plot)
         self.fine_structure_btn.clicked.connect(self.show_hide_fine_structure)
+
+    def set_up_spectra(self):
+        """Create the model (which contains the data) and the view
+        (which displays the data) for spectra.
+        Connect the buttons with their actions
+        """
+        self.spectraModel = SpectraModel()
+        self.spectraView.setModel(self.spectraModel)
+        self.spectraView.setStyleSheet(
+            f"QListView{{background-color: {self.config['colors']['background']};}}"
+        )
+
+        # Signals and slots of spectra manipulation
 
     def set_up_windows(self):
         self.windows = {
@@ -191,46 +207,24 @@ class MainGUI(QtWidgets.QMainWindow):
         self.cbb_abs_line.addItems(list(self.config['lines']['intervening']["name"]))
 
     # Set up the MainGraphicsWidget
-
-    def load_data(self):
-        """Load data from file and propagate to all windows.
+    def activate_GraphicWidget(self, name=None):
         """
-        log.info(f"Loading data from:\n{self.config['fnames']['data']}")
-        try:
-            self.data.load(fname=self.config['fnames']["data"], mode=self.mode)
-        except Exception as e:
-            log.error(f"Could not read input file because: {e}")
-            QtWidgets.QMessageBox.warning(
-                self, "Invalid input file", f"Could not read input file because: {e}"
-            )
-            self.reset_plot()
-            return
-
-        # Load extra parameters defined on the GUI
-        ext_width = float(self.txb_spat_ext_width.text())
-        if self.mode == "2D":
-            self.data.values["spat_ext_width"] = ext_width
-        # self.data.values["smooth"] = int(self.txb_smooth.text())
-
-    def display_data(self):
-        """
-        Main function to be called once to display the data using the
-        MainGraphicsWidget.
+        Main function to be called once to activate the GraphicWidget.
         """
         # Prepares the plotting widget with the set up
         # (i.e. whether its a 1D or 2D plot, what colors...)
-        self.graphLayout.set_up_plot(
+        self.GraphicWidget.set_up_plot(
             mode=self.mode,
             colors=self.config['colors'],
-            name=self.config['fnames']["data"].name
+            name=name,
         )
 
-        # Here self.data should be the same as self.graphLayout.data
+        # Here self.data should be the same as self.GraphicWidget.data
         # So no need to specify which data to draw
-        self.graphLayout.draw(
-            show_telluric=self.telluric_chb.isChecked(),
-            show_sky_bkg=self.sky_bkg_chb.isChecked(),
-        )
+        # self.GraphicWidget.draw(
+        #     show_telluric=self.telluric_chb.isChecked(),
+        #     show_sky_bkg=self.sky_bkg_chb.isChecked(),
+        # )
 
     # Showing/hiding plots
     def show_hide_uncertainty(self):
@@ -241,7 +235,7 @@ class MainGUI(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        self.graphLayout.show_hide_uncertainty(show=self.show_uncertainty_chb.isChecked())
+        self.GraphicWidget.show_hide_uncertainty(show=self.show_uncertainty_chb.isChecked())
 
     def show_hide_telluric(self):
         """
@@ -251,7 +245,7 @@ class MainGUI(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        self.graphLayout.show_hide_telluric(show=self.telluric_chb.isChecked())
+        self.GraphicWidget.show_hide_telluric(show=self.telluric_chb.isChecked())
 
     def show_hide_sky_bkg(self):
         """
@@ -261,7 +255,7 @@ class MainGUI(QtWidgets.QMainWindow):
             log.debug("You pushed a button but did not load any data. Ignoring.")
             return
 
-        self.graphLayout.show_hide_sky_bkg(show=self.sky_bkg_chb.isChecked())
+        self.GraphicWidget.show_hide_sky_bkg(show=self.sky_bkg_chb.isChecked())
 
     def show_hide_fine_structure(self):
         """
@@ -307,7 +301,7 @@ class MainGUI(QtWidgets.QMainWindow):
                 self.data.values["spat_ext_width"] = (
                     ext_width
                 )
-                self.graphLayout.roi.setSize([self.data.values["wvlg_span"].value, ext_width])
+                self.GraphicWidget.roi.setSize([self.data.values["wvlg_span"].value, ext_width])
             except ValueError:
                 QtWidgets.QMessageBox.information(
                     self,
@@ -326,8 +320,8 @@ class MainGUI(QtWidgets.QMainWindow):
 
         if self.mode == "2D":
             self.txb_spat_ext_width.setText("1")
-            self.graphLayout.reset_ROI()
-            self.graphLayout.extract_and_plot_1D()
+            self.GraphicWidget.reset_ROI()
+            self.GraphicWidget.extract_and_plot_1D()
         elif self.mode == "1D":
             QtWidgets.QMessageBox.information(
                 self,
@@ -335,35 +329,86 @@ class MainGUI(QtWidgets.QMainWindow):
                 "This feature can only be used in 2D mode.",
             )
 
+    def add_and_plot_spectrum_from_file(self, fname, file_type):
+        if file_type == '1D':
+            color, color_unc = self.color_manager.get_main_spectrum_color()
+            spec = OneDSpectrum(color=color, color_unc=color_unc)
+
+        elif file_type == '2D':
+            color, color_unc = self.color_manager.get_main_spectrum_color()
+            spec = TwoDSpectrum(color=color, color_unc=color_unc)
+
+        # Try to read file
+        try:
+            spec.load_from_file(fname)
+        except Exception as e:
+            log.error(f"Could not read input file because: {e}")
+            QtWidgets.QMessageBox.warning(
+                self, "Invalid input file", f"Could not read input file because: {e}"
+            )
+            return
+
+        # If successful, print a summary to logs
+        spec.info()
+
+        # Append spectrum to list of spectra
+        self.spectraModel.spectra.append(spec)
+
+        # Make sure GraphicWidget is active, if not, activate it
+        if not self.GraphicWidget.active:
+            self.activate_GraphicWidget(name=fname.name)
+
+        # Add spectrum PlotItems to the ViewBox
+        self.GraphicWidget.ax1D.vb.addItem(spec.PlotItem)
+        self.GraphicWidget.ax1D.vb.addItem(spec.PlotItem_unc)
+
+        # Plot the spectrum in the units of the GraphicWidget
+        spec.update_plotted_items(
+            vb_units=(
+                self.GraphicWidget.units['wvlg'],
+                self.GraphicWidget.units['flux']
+            )
+        )
+
     # File selection
     def select_1D_file(self):
-        self.mode = "1D"
-        log.info("Starting 1D mode!")
-        self.select_file_and_plot()
+        # If mode already previously defined from loading another file
+        if self.mode is None:
+            self.mode = "1D"
+            log.info("Starting 1D mode!")
+        else:
+            log.debug(f"Adding a 1D file to a {self.mode} mode GraphicWidget")
+
+        self.select_file_and_plot(file_type='1D')
 
     def select_2D_file(self):
-        self.mode = "2D"
-        log.info("Starting 2D mode!")
-        self.select_file_and_plot()
+        # If mode already previously defined from loading another file
+        if self.mode is None:
+            self.mode = "2D"
+            log.info("Starting 2D mode!")
+        else:
+            log.debug(
+                f"Adding a 2D file to a {self.mode} mode GraphicWidget. "
+                "This probably shouldn't happen."
+            )
 
-    def select_file_and_plot(self):
+        self.select_file_and_plot(file_type='2D')
+
+    def select_file_and_plot(self, file_type):
         fname = select_file(
             self,
-            self.config['fnames']["data"],
+            last_fname=self.config['fnames']["last_opened"],
             file_type="(*.fits *.dat *.txt *.csv *.ecsv *.gz)",
         )
         if fname:
-            self.config['fnames']["data"] = Path(fname)
-            if self.config['fnames']["data"].exists():
+            fname = Path(fname)
+            self.config['fnames']["last_opened"] = fname
+            if fname.exists():
                 log.debug(
-                    f"File:\n{self.config['fnames']['data']}\nis valid and exists, proceeding"
+                    f"File:\n{fname}\nis valid and exists, proceeding"
                 )
-                self.plot()
-
-    def plot(self):
-        self.reset_plot()
-        self.load_data()
-        self.display_data()
+                init.update_last_opened(fnames=self.config['fnames'])
+                self.add_and_plot_spectrum_from_file(fname=fname, file_type=file_type)
 
     def reset_plot(self):
         """
@@ -373,19 +418,23 @@ class MainGUI(QtWidgets.QMainWindow):
 
         log.debug("Resetting main plot")
         # Clear the main plot
-        self.graphLayout.clear_all()
+        self.GraphicWidget.clear_all()
 
         # Clear models
         log.debug("Resetting spectroscopic system model")
         self.specsysModel.clear()
 
+        # Clear spectra
+        log.debug("Resetting spectra model")
+        self.spectraModel.clear()
+
         # Reset DataHandler and propagate to all children
-        log.debug("Resetting data handler")
-        self.data = DataHandler()
-        # MainGraphicWidget
-        self.graphLayout.load_data(self.data)
-        # Units window
-        self.windows["units"].load_data(self.data)
+        # log.debug("Resetting data handler")
+        # self.data = DataHandler()
+        # # MainGraphicWidget
+        # self.GraphicWidget.load_data(self.data)
+        # # Units window
+        # self.windows["units"].load_data(self.data)
 
         # Reset wavelength corrections
         self.wvlg_corrections = {
@@ -396,7 +445,9 @@ class MainGUI(QtWidgets.QMainWindow):
         }
 
         # Reset colors
-        self.color_cycler = ColorCycler(color_list=self.config['colors']["specsys"])
+        self.color_manager = ColorManager(color_scheme=self.config['colors'])
+
+        self.mode = None
 
         log.debug("Done !")
 
@@ -508,7 +559,7 @@ class MainGUI(QtWidgets.QMainWindow):
     #         # if self.mode == '1D':
     #         self.data.set_1D_displayed(wvlg_sm, flux_sm, unc_sm)
     #         self.data.calculate_1D_displayed_range()
-    #         self.graphLayout.draw_data()
+    #         self.GraphicWidget.draw_data()
     #         # TODO : implement 2D smoothing
     #         # elif self.mode == '2D':
     #         #     self.data['wvlg_2D_disp'] = x_sm
@@ -545,7 +596,7 @@ class MainGUI(QtWidgets.QMainWindow):
     #         unc=self.data.values["unc_1D"],
     #     )
     #     self.data.calculate_1D_displayed_range()
-    #     self.graphLayout.draw()
+    #     self.GraphicWidget.draw()
     #     self.txb_smooth.setText("1")
     #     # TODO : implement 2D smoothing
 
@@ -571,7 +622,7 @@ class MainGUI(QtWidgets.QMainWindow):
             if not self.wvlg_corrections["to_vacuum"]:
                 self.wvlg_corrections["to_air"] = True
             self.wvlg_corrections["to_vacuum"] = False
-            self.graphLayout.draw()
+            self.GraphicWidget.draw()
             log.info("Converted wavelength from vacuum to air.")
 
     def wvlg_to_vacuum(self):
@@ -596,7 +647,7 @@ class MainGUI(QtWidgets.QMainWindow):
             if not self.wvlg_corrections["to_air"]:
                 self.wvlg_corrections["to_vacuum"] = True
             self.wvlg_corrections["to_air"] = False
-            self.graphLayout.draw()
+            self.GraphicWidget.draw()
             log.info("Converted wavelength from air to vacuum.")
 
     def wvlg_bary_correction(self):
@@ -641,7 +692,7 @@ class MainGUI(QtWidgets.QMainWindow):
                 self.data.values["wvlg_bins_disp"] = convert_to_bins(wvlg_corr)
                 self.wvlg_corrections["barycentric"] = True
                 self.wvlg_corrections["heliocentric"] = True
-                self.graphLayout.draw()
+                self.GraphicWidget.draw()
                 log.info(f"Converted wavelength from {kind} motion")
             except KeyError as e:
                 log.error(e)
@@ -843,11 +894,11 @@ class MainGUI(QtWidgets.QMainWindow):
             elif sys_type == "em":
                 lines = self.config['lines']['emission']
                 sys_type_str = "emitter"
-            color = self.color_cycler.get_color()
+            color = self.color_manager.get_color()
             specsys = SpecSystem(
                 z=z,
                 sys_type=sys_type,
-                PlotItem=self.graphLayout.ax1D,
+                PlotItem=self.GraphicWidget.ax1D,
                 color=color,
                 lines=lines,
                 show_fs=True,
@@ -865,7 +916,7 @@ class MainGUI(QtWidgets.QMainWindow):
             # in order to update the model as soon as it receives the signal
             specsys.edited.connect(self.specsysModel.layoutChanged.emit)
             self.txb_z.setText("")
-            self.color_cycler.clear_color_from_available_list(color)
+            self.color_manager.clear_color_from_available_list(color)
             log.info(f"Added {sys_type_str} at redshift {z:.5f}")
         except ValueError as e:
             log.error(f"Can't add system: {e}")
@@ -880,7 +931,7 @@ class MainGUI(QtWidgets.QMainWindow):
             # Indexes is a list of a single item in single-select mode.
             index = indexes[0]
             # Re-add the color to the available pool
-            self.color_cycler.add_color_to_available_list(
+            self.color_manager.add_color_to_available_list(
                 color=self.specsysModel.get_color(index)
             )
             self.specsysModel.delete(index)

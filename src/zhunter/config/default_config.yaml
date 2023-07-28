@@ -6,7 +6,8 @@ fnames:
   # If you want a more complete line list, using 'full_path_to_file/intervening_lines.ecsv'
   intervening_lines: "basic_lines.ecsv"
   GRB_lines: "GRB_lines.ecsv"
+  last_opened: '~'
 
 # Colors is defined in zhunter/color.py
 # Can be one of 'kraken9', 'kraken17', 'cvd', 'old', 'cyberpunk'
-colors: 'kraken9'
+colors: 'kraken17'

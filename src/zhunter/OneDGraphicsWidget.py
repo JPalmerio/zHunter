@@ -31,7 +31,7 @@ events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
     """
-    Main Plot class which subclasses `GraphicsLayoutWidget` and
+    Plotting Widget which subclasses `GraphicsLayoutWidget` and
     installs handling of key presses.
     """
 
@@ -216,8 +216,8 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         ymins = []
         ymaxs = []
         for spec in self.plotted_spectra:
-            _ymin = spec.properties["flux_q025_disp"].to(self.units["flux"])
-            _ymax = spec.properties["flux_q975_disp"].to(self.units["flux"])
+            _ymin = spec.displayed_properties["flux_q025"].to(self.units["flux"])
+            _ymax = spec.displayed_properties["flux_q975"].to(self.units["flux"])
             ymins.append(_ymin)
             ymaxs.append(_ymax)
 
