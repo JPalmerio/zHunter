@@ -52,6 +52,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         self.active = False
         self.parentWidget = None
         self.data = None
+        self.units = {}
 
     def set_parent(self, parent):
         log.debug(f"Setting parent Widget to {parent}")
@@ -513,6 +514,22 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             "bottom",
             "Observed wavelength" + f" ({self.data.units['wvlg']})",
         )
+
+    def set_units(self, units):
+        """Units should be a dictionary with a key:value.
+        Example:
+        units = {'wvlg':u.nm, 'flux_1D':u.Jy}
+
+        Parameters
+        ----------
+        units : dict
+            Dictionary containing the units.
+        """
+
+        # Update dictionary
+        self.units = {**self.units, **units}
+        # and sort it
+        self.units = dict(sorted(self.units.items()))
 
     def adjust_1D_yrange(self):
         # Adjust the default viewing range to be reasonable
