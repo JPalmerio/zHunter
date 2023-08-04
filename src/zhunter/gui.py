@@ -362,6 +362,25 @@ class MainGUI(QtWidgets.QMainWindow):
         self.GraphicWidget.ax1D.vb.addItem(spec.PlotItem)
         self.GraphicWidget.ax1D.vb.addItem(spec.PlotItem_unc)
 
+        # Define units if necessary
+        if not self.GraphicWidget.units:
+            if isinstance(spec, OneDSpectrum):
+                self.GraphicWidget.set_units(
+                    units={
+                        'wvlg': spec.properties['wvlg_unit'],
+                        'flux': spec.properties['flux_unit'],
+                    }
+                )
+            elif isinstance(spec, TwoDSpectrum):
+                self.GraphicWidget.set_units(
+                    units={
+                        'wvlg': spec.properties['wvlg_unit'],
+                        'flux': spec.properties['flux_unit'],
+                        'spat': spec.properties['spat_unit'],
+                        'flux_2D': spec.properties['flux_2D_unit'],
+                    }
+                )
+
         # Plot the spectrum in the units of the GraphicWidget
         spec.update_plotted_items(
             vb_units=(
