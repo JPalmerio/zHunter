@@ -4,6 +4,8 @@ import pyqtgraph as pg
 
 from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
 import zhunter.initialize as init
+from zhunter.spectrum import OneDSpectrum
+from zhunter.decorators import check_active
 
 import numpy as np
 
@@ -29,6 +31,7 @@ qt_events = (
 events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
+
 class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
     """
     Plotting Widget which subclasses `GraphicsLayoutWidget` and
@@ -49,6 +52,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         self.scene().sigMouseMoved.connect(self.update_mouse_pos)
         self.active = False
         self.parentWidget = None
+        self.units = None
         self.plotted_spectra = []
 
     def set_parent(self, parent):
@@ -181,16 +185,78 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         self.ax1D.addItem(self.lam1_line)
         self.ax1D.addItem(self.lam2_line)
 
+    # Get limits
+    @check_active
+    def get_xlim(self):
+
+        xmins = []
+        xmaxs = []
+        for spec in self.plotted_spectra:
+            xmins.append(spec.displayed_properties['wvlg_min'])
+            xmaxs.append(spec.displayed_properties['wvlg_max'])
+
+    @check_active
+    def get_yrange(self):
+        # Adjust the default viewing range to be reasonable
+        # and avoid really large values from bad pixels
+        ymins = []
+        ymaxs = []
+        for spec in self.plotted_spectra:
+            _ymin = spec.displayed_properties["flux_q025"].to(self.units["flux"])
+            _ymax = spec.displayed_properties["flux_q975"].to(self.units["flux"])
+            ymins.append(_ymin)
+            ymaxs.append(_ymax)
+
+        ymin = np.min(ymins).value
+        ymax = np.min(ymaxs).value
+        return ymin, ymax
+
     def clear_all(self):
+
+        # Try to deactivate all the ViewBoxes
         try:
             self.ax1D.vb.sigResized.disconnect()
             self.telluric_vb.clear()
             self.sky_bkg_vb.clear()
         except AttributeError:
             pass
-        self.data = None
+
+        # Clear spectra
+        for spec in self.plotted_spectra:
+            spec.clear()
+
+        self.plotted_spectra = []
+
+        # Reset units and set as inactive
+        self.units = None
         self.clear()
         self.active = False
+
+    @check_active
+    def add_spectrum(self, spec):
+
+        if not isinstance(spec, OneDSpectrum):
+            raise ValueError("Spectrum must be a OneDSpectrum instance.")
+
+        self.ax1D.vb.addItem(spec.PlotItem)
+        self.ax1D.vb.addItem(spec.PlotItem_unc)
+        self.plotted_spectra.append(spec)
+
+        spec.sigDispDataChanged.connect(self.update_bounds)
+
+    @check_active
+    def remove_spectrum(self, spec):
+
+        if spec not in self.plotted_spectra:
+            raise ValueError("Spectrum is not in list")
+
+        self.ax1D.vb.removeItem(spec.PlotItem)
+        self.ax1D.vb.removeItem(spec.PlotItem_unc)
+        self.plotted_spectra.remove(spec)
+        spec.sigDispDataChanged.disconnect(self.update_bounds)
+
+    def update_bounds(self):
+
 
     # Display data
     def refresh_units_displayed(self):
@@ -211,18 +277,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         )
 
     def adjust_1D_yrange(self):
-        # Adjust the default viewing range to be reasonable
-        # and avoid really large values from bad pixels
-        ymins = []
-        ymaxs = []
-        for spec in self.plotted_spectra:
-            _ymin = spec.displayed_properties["flux_q025"].to(self.units["flux"])
-            _ymax = spec.displayed_properties["flux_q975"].to(self.units["flux"])
-            ymins.append(_ymin)
-            ymaxs.append(_ymax)
 
-        ymin = np.min(ymins).value
-        ymax = np.min(ymaxs).value
 
         self.ax1D.setYRange(min=ymin, max=ymax)
 
@@ -309,15 +364,11 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
             elif key in ["A", "S", "D", "W", "Left", "Right", "Up", "Down"]:
                 self.pan(key, vb)
 
-        elif self.mode == "2D" and vb is self.ax2D.vb:
-            if key in ["A", "S", "D", "W"]:
-                self.pan(key, vb)
-
     def set_lambda1(self, key, x_pos):
         # Setting lambda 1
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_1 at {x_pos:0.5f} {self.data.units['wvlg']}"
+                f"Setting Lambda_1 at {x_pos:0.5f} {self.units['wvlg']}"
             )
             self.parentWidget.txb_wvlg1.setText("{:.5f}".format(x_pos))
         self.lam1_line.setPos(x_pos)
@@ -326,7 +377,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         # Setting lambda 2
         if self.parentWidget:
             self.parentWidget.statusBar().showMessage(
-                f"Setting Lambda_2 at {x_pos:0.5f} {self.data.units['wvlg']}"
+                f"Setting Lambda_2 at {x_pos:0.5f} {self.units['wvlg']}"
             )
             self.parentWidget.txb_wvlg2.setText("{:.5f}".format(x_pos))
         self.lam2_line.setPos(x_pos)
@@ -353,7 +404,10 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
 
     def update_statusbar(self, scene_pos):
         vb = get_vb_containing(pos=scene_pos, axes=self.axes)
+
+        # If the event is not inside a ViewBox
         if vb is None:
+            # If parent exists, clear the statusBar and return
             if self.parentWidget:
                 self.parentWidget.statusBar().clearMessage()
             return
@@ -363,8 +417,8 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         msg = ""
         if vb is self.ax1D.vb:
             msg = (
-                f"Wavelength = {view_pos.x():0.3f} {self.data.units['wvlg']}, "
-                + f"Flux = {view_pos.y():0.3f} {self.data.units['flux_1D']}"
+                f"Wavelength = {view_pos.x():0.3f} {self.units['wvlg']}, "
+                + f"Flux = {view_pos.y():0.3f} {self.units['flux_1D']}"
             )
 
         self.parentWidget.statusBar().showMessage(msg)
@@ -375,11 +429,12 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         which sends a scene position as an event
         """
         vb = get_vb_containing(pos=scene_pos, axes=self.axes)
+
         if vb is None:
             return
         else:
             view_pos = vb.mapSceneToView(scene_pos)
-        
+
         if vb is self.ax1D.vb:
             self.chx.setPos(view_pos.x())
             self.chy.setPos(view_pos.y())

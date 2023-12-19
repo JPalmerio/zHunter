@@ -189,10 +189,12 @@ def extract_1d_from_2d(spatial, flux, spat_bounds, uncertainty=None):
     # Finds the index corresponding to the min and max spatial positions
     index_min = spatial.searchsorted(arcsec_min) - 1
     index_max = spatial.searchsorted(arcsec_max) - 1
+
     log.debug(
         f"Extracting from {arcsec_min:.3f} to {arcsec_max:.3f} corresponding to "
         f"{index_min} to {index_max} pixels."
     )
+
     if index_min >= index_max:
         temp = index_max
         index_max = index_min

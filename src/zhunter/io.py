@@ -95,13 +95,13 @@ def read_1D_spectrum(fname, **args):
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
-    if fname.suffix in [".gz"]:
+    if str(fname.suffix).lower() in (".gz"):
         fname_extension = Path(fname.stem).suffix
         if not fname_extension:
             raise IOError("No file extension found after stripping '.gz'")
 
     # Load data
-    if fname_extension in [".fits", ".fit"]:
+    if fname_extension in (".fits", ".fit"):
         waveobs, flux, uncertainty, header = read_fits_1D_spectrum(fname, **args)
 
     else:
