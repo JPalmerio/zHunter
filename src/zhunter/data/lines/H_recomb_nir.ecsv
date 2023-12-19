@@ -1,0 +1,30 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: name, datatype: string}
+# - {name: wave, unit: um, datatype: float64}
+# meta: !!omap
+# - comments: ['from https://www.gemini.edu/observing/resources/near-ir-resources/spectroscopy/hydrogen-recombination-lines', Wavelength
+#       are in micron in vacuum]
+# schema: astropy-2.0
+name wave
+"Pa alpha" 1.87561
+"Pa beta" 1.28216
+"Pa gamma" 1.09411
+"Pa delta" 1.00521
+"Pa epsilon" 0.95486
+"Br alpha" 4.05226
+"Br beta" 2.62587
+"Br gamma" 2.16612
+"Br delta" 1.94509
+"Br epsilon" 1.81791
+"Pf alpha" 4.65378
+"Pf beta" 3.74056
+"Pf gamma" 3.29699
+"Pf delta" 3.0392
+"Pf epsilon" 2.873
+"Hu alpha" 5.12865
+"Hu beta" 4.67251
+"Hu gamma" 4.1708
+"Hu delta" 4.02087
+"Hu epsilon" 3.90755

@@ -5,7 +5,7 @@
 # - {name: wave, unit: Angstrom,  datatype: float64}
 # - {name: freq, unit: '',  datatype: string}
 # meta: !!omap
-# - comments: ['Wavelengths are in vacuum', 'freq is the the number of occurences in Fynbo+09']
+# - comments: ['Wavelengths are in vacuum', 'freq is the number of occurences in Fynbo+09']
 # schema: astropy-2.0
 name wave freq
 NiII_2166* 2166.2 6
