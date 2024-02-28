@@ -145,18 +145,22 @@ def generate_fake_2D_spectrum(
 
     if emission_line:
         if isinstance(emission_line, bool):
-            emission_line = {}
+            emission_line = {
+                'mean': 656.28,
+                'stddev': 1,
+                'amplitude': 3,
+            }
 
         # add an emission line
         em_line_1D = sp.gaussian_fct(
             spec_mid,
-            mean=emission_line.get('mean',656.28),
-            stddev=emission_line.get('stddev',1),
-            amplitude=emission_line.get('amplitude',3),
+            mean=emission_line.get('mean', 656.28),
+            stddev=emission_line.get('stddev', 1),
+            amplitude=emission_line.get('amplitude', 3),
         )
         em_line = np.outer(
-            trace_profile.reshape(N_spat,1),
-            em_line_1D.reshape(N_spec,1)
+            trace_profile.reshape(N_spat, 1),
+            em_line_1D.reshape(N_spec, 1)
         )
         trace += em_line
 
@@ -165,8 +169,8 @@ def generate_fake_2D_spectrum(
         neg_trace_profile_u = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)+nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
         neg_trace_profile_l = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)-nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
 
-        neg_trace_l = neg_trace_profile_l.reshape(N_spat,1) * np.ones(flux.shape)
-        neg_trace_u = neg_trace_profile_u.reshape(N_spat,1) * np.ones(flux.shape)
+        neg_trace_l = neg_trace_profile_l.reshape(N_spat, 1) * np.ones(flux.shape)
+        neg_trace_u = neg_trace_profile_u.reshape(N_spat, 1) * np.ones(flux.shape)
 
         if emission_line:
             # add negative emission line
@@ -183,7 +187,9 @@ def generate_fake_2D_spectrum(
 
     # add noise
     flux += np.random.normal(0, 1./SNR, size=flux.shape)
-    flux += trace + neg_trace_l + neg_trace_u
+    flux += trace
+    if nodding:
+        flux += neg_trace_l + neg_trace_u
     flux *= flux_scale
     unc = flux_scale/SNR * np.ones(flux.shape)
 

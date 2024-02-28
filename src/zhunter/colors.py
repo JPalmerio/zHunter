@@ -2,6 +2,9 @@ import pyqtgraph as pg
 from PyQt6 import QtGui
 import logging
 from itertools import cycle
+import cmasher as cmr
+import seaborn as sns
+from matplotlib.colors import PowerNorm
 
 log = logging.getLogger(__name__)
 
@@ -150,6 +153,39 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
         return list(colors.values())
 
 
+def get_spectral_color(wvlg, cmap=None, norm=PowerNorm(1, vmin=1000, vmax=5e4)):
+    """Get a color associated with a wavelength for a given colormap
+    and normalization.
+    If no cmap is provided, a custom one is used, created from the combination
+    of the 'nipy_spectral' and the 'husl' colormaps.
+    This default colormap is valid from 1000 Angstrom to 5 micron.
+    Input wvlg is expected in Angstrom.
+
+    Parameters
+    ----------
+    wvlg : float
+        Wavelength in Angstrom.
+    cmap : None, optional
+        Colormap to use (can be a string or colormap instance)
+    norm : normalization, optional
+        Color normalization (i.e. mapping of wavelength to the [0,1] interval)
+
+    Returns
+    -------
+    list
+        Color as a list of RGBa values
+    """
+    if cmap is None:
+        cmap = cmr.combine_cmaps(
+            cmr.get_sub_cmap('nipy_spectral', 0.04, 0.96),
+            sns.color_palette("husl", as_cmap=True),
+            nodes=[0.2],
+            combined_cmap_name='spectral_UV2IR'
+        )
+    cm = cmr.get_sub_cmap(cmap, 0, 1)
+    return cm(norm(wvlg))
+
+
 KRAKEN9 = {
     "style_name": 'kraken9',
     "spec": "#EBEBEB",
@@ -196,7 +232,7 @@ KRAKEN17 = {
         "#F9B7FF",  # Blossom Pink
         "#FFDF00",  # Golden yellow
         "#64E986",  # Algae
-        "#16E2F5",  # Tucquoise
+        "#16E2F5",  # Turquoise
     ],
     "sky": "#696969",
     "crosshair": "g",

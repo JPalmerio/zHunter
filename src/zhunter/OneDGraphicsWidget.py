@@ -31,7 +31,6 @@ qt_events = (
 events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
-
 class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
     """
     Plotting Widget which subclasses `GraphicsLayoutWidget` and
@@ -104,7 +103,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
     def _create_axis(self, title):
         # Add title on row 0
         self.addLabel(title, row=0)
-        # Define PlotItem as ax1D (subclass of GraphicsItem) on wich to plot stuff
+        # Define PlotItem as ax1D (subclass of GraphicsItem) on which to plot stuff
         self.ax1D = self.addPlot(row=1, col=0, name="1D")
 
     def _align_axis(self):
@@ -114,6 +113,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
 
         # Remove padding so that panning preserves x and y range
         self.ax1D.vb.setDefaultPadding(padding=0.00)
+
         self.ax1D.showGrid(x=True, y=True)
 
     def _create_legend(self):
@@ -195,6 +195,11 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
             xmins.append(spec.displayed_properties['wvlg_min'])
             xmaxs.append(spec.displayed_properties['wvlg_max'])
 
+        xmin = np.min(xmins).value
+        xmax = np.min(xmaxs).value
+
+        return xmin, xmax
+
     @check_active
     def get_yrange(self):
         # Adjust the default viewing range to be reasonable
@@ -256,7 +261,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         spec.sigDispDataChanged.disconnect(self.update_bounds)
 
     def update_bounds(self):
-
+        return
 
     # Display data
     def refresh_units_displayed(self):
@@ -276,34 +281,34 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
             "Observed wavelength" + f" ({self.units['wvlg']})",
         )
 
-    def adjust_1D_yrange(self):
+    # def adjust_1D_yrange(self):
 
 
-        self.ax1D.setYRange(min=ymin, max=ymax)
+    #     self.ax1D.setYRange(min=ymin, max=ymax)
 
-    def set_1D_viewing_limits(self):
-        self.ax1D.vb.setLimits(xMin=self.data.values["wvlg_min"], xMax=self.data.values["wvlg_max"])
+    # def set_1D_viewing_limits(self):
+    #     self.ax1D.vb.setLimits(xMin=self.data.values["wvlg_min"], xMax=self.data.values["wvlg_max"])
 
-    # Sky plots
-    def plot_telluric(self):
-        self.telluric_1D_spec = Telluric(
-            vb=self.telluric_vb,
-            color=self.colors["sky"],
-        )
-        self.telluric_1D_spec.load_spectrum()
-        self.telluric_1D_spec.draw(
-            xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
-        )
+    # # Sky plots
+    # def plot_telluric(self):
+    #     self.telluric_1D_spec = Telluric(
+    #         vb=self.telluric_vb,
+    #         color=self.colors["sky"],
+    #     )
+    #     self.telluric_1D_spec.load_spectrum()
+    #     self.telluric_1D_spec.draw(
+    #         xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
+    #     )
 
-    def plot_sky_bkg(self):
-        self.sky_bkg_1D_spec = SkyBackground(
-            vb=self.sky_bkg_vb,
-            color=self.colors["sky"],
-        )
-        self.sky_bkg_1D_spec.load_spectrum()
-        self.sky_bkg_1D_spec.draw(
-            xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
-        )
+    # def plot_sky_bkg(self):
+    #     self.sky_bkg_1D_spec = SkyBackground(
+    #         vb=self.sky_bkg_vb,
+    #         color=self.colors["sky"],
+    #     )
+    #     self.sky_bkg_1D_spec.load_spectrum()
+    #     self.sky_bkg_1D_spec.draw(
+    #         xmin=self.data.values["wvlg_min"], xmax=self.data.values["wvlg_max"]
+    #     )
 
     def show_hide_telluric(self, show):
         if self.telluric_1D_spec is None:
