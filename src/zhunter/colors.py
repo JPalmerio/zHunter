@@ -4,13 +4,26 @@ import logging
 from itertools import cycle
 import cmasher as cmr
 import seaborn as sns
-from matplotlib.colors import PowerNorm
+from matplotlib.colors import PowerNorm, Colormap, Normalize
 
 log = logging.getLogger(__name__)
 
+REQUIRED_KEYS = [
+    "style_name",
+    "spec",
+    "unc",
+    "specsys",
+    "sky",
+    "crosshair",
+    "background",
+    "foreground",
+    "roi",
+    "continuum",
+    "fit",
+]
+
 
 class ColorManager:
-
     """Class to handle all colors for zHunter
 
     Attributes
@@ -71,7 +84,7 @@ class ColorManager:
             return color, color
         else:
             self.main_color_used = True
-            return self.colors['spec'], self.colors['unc']
+            return self.colors["spec"], self.colors["unc"]
 
     def clear_color_from_available_list(self, color):
         """
@@ -153,7 +166,11 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
         return list(colors.values())
 
 
-def get_spectral_color(wvlg, cmap=None, norm=PowerNorm(1, vmin=1000, vmax=5e4)):
+def get_spectral_color(
+    wvlg: float,
+    cmap: str | Colormap | None = None,
+    norm: Normalize = PowerNorm(1, vmin=1000, vmax=5e4),
+) -> list:
     """Get a color associated with a wavelength for a given colormap
     and normalization.
     If no cmap is provided, a custom one is used, created from the combination
@@ -165,9 +182,9 @@ def get_spectral_color(wvlg, cmap=None, norm=PowerNorm(1, vmin=1000, vmax=5e4)):
     ----------
     wvlg : float
         Wavelength in Angstrom.
-    cmap : None, optional
+    cmap : str or Colormap, optional
         Colormap to use (can be a string or colormap instance)
-    norm : normalization, optional
+    norm : Normalize, optional
         Color normalization (i.e. mapping of wavelength to the [0,1] interval)
 
     Returns
@@ -177,17 +194,40 @@ def get_spectral_color(wvlg, cmap=None, norm=PowerNorm(1, vmin=1000, vmax=5e4)):
     """
     if cmap is None:
         cmap = cmr.combine_cmaps(
-            cmr.get_sub_cmap('nipy_spectral', 0.04, 0.96),
+            cmr.get_sub_cmap("nipy_spectral", 0.04, 0.96),
             sns.color_palette("husl", as_cmap=True),
             nodes=[0.2],
-            combined_cmap_name='spectral_UV2IR'
+            combined_cmap_name="spectral_UV2IR",
         )
     cm = cmr.get_sub_cmap(cmap, 0, 1)
     return cm(norm(wvlg))
 
 
+def _validate_colors(colors: dict) -> None:
+    """Valide that a color dictionary contains the required keys."""
+    log.debug("Validating color dictionary...")
+    if not isinstance(colors, dict):
+        raise TypeError("colors must be a dictionary")
+
+    for key in REQUIRED_KEYS:
+        if key not in colors:
+            raise KeyError(f"Key: '{key}' is missing from colors dictionary")
+
+        if key == "style_name":
+            continue
+        if key == "specsys":
+            if not isinstance(colors[key], list):
+                raise TypeError(
+                    "'specsys' key of colors dictionary must be a list of strings"
+                )
+        else:
+            if not isinstance(colors[key], str):
+                raise TypeError(f"Color of {key} is not a string: {colors[key]}")
+    log.debug("Color dictionary is valid")
+
+
 KRAKEN9 = {
-    "style_name": 'kraken9',
+    "style_name": "kraken9",
     "spec": "#EBEBEB",
     "unc": "#BC271B",  # Rust
     "specsys": [
@@ -212,7 +252,7 @@ KRAKEN9 = {
 }
 
 KRAKEN17 = {
-    "style_name": 'kraken17',
+    "style_name": "kraken17",
     "spec": "#EBEBEB",
     "unc": "#BC271B",  # Rust
     "specsys": [
@@ -245,7 +285,7 @@ KRAKEN17 = {
 
 
 CVD = {
-    "style_name": 'cvd',
+    "style_name": "cvd",
     "spec": "white",
     "unc": "red",
     "specsys": get_cblind_colors(rtype=list, fmt="hex"),
@@ -259,7 +299,7 @@ CVD = {
 }
 
 OLD = {
-    "style_name": 'old',
+    "style_name": "old",
     "spec": "white",
     "unc": "red",
     "specsys": [
@@ -286,7 +326,7 @@ OLD = {
 }
 
 CYBERPUNK = {
-    "style_name": 'cyberpunk',
+    "style_name": "cyberpunk",
     "spec": "white",
     "unc": "red",
     "specsys": ["#08F7FE", "#FE53BB", "#F5D300", "#41ff41", "#ff4141", "#9467bd"],

@@ -15,7 +15,6 @@ FILTER_DIR = ROOT_DIR / "data/filters"
 
 
 class PhotometricFilter:
-
     """Class representing a photometric filter.
 
     Attributes
@@ -34,24 +33,24 @@ class PhotometricFilter:
         Filter width.
     """
 
-    def __init__(self, name, color=None):
-        """Initialize PhotometricFilter
+    def __init__(self, name: str, color: list[str] | None = None) -> None:
+        """Initialize PhotometricFilter.
 
         Parameters
         ----------
         name : str
             Name of the filter.
-        color : None, optional
-            Color assigned to the filter (used for plotting purposes).
-            if None, will use :ref:`zhunter.colors.get_spectral_color`.
-            which yields a color close to the real color of the filter
+        color : list[str], optional
+            Color assigned to the filter (used for plotting purposes) as
+            a list of RGBa values.
+            if ``None``, will use :func:`~zhunter.colors.get_spectral_color`
+            which yields a color close to the real spectral color of the filter
             (for optical filters).
         """
         self.name = name
 
         self._load_filter_transmission(self.name)
         # Get width and center of filter
-
         self.width = self._estimate_width()
         self.center = np.average(self.wavelength, weights=self.transmission)
 
@@ -60,8 +59,9 @@ class PhotometricFilter:
         else:
             self.color = color
 
-    def _load_filter_transmission(self, name):
+    def _load_filter_transmission(self, name: str) -> None:
         """Load filter transmission from a file.
+
         Parameters
         ----------
         name : str
@@ -72,15 +72,18 @@ class PhotometricFilter:
         try:
             data = np.loadtxt(fname).T
         except FileNotFoundError:
+            valid_filters = [f for f in FILTER_DIR.iterdir() if f.suffix == ".dat"]
             raise FileNotFoundError(
                 "Invalid name for photometric filter. "
-                f"For valid names, see {FILTER_DIR}"
-                )
+                f"Valid names are: {valid_filters}.\n"
+                f"To add a filter, add a 'YourFilterName.dat' file in {FILTER_DIR} with "
+                "two space-separated columns: (wvlg_in_Å transmission)"
+            )
 
         self.wavelength = data[0] * u.AA
         self.transmission = data[1] / data[1].max()
 
-    def _estimate_width(self, threshold=0.1):
+    def _estimate_width(self, threshold: float = 0.1) -> u.Quantity:
         """Estimate the width of the filter, using the interval
         where the normalized transmission is greater than a certain threshold
         (0.1 by default).
@@ -101,7 +104,7 @@ class PhotometricFilter:
 
 
 class PhotometricDataPoint:
-    """ Class to represent photometric data.
+    """Class to represent photometric data.
 
     Attributes
     ----------
@@ -122,6 +125,7 @@ class PhotometricDataPoint:
         Visual representation of the data instantiated by a dedicated class.
 
     """
+
     def __init__(
         self, mag, unc, phot_filter, mid_obs_time=None, obs_duration=None, limit=False
     ):
