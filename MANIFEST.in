@@ -1,3 +1,4 @@
+include src/zhunter/config/default_config.yaml
 include src/zhunter/ui/*.ui
 include src/zhunter/data/lines/*.csv
 include src/zhunter/data/lines/*.ecsv
