@@ -11,6 +11,7 @@ dependencies:
   - scipy=1.10
   - specutils>=1.9
   - pyqtgraph>=0.13.1
+  - seaborn>=0.13
   - jupyter                      # For development
   - pytest                       # For code testing
   - pylint                       # For code quality
@@ -24,5 +25,5 @@ dependencies:
     - mplcyberpunk               # For nicer matplotlib colors
     - cmasher                    # For nicer matplotlib colors
     - spectres                   # For spectra rebinning
-    - pyqt>=6.4
+    - pyqt6>=6.4
     - astropalmerio>=0.1.0
