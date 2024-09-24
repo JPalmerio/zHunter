@@ -1,21 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
 import astropy.units as u
 from astropy.time import Time
 
 from matplotlib.colors import colorConverter
+import pyqtgraph as pg
 
-from zhunter import ROOT_DIR
+from zhunter import __ROOT_DIR__
 from zhunter.colors import get_spectral_color
 import logging
 
 log = logging.getLogger(__name__)
-FILTER_DIR = ROOT_DIR / "data/filters"
+FILTER_DIR = __ROOT_DIR__ / "data/filters"
 
 
 class PhotometricFilter:
     """Class representing a photometric filter.
+    Filter data is from Cigale:
+    https://gitlab.lam.fr/cigale/cigale/-/tree/master/database_builder/filters?ref_type=heads
 
     Attributes
     ----------
@@ -113,7 +115,7 @@ class PhotometricDataPoint:
     mag : Quantity
         Magnitude measurement preferably in AB system.
     obs_dur : Quantity
-        Observation duration in seconds or None if unspecified.
+        Observation duration in seconds or ``None`` if unspecified.
     obs_time : Time
         Observation time as an Astropy Time instance.
     phot_filter : PhotometricFilter
@@ -169,7 +171,11 @@ class PhotometricDataPoint:
         )
         self.limit = limit
         self.obs_time = Time(mid_obs_time) if mid_obs_time else mid_obs_time
-        self.obs_dur = obs_duration.to("s") if obs_duration else obs_duration
+        self.obs_dur = (
+            obs_duration.to("s")
+            if isinstance(obs_duration, u.Quantity)
+            else obs_duration
+        )
         self.visrep = None
 
     def plot_mpl(self, ax, mode="spectral", **kwargs):
@@ -185,12 +191,32 @@ class PhotometricDataPoint:
             `spectral` or `temporal`. Spectral plots magnitude versus
             wavelength while temporal plots magnitude versus (observation) time.
         **kwargs
-            Any additional arguments to pass to :ref:`PhotometricDataPointVisRep.create_visual_representation`
+            Any additional arguments to pass to :meth:`PhotometricDataPointVisRep.create_visual_representation`
         """
         self.visrep = PhotometricDataPointVisRep(
             phot_data_point=self, style="matplotlib"
         )
         self.visrep.create_visual_representation(ax=ax, mode=mode, **kwargs)
+
+    def plot_pyqt(self, gw, mode="spectral", **kwargs):
+        """Plot the data point using pyqtgraph.
+        Two modes are possible: `spectral` to plot magnitude
+        versus wavelength or `temporal` to plot magnitude versus time.
+
+        Parameters
+        ----------
+        gw : OneDGraphicsWidget
+            OneDGraphicsWidget on which to plot.
+        mode : str, optional
+            `spectral` or `temporal`. Spectral plots magnitude versus
+            wavelength while temporal plots magnitude versus (observation) time.
+        **kwargs
+            Any additional arguments to pass to :meth:`PhotometricDataPointVisRep.create_visual_representation`
+        """
+        self.visrep = PhotometricDataPointVisRep(
+            phot_data_point=self, style="pyqtgraph"
+        )
+        self.visrep.create_visual_representation(ax=gw, mode=mode, **kwargs)
 
 
 class PhotometricDataPointVisRep:
@@ -205,6 +231,11 @@ class PhotometricDataPointVisRep:
 
         self.pdp = phot_data_point
         self.style = style
+        # By default, visual representation units are the units of the photometric data point
+        self.units = {
+            "wvlg": phot_data_point.phot_filter.wavelength.unit,
+            "flux": phot_data_point.mag.unit,
+        }
         self.spec_artists = []
         self.temp_artists = []
 
@@ -213,8 +244,8 @@ class PhotometricDataPointVisRep:
 
         Parameters
         ----------
-        ax : matplotlib.axes
-            Axe on which to plot.
+        ax : matplotlib.axes or OneDGraphicsWidget
+            Axe or GraphicsWidget on which to plot.
         mode : str, optional
             `spectral` or `temporal`. Spectral plots magnitude versus
             wavelength while temporal plots magnitude versus (observation) time.
@@ -267,12 +298,12 @@ class PhotometricDataPointVisRep:
             wavelength while temporal plots magnitude versus (observation) time.
         ax : matplotlib.axes
             Axe on which to plot.
-        Only used if mode='spectral'. If True will add a violin plot
+        Only used if ``mode='spectral'``. If ``True`` will add a violin plot
             representing the filter transmission scaled to the uncertainty.
             If a limit, will add a hatch and only plot the lower part of the violin.
         y_scale_factor : None, optional
-            Only used if show_violin is True. Factor by which the filter transmission
-            is scaled. If None, will use the uncertainty on the magnitude measurement.
+            Only used if `show_violin` is ``True``. Factor by which the filter transmission
+            is scaled. If ``None``, will use the uncertainty on the magnitude measurement.
         **kwargs
             Any additional arguments to customize the plot.
         """
@@ -342,9 +373,70 @@ class PhotometricDataPointVisRep:
 
         return artists
 
-    def _create_pyqtgraph_specrep(
-        self, ax=None, y_scale_factor=None, show_violin=True, **kwargs
-    ):
-        raise NotImplementedError(
-            "Pyqtgraph spectral representation is not implemented yet"
-        )
+    # def _create_pyqtgraph_visrep(
+    #     self, mode, ax=None, y_scale_factor=None, show_violin=True, **kwargs
+    # ):
+    #     phot_filter = self.pdp.phot_filter
+    #     color = kwargs.pop("color", phot_filter.color)
+    #
+    #     if mode == "spectral":
+    #         _x = phot_filter.center.value
+    #         _xerr = phot_filter.width.value / 2
+    #     elif mode == "temporal":
+    #         _x = self.pdp.obs_time.mjd
+    #         _xerr = (
+    #             self.pdp.obs_time.mjd - (self.pdp.obs_time - self.pdp.obs_dur / 2).mjd
+    #         )
+    #
+    #     _art = pg.ErrorBarItem(
+    #         x=_x,
+    #         y=self.pdp.mag.value,
+    #         top=0 if self.pdp.limit else self.pdp.unc.value,
+    #         bottom=0 if self.pdp.limit else self.pdp.unc.value,
+    #         left=_xerr,
+    #         right=_xerr,
+    #         beam=0,
+    #     )
+    #     ax.addItem(_art)
+    #     artists = [_art]
+    #
+    #     if mode == "spectral" and show_violin:
+    #         # Prepare violin plot data
+    #         x = phot_filter.wavelength.value.copy()
+    #         y = phot_filter.transmission.copy()
+    #
+    #         # Scale y
+    #         # If no scale factor provided, use uncertainty
+    #         if y_scale_factor is None:
+    #             # If photometric data point is a limit, no uncertainty, use 1
+    #             if self.pdp.limit:
+    #                 y_scale_factor = 1
+    #             else:
+    #                 y_scale_factor = self.pdp.unc.value
+    #
+    #         y *= y_scale_factor
+    #         y += self.pdp.mag.value
+    #
+    #         # Plot violin
+    #         _c1 = pg.PlotCurveItem(
+    #             x=x,
+    #             y=y,
+    #             pen=pg.mkPen(
+    #                 color=color,
+    #                 width=kwargs.get("width", 1),
+    #         )
+    #         _c2 = _c1.copy()
+    #         violin_plot = pg.fill_between(
+    #             y1=_c1,
+    #             y2=self.pdp.mag.value if self.pdp.limit else 2 * self.pdp.mag.value - y,
+    #             color=kwargs.pop("color", phot_filter.color),
+    #             hatch="/" if self.pdp.limit else None,
+    #             facecolor=colorConverter.to_rgba(color, alpha=0.1),
+    #             linewidth=kwargs.get("linewidth", 0.5),
+    #             **kwargs,
+    #         )
+    #         artists.append(violin_plot)
+    #     return artists
+
+    def set_units(self, units: dict):
+        self.units.update(units)
