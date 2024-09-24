@@ -44,7 +44,7 @@ class BaseOneDSpectrum(QtCore.QObject):
 
     """
 
-    sigUnitstChanged = QtCore.pyqtSignal()
+    sigUnitsChanged = QtCore.pyqtSignal()
 
     def __init__(self, name="", **kwargs):
         super().__init__()
@@ -54,7 +54,15 @@ class BaseOneDSpectrum(QtCore.QObject):
         self.header = None
 
     def load_from_file(self, fname, **args):
-
+        """Load spectrum from a file.
+        
+        Parameters
+        ----------
+        fname : str or Path
+            Path to the file containing the spectrum.
+        **args
+            Any additional arguments to pass to :ref:`zhunter.io.read_1D_spectrum`
+        """
         fname = Path(fname)
         self.properties["filename"] = fname
         if not self.name:
@@ -114,13 +122,14 @@ class BaseOneDSpectrum(QtCore.QObject):
                 "Make sure you have loaded data before attempting to set units."
             )
 
+        log.debug(f"Setting flux units to {unit}")
         self.data["flux"] = self.data["flux"].value * u.Unit(unit)
 
         if "unc" in self.data.keys():
             self.data["unc"] = self.data["unc"].value * u.Unit(unit)
 
         self._update_properties()
-        self.sigUnitstChanged.emit()
+        self.sigUnitsChanged.emit()
 
     def set_wvlg_unit(self, unit):
         if "wvlg" not in self.data.keys():
@@ -129,10 +138,11 @@ class BaseOneDSpectrum(QtCore.QObject):
                 "Make sure you have loaded data before attempting to set units."
             )
 
+        log.debug(f"Setting wavelength units to {unit}")
         self.data["wvlg"] = self.data["wvlg"].value * u.Unit(unit)
 
         self._update_properties()
-        self.sigUnitstChanged.emit()
+        self.sigUnitsChanged.emit()
 
     def info(self):
         log.info(
@@ -186,64 +196,18 @@ class OneDSpectrum(QtCore.QObject):
             'flux': {},
             'smoothing': {
                 'apply': False,
-                'function': None,
+                'func': None,
                 'args': {},
             },
-            'display': {
-                # Default plot properties
-                'flux_units': None,
-                'wvlg_units': None,
-                'bounds': None,
-                'plotting': {
-                    "color": "white",
-                    "color_unc": "red",
-                    "width": 1,
-                    "width_unc": 0.5,
-                },
-            },
         }
-
-        # Update the properties from keyword arguments
-        self.properties["display"]["plotting"].update({**kwargs})
-
-        # Main plot item
-        self.PlotItem = pg.PlotCurveItem(
-            np.zeros(2),
-            np.zeros(1),
-            stepMode="center",
-            pen=pg.mkPen(
-                color=self.properties["display"]["plotting"]["color"],
-                width=self.properties["display"]["plotting"]["width"],
-            ),
-        )
-
-        # Uncertainty plot item
-        brush_color = QtGui.QColor(self.properties["display"]["plotting"]["color_unc"])
-        # Make the brush slightly transparent for filling down to 0.
-        brush_color.setAlpha(60)
-        self.PlotItem_unc = pg.PlotCurveItem(
-            np.zeros(2),
-            np.zeros(1),
-            stepMode="center",
-            pen=pg.mkPen(
-                color=brush_color,
-                width=self.properties["display"]["plotting"]["width_unc"],
-            ),
-            brush=pg.mkBrush(
-                color=brush_color,
-            ),
-            style=self.properties["display"]["plotting"].get(
-                "style",
-                QtCore.Qt.PenStyle.DashLine
-            ),
-            fillLevel=0,
-        )
+        self.visrep = None
 
     def load_from_base_spec(self, base_spec):
         if not isinstance(base_spec, BaseOneDSpectrum):
             raise TypeError("base_spec must be a BaseOneDSpectrum instance.")
 
         self.base_spec = base_spec
+        self.base_spec.sigUnitsChanged.connect(self._update_units_from_base)
         self._reset_data()
 
     def load_from_file(self, fname, **args):
@@ -251,6 +215,7 @@ class OneDSpectrum(QtCore.QObject):
         base_spec = BaseOneDSpectrum(name=self.name)
         base_spec.load_from_file(fname=fname, **args)
         self.base_spec = base_spec
+        self.base_spec.sigUnitsChanged.connect(self._update_units_from_base)
         self._reset_data()
 
     def load_from_data(self, wvlg, flux, unc=None):
@@ -268,7 +233,15 @@ class OneDSpectrum(QtCore.QObject):
         base_spec = BaseOneDSpectrum(name=self.name)
         base_spec.load_from_data(wvlg=wvlg, flux=flux, unc=unc)
         self.base_spec = base_spec
+        self.base_spec.sigUnitsChanged.connect(self._update_units_from_base)
         self._reset_data()
+
+    def _update_units_from_base(self):
+        log.debug("Updating units from base spectrum")
+        for key in ("wvlg", "flux", "unc"):
+            self.data[key] = self.data[key].value * self.base_spec.data[key].unit
+        self._update_properties()
+        self.sigDataChanged.emit()
 
     def _reset_data(self):
         """Reset the displayed data to the data loaded in base spectrum."""
@@ -279,6 +252,7 @@ class OneDSpectrum(QtCore.QObject):
 
         self.data.update(self.base_spec.data)
         self._update_properties()
+        self.sigDataChanged.emit()
 
     def _update_data(self, data):
         """
@@ -293,6 +267,7 @@ class OneDSpectrum(QtCore.QObject):
         log.debug(f"Updating the following data: {list(data.keys())}")
         self.data.update(data)
         self._update_properties()
+        self.sigDataChanged.emit()
 
     def _update_properties(self):
         # Wavelength
@@ -312,38 +287,38 @@ class OneDSpectrum(QtCore.QObject):
     def set_base_wvlg_unit(self, unit):
         self.base_spec.set_wvlg_unit(unit)
 
-    def show(self):
-        self.PlotItem.show()
-        self.PlotItem_unc.show()
-
-    def hide(self):
-        self.PlotItem.hide()
-        self.PlotItem_unc.hide()
-
-    def clear(self):
-        self.PlotItem.clear()
-        self.PlotItem_unc.clear()
-
     def info(self):
         log.info(
             f"Properties of {self}:\n"
             + pformat(self.properties, sort_dicts=False)
         )
 
-    def prepare_data_for_display(self):
+    def apply_smoothing(self, args):
+        self.properties["smoothing"].update(args)
 
         # Apply smoothing
         if self.properties["smoothing"]["apply"] is True:
+            log.debug(
+                f"Applying smoothing:\n{pformat(self.properties['smoothing'])}"
+            )
+            func = self.properties["smoothing"]["func"]
+            _wvlg, _flux, _unc = func(
+                self.data["wvlg"].value,
+                self.data["flux"].value,
+                self.data["unc"].value,
+                **self.properties["smoothing"]["args"],
+            )
+            # Smoothed data
+            smoothed_data = {
+                "wvlg": _wvlg*self.data["wvlg"].unit,
+                "flux": _flux*self.data["flux"].unit,
+                "unc": _unc*self.data["unc"].unit,
+            }
+            self._update_data(smoothed_data)
 
-        # Cut the bounds
-        if self.properties["display"]["bounds"] is not None:
-            xmin, xmax = self.properties["display"]["bounds"]
-            wvlg, flux, unc = self.extract_subspectrum_between(xmin, xmax)
-            self.data["wvlg"] = wvlg
-            self.data["flux"] = flux
-            self.data["unc"] = unc
-
-        self._update_properties()
+        else:
+            log.debug("No smoothing applied.")
+            self._reset_data()
 
     def extract_subspectrum_between(self, xmin=None, xmax=None):
         """Extract a subspectrum between a min and max bound.
@@ -383,7 +358,80 @@ class OneDSpectrum(QtCore.QObject):
         unc = self.data["unc"][imin:imax]
         return wvlg, flux, unc
 
-    def update_plotted_items(self, bounds=None, vb_units=(None, None)):
+    def plot(self, vb):
+        if self.visrep is None:
+            self.visrep = OneDSpectrumVisRep(spectrum=self)
+
+
+class OneDSpectrumVisRep(QtCore.QObject):
+    def __init__(self, spectrum, **kwargs):
+        super().__init__()
+        if not isinstance(spectrum, OneDSpectrum):
+            raise TypeError("spectrum must be a OneDSpectrum instance.")
+
+        self.spec = spectrum
+
+        self.spec.sigDataChanged.connect(self.update)
+
+        # By default, visual representation units are the units of the spectrum
+        self.units = {
+            'wvlg': spectrum.data['wvlg'].unit,
+            'flux': spectrum.data['flux'].unit,
+        }
+
+        # Default properties
+        self.properties = {
+            "color": kwargs.get("color", "white"),
+            # For uncertainty, try to get 'color_unc' keyword, otherwise use
+            # 'color' keyword if it was specified, otherwise use red
+            "color_unc": kwargs.get("color_unc", kwargs.get("color", "red")),
+            "width": kwargs.get("width", 1),
+            "width_unc": kwargs.get("width_unc", 0.5),
+        }
+
+        # Update the properties from keyword arguments
+        self.properties.update({**kwargs})
+
+        # Main plot item
+        self.PlotItem = pg.PlotCurveItem(
+            np.zeros(2),
+            np.zeros(1),
+            stepMode="center",
+            pen=pg.mkPen(
+                color=self.properties["color"],
+                width=self.properties["width"],
+            ),
+        )
+
+        # Uncertainty plot item
+        brush_color = QtGui.QColor(self.properties["color_unc"])
+        # Make the brush slightly transparent for filling down to 0.
+        brush_color.setAlpha(60)
+        self.PlotItem_unc = pg.PlotCurveItem(
+            np.zeros(2),
+            np.zeros(1),
+            stepMode="center",
+            pen=pg.mkPen(
+                color=brush_color,
+                width=self.properties["width_unc"],
+            ),
+            brush=pg.mkBrush(
+                color=brush_color,
+            ),
+            style=self.properties.get(
+                "style",
+                QtCore.Qt.PenStyle.DashLine
+            ),
+            fillLevel=0,
+        )
+
+    def info(self):
+        log.info(
+            f"Properties of {self}:\n"
+            + pformat(self.properties, sort_dicts=False)
+        )
+
+    def update(self, bounds=None, vb_units=None):
         """Update the PlotItems representing the spectrum and uncertainty.
         Bounds can be specified to only plot between certain
         values. Units of the ViewBox should be specified in order to
@@ -399,36 +447,62 @@ class OneDSpectrum(QtCore.QObject):
         bounds : tuple, optional, default None
             Bounds outside of which the spectrum is not plotted.
             ex: (3000 * u.AA, 6000 * u.AA)
-        vb_units : tuple, optional
+        vb_units : tuple, optional, default None
             Units of ViewBox. First element of the tuple is the
             x axis, second element is the y axis. ex: ('nm', 'Jy')
         """
-        log.info("Updating displayed spectrum")
 
-        if bounds is not None:
-            log.debug(f"Bounds provided: {bounds}")
-            xmin, xmax = bounds
-            # Store them
-            self.properties["display"]["bounds"] = bounds
-        else:
-            # If no bounds provided, look for existing bounds
-            # in displayed properties dictionary
-            if self.properties["display"]["bounds"] is not None:
+        log.info("Updating visual representation of spectrum")
+
+        # if bounds is not None:
+        #     log.debug(f"Bounds provided: {bounds}")
+        #     xmin, xmax = bounds
+        #     # Store them
+        #     self.properties["bounds"] = bounds
+        # else:
+        #     # If no bounds provided, look for existing bounds
+        #     # in displayed properties dictionary
+        #     if self.properties["bounds"] is not None:
+        #         log.debug(
+        #             f"No bounds provided, using bounds stored in dictionary: {bounds}"
+        #         )
+        #         xmin, xmax = self.properties["bounds"]
+        #     else:
+        #         log.debug("No bounds provided, using full spectrum")
+        #         xmin, xmax = None, None
+
+        xmin, xmax = None, None
+        x, y, unc = self.spec.extract_subspectrum_between(xmin, xmax)
+
+        if vb_units is None:
+            # Wavelength
+            if "wvlg" in self.units:
                 log.debug(
-                    f"No bounds provided, using bounds stored in dictionary: {bounds}"
+                    f"No units specified for wavelength, using existing units: {self.units['wvlg']}"
                 )
-                xmin, xmax = self.properties["display"]["bounds"]
+                x_unit = self.units["wvlg"]
             else:
-                log.debug("No bounds provided, using full spectrum")
-                xmin, xmax = None, None
+                log.debug(f"No units specified for wavelength, using spectrum units: {x.unit}")
+                x_unit = x.unit
+            # Flux
+            if "flux" in self.units:
+                log.debug(
+                    f"No units specified for flux, using existing units: {self.units['flux']}"
+                )
+                y_unit = self.units["flux"]
+            else:
+                log.debug(f"No units specified for flux, using spectrum units: {y.unit}")
+                y_unit = y.unit
+        else:
+            # Get units of the ViewBox
+            x_unit, y_unit = vb_units
+            log.debug(
+                f"Converting spectrum to provided units (wvlg,flux): ({x_unit},{y_unit})")
 
-        x, y, unc = self.extract_subspectrum_between(xmin, xmax)
+            # Store them
+            self.units["wvlg"] = x_unit
+            self.units["flux"] = y_unit
 
-        # Get units of the ViewBox
-        x_unit, y_unit = vb_units
-        # Store them
-        self.properties["wvlg_unit"] = x.unit if x_unit is None else x_unit
-        self.properties["flux_unit"] = y.unit if y_unit is None else y_unit
         # Convert to the desired units (if units are None, uses its own units)
         x = convert_wvlg_to_value(wvlg=x, unit=x_unit)
         y = convert_flux_to_value(flux=y, unit=y_unit, wvlg=x)
@@ -446,7 +520,20 @@ class OneDSpectrum(QtCore.QObject):
         else:
             self.PlotItem_unc.setData(x=x, y=unc)
 
-        self.sigDataChanged.emit()
+    def set_units(self, units: dict):
+        self.units.update(units)
+
+    def show(self):
+        self.PlotItem.show()
+        self.PlotItem_unc.show()
+
+    def hide(self):
+        self.PlotItem.hide()
+        self.PlotItem_unc.hide()
+
+    def clear(self):
+        self.PlotItem.clear()
+        self.PlotItem_unc.clear()
 
 
 # class TwoDSpectrum(OneDSpectrum):

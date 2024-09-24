@@ -6,6 +6,7 @@ from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
 import zhunter.initialize as init
 from zhunter.spectrum import OneDSpectrum
 from zhunter.decorators import check_active
+from zhunter.spectrum import OneDSpectrumVisRep
 
 import numpy as np
 
@@ -31,7 +32,7 @@ qt_events = (
 events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
-class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
+class OneDSpectralWidget(pg.GraphicsLayoutWidget):
     """
     Plotting Widget which subclasses `GraphicsLayoutWidget` and
     installs handling of key presses.
@@ -51,8 +52,9 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         self.scene().sigMouseMoved.connect(self.update_mouse_pos)
         self.active = False
         self.parentWidget = None
-        self.units = None
+        self.units = {}
         self.plotted_spectra = []
+        self.plotted_photometry = []
 
     def set_parent(self, parent):
         log.debug(f"Setting parent Widget to {parent}")
@@ -186,35 +188,35 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         self.ax1D.addItem(self.lam2_line)
 
     # Get limits
-    @check_active
-    def get_xlim(self):
+    # @check_active
+    # def get_xlim(self):
 
-        xmins = []
-        xmaxs = []
-        for spec in self.plotted_spectra:
-            xmins.append(spec.displayed_properties['wvlg_min'])
-            xmaxs.append(spec.displayed_properties['wvlg_max'])
+    #     xmins = []
+    #     xmaxs = []
+    #     for spec in self.plotted_spectra:
+    #         xmins.append(spec.properties['wvlg_min'])
+    #         xmaxs.append(spec.properties['wvlg_max'])
 
-        xmin = np.min(xmins).value
-        xmax = np.min(xmaxs).value
+    #     xmin = np.min(xmins).value
+    #     xmax = np.min(xmaxs).value
 
-        return xmin, xmax
+    #     return xmin, xmax
 
-    @check_active
-    def get_yrange(self):
-        # Adjust the default viewing range to be reasonable
-        # and avoid really large values from bad pixels
-        ymins = []
-        ymaxs = []
-        for spec in self.plotted_spectra:
-            _ymin = spec.displayed_properties["flux_q025"].to(self.units["flux"])
-            _ymax = spec.displayed_properties["flux_q975"].to(self.units["flux"])
-            ymins.append(_ymin)
-            ymaxs.append(_ymax)
+    # @check_active
+    # def get_yrange(self):
+    #     # Adjust the default viewing range to be reasonable
+    #     # and avoid really large values from bad pixels
+    #     ymins = []
+    #     ymaxs = []
+    #     for spec in self.plotted_spectra:
+    #         _ymin = spec.properties["flux_q025"].to(self.units["flux"])
+    #         _ymax = spec.properties["flux_q975"].to(self.units["flux"])
+    #         ymins.append(_ymin)
+    #         ymaxs.append(_ymax)
 
-        ymin = np.min(ymins).value
-        ymax = np.min(ymaxs).value
-        return ymin, ymax
+    #     ymin = np.min(ymins).value
+    #     ymax = np.min(ymaxs).value
+    #     return ymin, ymax
 
     def clear_all(self):
 
@@ -227,41 +229,92 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
             pass
 
         # Clear spectra
-        for spec in self.plotted_spectra:
-            spec.clear()
+        for spectrum_visrep in self.plotted_spectra:
+            spectrum_visrep.clear()
 
         self.plotted_spectra = []
 
         # Reset units and set as inactive
-        self.units = None
+        self.units = {}
         self.clear()
         self.active = False
 
     @check_active
-    def add_spectrum(self, spec):
+    def add_photometry(self, phot_visrep):
 
-        if not isinstance(spec, OneDSpectrum):
-            raise ValueError("Spectrum must be a OneDSpectrum instance.")
+        if not isinstance(phot_visrep, OneDSpectrumVisRep):
+            raise ValueError("phot_visrep must be a OneDSpectrumVisRep instance.")
 
-        self.ax1D.vb.addItem(spec.PlotItem)
-        self.ax1D.vb.addItem(spec.PlotItem_unc)
-        self.plotted_spectra.append(spec)
+        log.info("Adding visual representation of a photometry")
+        if not self.units:
+            log.debug("No units defined for this ViewBox, assigning photometry units")
+            self.units = phot_visrep.mag.unit
+        else:
+            phot_visrep.set_units(self.units)
+        phot_visrep.update()
+        self.ax1D.vb.addItem(phot_visrep.PlotItem)
+        self.ax1D.vb.addItem(phot_visrep.PlotItem_unc)
 
-        spec.sigDispDataChanged.connect(self.update_bounds)
+        # if this is the first object plotted, adjust ViewBox range
+        if not self.plotted_spectra and not self.plotted_photometry:
+            data = phot_visrep.PlotItem.getData()
+            self.ax1D.setXRange(
+                min=np.min(data[0]),
+                max=np.max(data[0]),
+            )
+            self.ax1D.setYRange(
+                min=np.min(data[1]),
+                max=np.max(data[1]),
+            )
+
+        self.plotted_spectra.append(phot_visrep)
 
     @check_active
-    def remove_spectrum(self, spec):
+    def add_spectrum(self, spectrum_visrep):
 
-        if spec not in self.plotted_spectra:
+        if not isinstance(spectrum_visrep, OneDSpectrumVisRep):
+            raise ValueError("spectrum_visrep must be a OneDSpectrumVisRep instance.")
+
+        log.info("Adding visual representation of a spectrum")
+        if not self.units:
+            log.debug("No units defined for this ViewBox, assigning spectrum units")
+            self.units = spectrum_visrep.units
+        else:
+            spectrum_visrep.set_units(self.units)
+        spectrum_visrep.update()
+        self.ax1D.vb.addItem(spectrum_visrep.PlotItem)
+        self.ax1D.vb.addItem(spectrum_visrep.PlotItem_unc)
+
+        # if this is the first object plotted, adjust ViewBox range
+        if not self.plotted_spectra and not self.plotted_photometry:
+            data = spectrum_visrep.PlotItem.getData()
+            self.ax1D.setXRange(
+                min=np.min(data[0]),
+                max=np.max(data[0]),
+            )
+            self.ax1D.setYRange(
+                min=np.min(data[1]),
+                max=np.max(data[1]),
+            )
+
+        self.plotted_spectra.append(spectrum_visrep)
+
+
+        # spec.sigDispDataChanged.connect(self.update_bounds)
+
+    @check_active
+    def remove_spectrum(self, spectrum_visrep):
+
+        if spectrum_visrep not in self.plotted_spectra:
             raise ValueError("Spectrum is not in list")
 
-        self.ax1D.vb.removeItem(spec.PlotItem)
-        self.ax1D.vb.removeItem(spec.PlotItem_unc)
-        self.plotted_spectra.remove(spec)
-        spec.sigDispDataChanged.disconnect(self.update_bounds)
+        log.info("Removing visual representation of a spectrum")
 
-    def update_bounds(self):
-        return
+        self.ax1D.vb.removeItem(spectrum_visrep.PlotItem)
+        self.ax1D.vb.removeItem(spectrum_visrep.PlotItem_unc)
+        self.plotted_spectra.remove(spectrum_visrep)
+
+        # spec.sigDispDataChanged.disconnect(self.update_bounds)
 
     # Display data
     def refresh_units_displayed(self):
@@ -326,11 +379,11 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         else:
             self.sky_bkg_1D_spec.hide()
 
-    def show_hide_uncertainty(self, show):
-        if show:
-            self.unc_1D_spec.show()
-        else:
-            self.unc_1D_spec.hide()
+    # def show_hide_uncertainty(self, show):
+    #     if show:
+    #         self.unc_1D_spec.show()
+    #     else:
+    #         self.unc_1D_spec.hide()
 
     # Events
     def keyPressEvent(self, ev):
@@ -423,7 +476,7 @@ class OneDGraphicsWidget(pg.GraphicsLayoutWidget):
         if vb is self.ax1D.vb:
             msg = (
                 f"Wavelength = {view_pos.x():0.3f} {self.units['wvlg']}, "
-                + f"Flux = {view_pos.y():0.3f} {self.units['flux_1D']}"
+                + f"Flux = {view_pos.y():0.3f} {self.units['flux']}"
             )
 
         self.parentWidget.statusBar().showMessage(msg)

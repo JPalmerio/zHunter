@@ -11,7 +11,6 @@ def check_active(func):
     @functools.wraps(func)
     def wrapper_check_active(self, *args, **kwargs):
         if self.active:
-            func(self, *args, **kwargs)
             return func(self, *args, **kwargs)
         else:
             log.debug(f"Ignoring call to {func.__name__} as {self} is not active.")
