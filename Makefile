@@ -1,4 +1,4 @@
-VERSION = 0.10.4
+VERSION = 1.0.0
 PKG_NAME = 'zhunter'
 
 upload2pip: pybuild twine

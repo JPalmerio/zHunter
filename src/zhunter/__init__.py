@@ -1,7 +1,7 @@
 from pathlib import Path
 from zhunter.MainGraphicsWidget import MainGraphicsWidget
 
-__version__ = "0.10.4"
+__version__ = "1.0.0"
 
 __all__ = ["MainGraphicsWidget"]
 
