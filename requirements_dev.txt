@@ -5,3 +5,5 @@ sphinx
 coverage
 black
 twine
+jupyter
+build

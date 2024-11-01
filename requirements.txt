@@ -6,5 +6,8 @@ pandas==2.2.3
 spectres==2.2.2
 seaborn==0.13.2
 astropy==6.1.4
+scipy==1.14.1
 specutils==1.18.0
 astropalmerio==0.1.1
+mplcyberpunk==0.7.1
+cmasher==1.9.0
