@@ -27,6 +27,7 @@ qt_events = (
     (getattr(QtCore.QEvent.Type, event).name, getattr(QtCore.QEvent.Type, event).value)
     for event in dir(QtCore.QEvent.Type)
     if not event.startswith("_")
+    and isinstance(getattr(QtCore.QEvent.Type, event), QtCore.QEvent.Type)
 )
 events_mapping = defaultdict(lambda: "unknown", qt_events)
 
@@ -484,7 +485,9 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         # This is to avoid extracting with the wrong ROI dimensions
         self.roi.blockSignals(True)
         self.roi.setSize([self.data.values["wvlg_span"], width])
-        self.roi.setPos([self.data.values["wvlg_min"], self.data.values["spat_med"] - width / 2])
+        self.roi.setPos(
+            [self.data.values["wvlg_min"], self.data.values["spat_med"] - width / 2]
+        )
         self.roi.blockSignals(False)
         # Now send signals
         self.roi.sigRegionChanged.emit(self.roi)
@@ -493,7 +496,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
     def refresh_units_displayed(self):
         if self.active:
             self.set_1D_labels()
-            if self.mode == '2D':
+            if self.mode == "2D":
                 self.set_2D_labels()
 
     def set_2D_labels(self):
@@ -551,14 +554,18 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         )
 
     def set_1D_viewing_limits(self):
-        self.ax1D.vb.setLimits(xMin=self.data.values["wvlg_min"], xMax=self.data.values["wvlg_max"])
+        self.ax1D.vb.setLimits(
+            xMin=self.data.values["wvlg_min"], xMax=self.data.values["wvlg_max"]
+        )
 
     def set_up_img_colobar(self):
         self.img_colorbar.setImageItem(self.flux_2D_img)
         self.img_colorbar.setHistogramRange(
             self.data.values["q025_2D"], self.data.values["q975_2D"]
         )
-        self.img_colorbar.setLevels(self.data.values["q025_2D"], self.data.values["q975_2D"])
+        self.img_colorbar.setLevels(
+            self.data.values["q025_2D"], self.data.values["q975_2D"]
+        )
         cmap = pg.colormap.get("afmhot", source="matplotlib")
         self.img_colorbar.gradient.setColorMap(cmap)
 
@@ -626,7 +633,7 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
         """
 
         arcsec_min = self.roi.pos()[1]
-        arcsec_max = (self.roi.pos()[1] + self.roi.size()[1])
+        arcsec_max = self.roi.pos()[1] + self.roi.size()[1]
 
         flux_1D, unc_1D = extract_1d_from_2d(
             spatial=self.data.values["spat_disp"],
@@ -635,9 +642,9 @@ class MainGraphicsWidget(pg.GraphicsLayoutWidget):
             uncertainty=self.data.values["unc_2D_disp"],
         )
 
-        flux_1D = flux_1D * self.data.units['flux_2D']
-        unc_1D = unc_1D * self.data.units['flux_2D']
-        wvlg_1D = self.data.values["wvlg_disp"] * self.data.units['wvlg']
+        flux_1D = flux_1D * self.data.units["flux_2D"]
+        unc_1D = unc_1D * self.data.units["flux_2D"]
+        wvlg_1D = self.data.values["wvlg_disp"] * self.data.units["wvlg"]
 
         return wvlg_1D, flux_1D, unc_1D
 

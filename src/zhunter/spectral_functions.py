@@ -5,6 +5,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.io import fits
+from astropy.units import Quantity
 import logging
 
 log = logging.getLogger(__name__)
@@ -30,17 +31,19 @@ def extract_1d_from_2d(spatial, flux, spat_bounds, unc=None):
     if isinstance(flux, u.Quantity):
         flux = flux.value
     extracted_flux = np.zeros(flux.shape[1])
-    for i in range(index_max-index_min):
-        extracted_flux += flux[index_min+i]
+    for i in range(index_max - index_min):
+        extracted_flux += flux[index_min + i]
 
     # if uncertainty
     if unc is not None:
         if isinstance(unc, u.Quantity):
             unc = unc.value
         extracted_unc = np.zeros(unc.shape[1])
-        for i in range(index_max-index_min):
-            extracted_unc += unc[index_min+i]**2  # quadratic sum for error propagation
-        extracted_unc = np.sqrt(extracted_unc)    # quadratic sum for error propagation
+        for i in range(index_max - index_min):
+            extracted_unc += (
+                unc[index_min + i] ** 2
+            )  # quadratic sum for error propagation
+        extracted_unc = np.sqrt(extracted_unc)  # quadratic sum for error propagation
     else:
         extracted_unc = np.zeros(flux.shape[1])
 
@@ -103,9 +106,7 @@ def air_to_vac(wavelength):
     Griesen 2006
     """
     wlum = wavelength.to(u.um).value
-    return (
-        1 + 1e-6 * (287.6155 + 1.62887 / wlum**2 + 0.01360 / wlum**4)
-    ) * wavelength
+    return (1 + 1e-6 * (287.6155 + 1.62887 / wlum**2 + 0.01360 / wlum**4)) * wavelength
 
 
 def vac_to_air(wavelength):
@@ -116,3 +117,33 @@ def vac_to_air(wavelength):
     wlum = wavelength.to(u.um).value
     nl = 1 + 1e-6 * (287.6155 + 1.62887 / wlum**2 + 0.01360 / wlum**4)
     return wavelength / nl
+
+
+def gaussian_fct(
+    x: np.ndarray | float | Quantity,
+    mean: np.ndarray | float | Quantity,
+    stddev: np.ndarray | float | Quantity,
+    amplitude: np.ndarray | float | Quantity | None = None,
+) -> np.ndarray | float | Quantity:
+    """Return a Gaussian function.
+
+    Parameters
+    ----------
+    x : np.ndarray or float or Quantity
+        The x values.
+    mean : np.ndarray or float or Quantity
+        The mean of the Gaussian.
+    stddev : np.ndarray or float or Quantity
+        The standard deviation of the Gaussian.
+    amplitude : np.ndarray or float or Quantity or None
+        The amplitude of the Gaussian. If None, the Gaussian is normalized
+        as a probability density function.
+
+    Returns
+    -------
+    np.ndarray or float or Quantity
+        The Gaussian function evaluated at each point in x.
+    """
+    if amplitude is None:
+        amplitude = 1.0 / (np.sqrt(2.0 * np.pi) * stddev)
+    return amplitude * np.exp(-((x - mean) ** 2) / (2.0 * stddev**2))

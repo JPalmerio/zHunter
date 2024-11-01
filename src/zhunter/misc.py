@@ -6,12 +6,13 @@ from astropy.units.quantity import Quantity
 from astropy.table import Table
 import astropy.units as u
 import pyqtgraph as pg
-import astropalmerio.spectra as sp
 
 from PyQt6 import QtWidgets
 from PyQt6 import QtCore
 
 import zhunter.io as io
+from zhunter.conversions import fwhm_to_sigma
+from zhunter.spectral_functions import gaussian_fct
 
 log = logging.getLogger(__name__)
 
@@ -40,8 +41,8 @@ def generate_fake_1D_spectrum(
     spec_start=550,
     spec_end=700,
     N_spec=7500,
-    spec_unit='nm',
-    flux_unit='erg s-1 cm-2 AA-1',
+    spec_unit="nm",
+    flux_unit="erg s-1 cm-2 AA-1",
     emission_line=None,
 ):
     """
@@ -81,11 +82,13 @@ def generate_fake_1D_spectrum(
             emission_line = {}
 
         # add an emission line
-        mean = emission_line.get('mean', 656.28)
-        stddev = emission_line.get('stddev', 1)
-        amplitude = emission_line.get('amplitude', continuum+3)
-        log.debug(f"Adding an emission line with mean: {mean}, stddev: {stddev}, amplitude: {amplitude}")
-        em_line_1D = sp.gaussian_fct(
+        mean = emission_line.get("mean", 656.28)
+        stddev = emission_line.get("stddev", 1)
+        amplitude = emission_line.get("amplitude", continuum + 3)
+        log.debug(
+            f"Adding an emission line with mean: {mean}, stddev: {stddev}, amplitude: {amplitude}"
+        )
+        em_line_1D = gaussian_fct(
             spec_mid,
             mean=mean,
             stddev=stddev,
@@ -94,9 +97,9 @@ def generate_fake_1D_spectrum(
         flux += em_line_1D
 
     # add noise
-    flux += np.random.normal(0, 1./SNR, size=flux.shape)
+    flux += np.random.normal(0, 1.0 / SNR, size=flux.shape)
     flux *= flux_scale
-    unc = flux_scale/SNR * np.ones(flux.shape)
+    unc = flux_scale / SNR * np.ones(flux.shape)
 
     # Add units
     if spec_unit is not None:
@@ -118,56 +121,66 @@ def generate_fake_2D_spectrum(
     N_spat=101,
     spec_pix_scale=0.02,
     spat_pix_scale=0.16,
-    spec_unit='nm',
-    spat_unit='arcsec',
-    flux_unit='erg s-1 cm-2 AA-1',
+    spec_unit="nm",
+    spat_unit="arcsec",
+    flux_unit="erg s-1 cm-2 AA-1",
     emission_line=None,
     nodding=True,
     nod_throw=5,
 ):
-    """
-    """
-    seeing_px = seeing/spat_pix_scale
+    """ """
+    seeing_px = seeing / spat_pix_scale
 
     # Spectral dimension
-    spec_end = spec_start + N_spec*spec_pix_scale
+    spec_end = spec_start + N_spec * spec_pix_scale
     spec_mid = np.linspace(spec_start, spec_end, N_spec)
 
     # Spatial dimension
-    spat_end = spat_start + N_spat*spat_pix_scale
+    spat_end = spat_start + N_spat * spat_pix_scale
     spat_mid = np.linspace(spat_start, spat_end, N_spat)
 
     flux = np.zeros((N_spat, N_spec))
 
     # Center trace
-    trace_profile = sp.gaussian_fct(spat_mid, mean=np.median(spat_mid), stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
-    trace = trace_profile.reshape(N_spat,1) * np.ones(flux.shape)
+    trace_profile = gaussian_fct(
+        spat_mid, mean=np.median(spat_mid), stddev=fwhm_to_sigma(seeing), amplitude=1
+    )
+    trace = trace_profile.reshape(N_spat, 1) * np.ones(flux.shape)
 
     if emission_line:
         if isinstance(emission_line, bool):
             emission_line = {
-                'mean': 656.28,
-                'stddev': 1,
-                'amplitude': 3,
+                "mean": 656.28,
+                "stddev": 1,
+                "amplitude": 3,
             }
 
         # add an emission line
-        em_line_1D = sp.gaussian_fct(
+        em_line_1D = gaussian_fct(
             spec_mid,
-            mean=emission_line.get('mean', 656.28),
-            stddev=emission_line.get('stddev', 1),
-            amplitude=emission_line.get('amplitude', 3),
+            mean=emission_line.get("mean", 656.28),
+            stddev=emission_line.get("stddev", 1),
+            amplitude=emission_line.get("amplitude", 3),
         )
         em_line = np.outer(
-            trace_profile.reshape(N_spat, 1),
-            em_line_1D.reshape(N_spec, 1)
+            trace_profile.reshape(N_spat, 1), em_line_1D.reshape(N_spec, 1)
         )
         trace += em_line
 
     if nodding:
         # Negative traces to mimick nodding
-        neg_trace_profile_u = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)+nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
-        neg_trace_profile_l = -sp.gaussian_fct(spat_mid, mean=np.median(spat_mid)-nod_throw, stddev=sp.fwhm_to_sigma(seeing), amplitude=1)
+        neg_trace_profile_u = -gaussian_fct(
+            spat_mid,
+            mean=np.median(spat_mid) + nod_throw,
+            stddev=fwhm_to_sigma(seeing),
+            amplitude=1,
+        )
+        neg_trace_profile_l = -gaussian_fct(
+            spat_mid,
+            mean=np.median(spat_mid) - nod_throw,
+            stddev=fwhm_to_sigma(seeing),
+            amplitude=1,
+        )
 
         neg_trace_l = neg_trace_profile_l.reshape(N_spat, 1) * np.ones(flux.shape)
         neg_trace_u = neg_trace_profile_u.reshape(N_spat, 1) * np.ones(flux.shape)
@@ -175,23 +188,21 @@ def generate_fake_2D_spectrum(
         if emission_line:
             # add negative emission line
             neg_em_line_l = np.outer(
-                neg_trace_profile_l.reshape(N_spat,1),
-                em_line_1D.reshape(N_spec,1)
+                neg_trace_profile_l.reshape(N_spat, 1), em_line_1D.reshape(N_spec, 1)
             )
             neg_em_line_u = np.outer(
-                neg_trace_profile_u.reshape(N_spat,1),
-                em_line_1D.reshape(N_spec,1)
+                neg_trace_profile_u.reshape(N_spat, 1), em_line_1D.reshape(N_spec, 1)
             )
             neg_trace_l += neg_em_line_l
             neg_trace_u += neg_em_line_u
 
     # add noise
-    flux += np.random.normal(0, 1./SNR, size=flux.shape)
+    flux += np.random.normal(0, 1.0 / SNR, size=flux.shape)
     flux += trace
     if nodding:
         flux += neg_trace_l + neg_trace_u
     flux *= flux_scale
-    unc = flux_scale/SNR * np.ones(flux.shape)
+    unc = flux_scale / SNR * np.ones(flux.shape)
 
     # Add units
     if spec_unit is not None:
@@ -261,7 +272,7 @@ def check_flux_scale(flux, unc):
     return flux, unc
 
 
-def to_usable_units(input_array):
+def to_usable_units(input_array: Quantity) -> Quantity:
     """Return a copy of the input array in "usable" units by using
     the median of the array.
     For example, if an array's values is around 3.1 * 10^(-9) Jy
@@ -277,7 +288,7 @@ def to_usable_units(input_array):
 
     Returns
     -------
-    output_array
+    Quantity
         Normalized array to "usable" values (order of magnitude ~1).
     """
     quant = np.std(input_array).value
@@ -286,7 +297,21 @@ def to_usable_units(input_array):
     return input_array.to(new_unit)
 
 
-def _quantity_to_at_least_1D_array(x):
+def _quantity_to_at_least_1D_array(x: Quantity | np.ndarray) -> np.ndarray:
+    """Convert a Quantity to a 1D array.
+
+    If x is already an array, it will return it as is.
+
+    Parameters
+    ----------
+    x : Quantity or np.ndarray
+        Input data
+
+    Returns
+    -------
+    np.ndarray
+        Array of values without units
+    """
     if isinstance(x, Quantity):
         x = np.atleast_1d(x.value)
     else:
