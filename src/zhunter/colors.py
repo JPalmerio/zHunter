@@ -4,7 +4,7 @@ import logging
 from itertools import cycle
 import cmasher as cmr
 import seaborn as sns
-from matplotlib.colors import PowerNorm, Colormap, Normalize
+from matplotlib.colors import PowerNorm, Colormap, Normalize, to_hex
 
 log = logging.getLogger(__name__)
 
@@ -127,16 +127,28 @@ def get_gradient(color, reverse=False):
     return grad
 
 
-def rgb_to_hex(red, green, blue):
-    """Return color as #rrggbb for the given color values."""
-    return "#%02x%02x%02x" % (red, green, blue)
+def mpl_rbga_to_pyqt_color(color: list[float, float, float, float]) -> QtGui.QColor:
+    """Convert a matplotlib RGBA color to a PyQt QColor."""
+    return QtGui.QColor(*[int(255 * c) for c in color[:4]])
 
 
-def get_cblind_colors(rtype=dict, fmt="rgb"):
+def get_cblind_colors(rtype: type = dict, fmt: str = "rgb") -> dict | list:
     """
     From color-blind friendly colors in Nature article
     https://www.nature.com/articles/nmeth.1618
-    Returns a list or dictionnary of RGB values.
+    Returns a list or dictionary of RGB values.
+
+    Parameters
+    ----------
+    rtype : type, optional
+        Type of return value (dict or list)
+    fmt : str, optional
+        Format of the color values (rgb or hex)
+
+    Returns
+    -------
+    dict or list
+        Dictionary or list of RGB or HEX values
     """
     colors = {
         "Sky blue": (86, 180, 233),
@@ -148,15 +160,17 @@ def get_cblind_colors(rtype=dict, fmt="rgb"):
         "Yellow": (240, 228, 66),
     }
 
-    if fmt == "hex":
-        for n, RGB in colors.items():
-            r, g, b = RGB
-            colors[n] = rgb_to_hex(r, g, b)
-    elif fmt == "rgb":
-        # Convert to RGB fraction for python
-        for n, RGB in colors.items():
-            r, g, b = RGB
-            colors[n] = (r / 255, g / 255, b / 255)
+    # Convert to RGB fraction for python
+    for n, RGB in colors.items():
+        r, g, b = RGB
+        colors[n] = (r / 255, g / 255, b / 255)
+
+    if fmt == "rgb":
+        # Format is already RGB
+        pass
+    elif fmt == "hex":
+        for n, c in colors.items():
+            colors[n] = to_hex(c)
     else:
         raise ValueError("Unsupported format for colorblind colors.")
 
