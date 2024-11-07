@@ -2,18 +2,16 @@ from astropy.io import fits
 from astropy.io.ascii import read as ascii_read
 from astropy.table import Table
 import astropy.units as u
+from astropy.io.fits import Header
+from astropy.units import Quantity
 import numpy as np
 import pandas as pd
 import logging
 from pathlib import Path
+from zhunter.conversions import ergscm2AA
 
 log = logging.getLogger(__name__)
 
-ergscm2AA = u.def_unit(
-    s="ergscm2AA",
-    represents=u.Unit("erg s^-1 cm^-2 AA^-1"),
-    format={"latex": r"\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}"},
-)
 GREEK_LETTERS = ["alpha", "beta", "gamma", "delta"]
 ERROR_KEYS = ["ERR", "NOISE", "SIGMA", "UNC"]
 WAVE_KEYS = ["WAVE", "AWAV", "WVLG", "LAM"]
@@ -79,19 +77,35 @@ def read_line_list(fname):
     return tab
 
 
-def read_1D_spectrum(fname, **args):
+def read_1D_spectrum(
+    fname: str | Path,
+    **args,
+) -> tuple[Quantity, Quantity, Quantity, Header | None]:
     """
     A wrapper function to handle case for fits extension or generic txt
-    or dat file
+    or dat file. If the file is a fits file, a header will be returned
+    otherwise it will be ``None``.
+
+    Parameters
+    ----------
+    fname : str or Path
+        Name of the file to read.
+    **args : dict
+        Arguments to pass to the specific read function.
+
+    Returns
+    -------
+    wvlg, flux, uncertainty, header : tuple
+        Tuple containing the wavelength, flux, uncertainty and header.
     """
     # Make sure fname is a Path instance
     if not isinstance(fname, Path):
         fname = Path(fname)
 
     if not fname.exists():
-        raise FileNotFoundError(f"No such file:\n{fname}")
+        raise FileNotFoundError(f"No such file:\n{fname!s}")
 
-    log.debug(f"Read 1D spectrum from file:\n{fname}")
+    log.debug(f"Read 1D spectrum from file:\n{fname!s}")
 
     fname_extension = fname.suffix
     # If file is compressed, check the original extension
@@ -102,22 +116,27 @@ def read_1D_spectrum(fname, **args):
 
     # Load data
     if fname_extension in (".fits", ".fit"):
-        waveobs, flux, uncertainty, header = read_fits_1D_spectrum(fname, **args)
+        wvlg, flux, uncertainty, header = read_fits_1D_spectrum(fname, **args)
 
     else:
-        waveobs, flux, uncertainty, = read_generic_1D_spectrum(fname, **args)
+        wvlg, flux, uncertainty = read_generic_1D_spectrum(fname, **args)
         header = None
 
-    return waveobs, flux, uncertainty, header
+    return wvlg, flux, uncertainty, header
 
 
 def read_generic_1D_spectrum(
-    fname, wave_unit=None, flux_unit=None, ignore_unc_warning=False
-):
+    fname: str | Path,
+    wave_unit=None,
+    flux_unit=None,
+    ignore_unc_warning=False,
+) -> tuple[Quantity, Quantity, Quantity]:
     """
+    Reads a generic 1D spectrum from a text file.
+
     Can read ECSV format.
     Ignores line starting with '#'
-    Will try with the following separators: comma, space, tab and '|'
+    Will try with the following separators: comma, space, tab and pipe
     Expects the following format:
         # this is a comment in the file which will be ignored
         wave, flux, error/uncertainty
@@ -134,13 +153,19 @@ def read_generic_1D_spectrum(
 
         wave(AA), flux(erg/s/cm2/AA)
 
-    Args:
-        fname (TYPE): Description
-        wave_unit (None, optional): Description
-        flux_unit (None, optional): Description
+    Parameters
+    ----------
+    fname : str or Path
+        Name of the file to read.
+    wave_unit : astropy.Unit, optional
+        Unit to use for the wavelength.
+    flux_unit : astropy.Unit, optional
+        Unit to use for the flux.
+    ignore_unc_warning : bool, optional, default=False
+        If True, will not raise a warning if no uncertainty is found.
 
     Returns:
-        waveobs, flux, uncertainty: Tuple of quantities containing the data.
+        wvlg, flux, uncertainty: Tuple of quantities containing the data.
     """
 
     log.info(f"Attempting to read file:\n{fname}")
@@ -148,7 +173,7 @@ def read_generic_1D_spectrum(
     if not isinstance(fname, Path):
         fname = Path(fname)
 
-    waveobs = None
+    wvlg = None
     flux = None
     uncertainty = None
 
@@ -207,7 +232,7 @@ def read_generic_1D_spectrum(
     # If no column names, assume wave, flux, error/uncertainty
     if any(k is None for k in [wave_key, flux_key]):
         log.debug(
-            f"Could not find any reasonable column names for file:\n{fname}\n"
+            f"Could not find any reasonable column names for file:\n{fname!s}\n"
             " Extracting data assuming default format: wave, flux, uncertainty."
         )
 
@@ -224,9 +249,9 @@ def read_generic_1D_spectrum(
     # Have to turn to numpy because using pandas series
     if wave_key is not None:
         if pandas:
-            waveobs = tab[wave_key].to_numpy()
+            wvlg = tab[wave_key].to_numpy()
         else:
-            waveobs = tab[wave_key].value
+            wvlg = tab[wave_key].value
             wave_unit = tab[wave_key].unit
 
         # Try to get units from the column name
@@ -255,30 +280,33 @@ def read_generic_1D_spectrum(
 
     # Default units if no units were specified
     if wave_unit is None:
-        wave_unit = u.Unit("AA")
-        log.info("No units specified for wave, assuming Angstrom.")
+        wave_unit = u.pixel
+        log.info("No units specified for wave, returning dimensionless quantity.")
     if flux_unit is None:
-        flux_unit = u.Unit("adu")
-        log.info("No units specified for flux, assuming ADU.")
+        flux_unit = u.Unit()
+        log.info("No units specified for flux, returning dimensionless quantity.")
 
-    if flux is None or waveobs is None:
+    if flux is None or wvlg is None:
         raise IOError("Unknown file format")
     else:
-        waveobs = waveobs * wave_unit
+        wvlg = wvlg * wave_unit
         flux = flux * flux_unit
         if uncertainty is not None:
             uncertainty = uncertainty * flux_unit
         else:
             if ignore_unc_warning:
-                log.debug(f"No error/uncertainty found in file:\n{fname}")
+                log.debug(f"No error/uncertainty found in file:\n{fname!s}")
             else:
-                log.warning(f"No error/uncertainty found in file:\n{fname}")
-        return waveobs, flux, uncertainty
+                log.warning(f"No error/uncertainty found in file:\n{fname!s}")
+        return wvlg, flux, uncertainty
 
 
-def read_fits_2D_spectrum(fname, verbose=False):
+def read_fits_2D_spectrum(
+    fname: Path | str,
+) -> tuple[Quantity, Quantity, Quantity, Quantity, Header]:
     """
     A function to read data from a 2D spectrum.
+
     First looks for a HDU with a name containing 'FLUX'.
     If it doesn't find any, it searches through HDUs that are either
     ImageHDU or PrimaryHDU for data in the form of a 2D array.
@@ -287,12 +315,21 @@ def read_fits_2D_spectrum(fname, verbose=False):
     If no error/uncertainty is founds, it returns 0.
     Finally, it builds the spatial and spectral dimensions by reading
     the header of the HDU where it found the flux.
+
+    Parameters
+    ----------
+    fname : str or Path
+        Name of the file to read.
+
+    Returns
+    -------
+    wvlg, spatial, flux, uncertainty, header : tuple
+        Tuple containing the wavelength, spatial, flux, uncertainty and header.
     """
+    log.info(f"Attempting to read file:\n{fname!s}")
 
-    log.info(f"Attempting to read file:\n{fname}")
-
-    with fits.open(fname) as hdulist:
-        hdu_names = [hdu.name for hdu in hdulist]
+    with fits.open(fname) as hdu_list:
+        hdu_names = [hdu.name for hdu in hdu_list]
 
         flux_hdu_name = find_column_name(
             hdu_names,
@@ -300,7 +337,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
         )
 
         if flux_hdu_name:
-            hdu = hdulist[flux_hdu_name]
+            hdu = hdu_list[flux_hdu_name]
             flux = hdu.data
             header = hdu.header
         else:
@@ -308,7 +345,7 @@ def read_fits_2D_spectrum(fname, verbose=False):
                 f"Couldn't find an HDU with a name containing any of {FLUX_KEYS}. "
                 "Looking for primary or image HDUs containing 2D arrays"
             )
-            for hdu in hdulist:
+            for hdu in hdu_list:
                 if isinstance(
                     hdu, (fits.hdu.image.PrimaryHDU, fits.hdu.image.ImageHDU)
                 ):
@@ -316,7 +353,9 @@ def read_fits_2D_spectrum(fname, verbose=False):
                     if flux is None:
                         continue
                     elif len(flux.shape) == 2:
-                        log.debug(f"Found HDU: '{hdu.name}' which contains a 2D array")
+                        log.debug(
+                            f"Found HDU: '{hdu.name!s}' which contains a 2D array"
+                        )
                         header = hdu.header
                         break
 
@@ -324,35 +363,37 @@ def read_fits_2D_spectrum(fname, verbose=False):
             raise IOError("Could not find a 2D flux array in this fits file.")
 
         # Error/uncertainty
-        uncertainty_hdu_name = find_column_name(
+        unc_hdu_name = find_column_name(
             hdu_names,
             possible_names=ERROR_KEYS,
         )
 
-        if uncertainty_hdu_name:
-            uncertainty = hdulist[uncertainty_hdu_name].data
+        if unc_hdu_name:
+            unc = hdu_list[unc_hdu_name].data
         else:
             log.debug(
                 f"Couldn't find an HDU with a name containing any of {ERROR_KEYS}."
                 " Setting errors/uncertainties to 0."
             )
-            uncertainty = np.zeros(flux.shape)
+            unc = np.zeros(flux.shape)
 
     flux_unit = header.get("BUNIT")
     if flux_unit is not None:
         if flux_unit == "ADU":
             flux_unit = "adu"
+        elif flux_unit == "erg/cm2/s/A":
+            flux_unit = ergscm2AA
         flux_unit = u.Unit(flux_unit)
     else:
         flux_unit = u.Unit()
     flux = flux * flux_unit
-    uncertainty = uncertainty * flux_unit
+    unc = unc * flux_unit
 
     spixels = np.arange(flux.shape[0])
     wpixels = np.arange(flux.shape[1])
 
     # Spatial dimension
-    spatial_unit = get_units(header=header, axis=2, default_units=u.arcsec)
+    spatial_unit = get_units(header=header, axis=2, default_units=u.pixel)
     spatial_constructor = get_constructor(header=header, axis=2)
     spatial = spatial_constructor(spixels)
     if spatial_unit is not None:
@@ -361,21 +402,25 @@ def read_fits_2D_spectrum(fname, verbose=False):
         spatial = spatial * u.Unit()
 
     # Spectral dimension
-    wave_unit = get_wavelength_units(header=header)
+    wave_unit = get_wavelength_units(header=header, default_units=u.pixel)
     wave_constructor = get_wavelength_constructor(header=header)
-    waveobs = wave_constructor(wpixels)
+    wvlg = wave_constructor(wpixels)
     if wave_unit is not None:
-        waveobs = waveobs * wave_unit
+        wvlg = wvlg * wave_unit
     else:
-        waveobs = waveobs * u.Unit()
+        wvlg = wvlg * u.Unit()
 
-    return waveobs, spatial, flux, uncertainty, header
+    return wvlg, spatial, flux, unc, header
 
 
-def read_fits_1D_spectrum(fname):
+def read_fits_1D_spectrum(
+    fname: str | Path,
+) -> tuple[Quantity, Quantity, Quantity, Header]:
     """
+    Reads a 1D spectrum from a FITS file.
+
     Adapted from iSpec:
-        https://github.com/marblestation/iSpec/blob/master/ispec/spectrum.py
+    https://github.com/marblestation/iSpec/blob/master/ispec/spectrum.py
     Reads the 'PRIMARY' HDU of the FITS file, considering that it contains the fluxes.
     The wavelength are derived from the headers, if not possible it checks if the
     data from the HDU contains 2 axes and takes the first as the wavelength
@@ -386,17 +431,26 @@ def read_fits_1D_spectrum(fname):
     a flux column with a name containing: 'FLUX'
     and an error/uncertainty column with a name containing: 'ERR', 'NOISE', 'SIGMA', 'UNC'
 
-    returns a tuple of (waveobs, flux, uncertainty, header)
+
+    Parameters
+    ----------
+    fname : str or Path
+        Name of the file to read.
+
+    Returns
+    -------
+    wvlg, flux, uncertainty, header : tuple
+        Tuple containing the wavelength, flux, uncertainty and header.
     """
 
-    log.info(f"Attempting to read file:\n{fname}")
+    log.info(f"Attempting to read file:\n{fname!s}")
 
-    with fits.open(fname) as hdulist:
+    with fits.open(fname) as hdu_list:
         # By default start with PRIMARY HDU
-        data = hdulist["PRIMARY"].data
-        header = hdulist["PRIMARY"].header
+        data = hdu_list["PRIMARY"].data
+        header = hdu_list["PRIMARY"].header
 
-        waveobs = None
+        wvlg = None
         wave_unit = None
         flux = None
         flux_unit = None
@@ -404,7 +458,8 @@ def read_fits_1D_spectrum(fname):
 
         if data is not None and (
             isinstance(
-                hdulist["PRIMARY"], (fits.hdu.image.PrimaryHDU, fits.hdu.image.ImageHDU)
+                hdu_list["PRIMARY"],
+                (fits.hdu.image.PrimaryHDU, fits.hdu.image.ImageHDU),
             )
         ):
             # If data has more than one dimension and
@@ -420,13 +475,13 @@ def read_fits_1D_spectrum(fname):
             flux_unit = get_flux_units(
                 header=header,
                 axis=2,
-                default_units=ergscm2AA,
+                default_units=u.Unit(),
             )
-            wave_unit = get_wavelength_units(header=header)
+            wave_unit = get_wavelength_units(header=header, default_units=u.pixel)
             wave_constructor = get_wavelength_constructor(header=header)
-            waveobs = wave_constructor(pixels)
+            wvlg = wave_constructor(pixels)
 
-            if waveobs is None:
+            if wvlg is None:
                 # If could not build a constructor from WCS in header
                 # try to see if data array has more than one dimension
                 if len(data.shape) > 1:
@@ -435,7 +490,7 @@ def read_fits_1D_spectrum(fname):
                     )
                     # No valid WCS, try assuming first axis is the wavelength axis
                     if header.get("CUNIT1") is not None:
-                        waveobs = data[0, :]
+                        wvlg = data[0, :]
                         flux = data[1, :]
                         if data.shape[0] > 2:
                             uncertainty = data[2, :]
@@ -444,8 +499,9 @@ def read_fits_1D_spectrum(fname):
                 else:
                     raise IOError("Unknown FITS file format")
 
-            # Try to find the errors/uncertainties in the extensions (HDU different than the PRIMARY):
-            for hdu in hdulist:
+            # Try to find the errors/uncertainties in the extensions
+            # (HDU different than the PRIMARY):
+            for hdu in hdu_list:
                 name = hdu.name.upper()
                 if (
                     "PRIMARY" in name
@@ -455,14 +511,14 @@ def read_fits_1D_spectrum(fname):
                     continue
                 if name in ["IVAR", "IVARIANCE"]:
                     uncertainty = np.sqrt(1.0 / hdu.data.flatten())  # Not sure
-                    # uncertainty = 1. / hdulist[i].data.flatten()
+                    # uncertainty = 1. / hdu_list[i].data.flatten()
                     break
                 elif name in ["VAR", "VARIANCE"]:
                     uncertainty = np.sqrt(hdu.data.flatten())  # Not sure
-                    # uncertainty = hdulist[i].data.flatten()
+                    # uncertainty = hdu_list[i].data.flatten()
                     break
                 # Write it this way in case some people use ERR and others ERROR or ERRS
-                elif name in ["NOISE", "SIGMA"] or "ERR" in name:
+                elif name in ["NOISE", "SIGMA", "UNC"] or "ERR" in name:
                     uncertainty = hdu.data.flatten()
                     break
 
@@ -472,12 +528,12 @@ def read_fits_1D_spectrum(fname):
             log.debug("Data is not in PRIMARY HDU, searching for binary tables")
             # Try to find a binary table with the right columns
             # Stop after having found the first table that works
-            for hdu in hdulist:
+            for hdu in hdu_list:
                 if isinstance(hdu, fits.hdu.table.BinTableHDU):
                     bin_tab = Table.read(hdu)
                     column_names = list(bin_tab.columns)
                     log.debug(
-                        f"Found the following columns: {column_names} in HDU: '{hdu.name}'"
+                        f"Found the following columns: {column_names} in HDU: '{hdu.name!s}'"
                     )
 
                     # Wavelength
@@ -498,16 +554,16 @@ def read_fits_1D_spectrum(fname):
 
                     if any(k is None for k in [wave_key, flux_key]):
                         log.debug(
-                            f"Could not find any reasonable column names for HDU '{hdu.name}'"
+                            f"Could not find any reasonable column names for HDU '{hdu.name!s}'"
                         )
                         continue
                     else:
-                        waveobs = bin_tab[wave_key]
-                        if waveobs is not None:
+                        wvlg = bin_tab[wave_key]
+                        if wvlg is not None:
                             # Need to call .flatten() here because sometimes
                             # we have an array inside another as a single element
                             # in data from eso archive
-                            waveobs = np.array(waveobs).flatten()
+                            wvlg = np.array(wvlg).flatten()
                             wave_unit = bin_tab[wave_key].unit
 
                         flux = bin_tab[flux_key]
@@ -524,45 +580,55 @@ def read_fits_1D_spectrum(fname):
                                 # Don't check for error/uncertainty units
                                 # assumes they have same units as flux
 
-                    if flux is not None and waveobs is not None:
+                    if flux is not None and wvlg is not None:
                         header = hdu.header
                         log.debug(
-                            f"Found HDU: '{hdu.name}' which contains a binary table "
+                            f"Found HDU: '{hdu.name!s}' which contains a binary table "
                             f"with wave and flux keys: {wave_key}, {flux_key}"
                         )
                         break
 
     # Default units if no units were found
     if wave_unit is None:
-        wave_unit = u.AA
-        log.info("No units specified for wave, assuming 'Angstrom'.")
+        wave_unit = u.Unit()
+        log.info("No units specified for wave, returning dimensionless quantity.")
     if flux_unit is None:
-        flux_unit = ergscm2AA
-        log.info(f"No units specified for flux, assuming '{ergscm2AA}'.")
+        flux_unit = u.Unit()
+        log.info("No units specified for flux, returning dimensionless quantity.")
 
-    if flux is None or waveobs is None:
+    if flux is None or wvlg is None:
         # If didn't return a spectrum with Primary
         # Or didn't find any binary table with the right columns
         raise IOError("Unknown FITS file format")
     else:
-        waveobs = waveobs * wave_unit
+        wvlg = wvlg * wave_unit
         flux = flux * flux_unit
         if uncertainty is not None:
             uncertainty = uncertainty * flux_unit
-        return waveobs, flux, uncertainty, header
+        return wvlg, flux, uncertainty, header
 
 
-def convert_to_ecsv(fname, delimiter=" ", units=None):
+def convert_to_ecsv(
+    fname: str | Path,
+    delimiter: str = " ",
+    units: list[str | u.Unit] | tuple[str | u.Unit] | None = None,
+) -> None:
     """Convert an ascii file to ECSV format which stores meta data
-    like units. You can specify the units of each column with the
+    like units.
+
+    You can specify the units of each column with the
     units argument. For more information about this recommended format
     see https://docs.astropy.org/en/stable/io/ascii/ecsv.html
 
-    Args:
-        fname (str or Path): Name of the file
-        delimiter (str, optional): Can be ',' or ' '
-        units (list, optional): List of units or strings representing
-        valid units. For columns that don't have units, use ''.
+    Parameters
+    ----------
+    fname : str or Path
+        Name of the file.
+    delimiter : str, optional
+        Can be ',' or ' ', by default ' '.
+    units : sequence of str or astropy.Unit, optional
+        List of units or strings representing valid units. For columns
+        that don't have units, use ''.
     """
 
     # Make sure fname is a Path instance
@@ -580,7 +646,23 @@ def convert_to_ecsv(fname, delimiter=" ", units=None):
     tab.write(fname.with_suffix(".ecsv"), delimiter=delimiter, overwrite=True)
 
 
-def convert_line_name_to_latex(lname):
+def convert_line_name_to_latex(lname: str) -> str:
+    """Convert a line name to a latex string.
+
+    This function will convert the line name to a latex string
+    that can be used in plots.
+
+    Parameters
+    ----------
+    lname : str
+        Line name to convert.
+
+    Returns
+    -------
+    str
+        Latex string.
+    """
+    log.debug(f"Convert {lname!s} to LaTeX")
     if any(greek.lower() in lname.lower() for greek in GREEK_LETTERS):
         elem, wave = lname.split("_")
         latex_string = elem + rf"$\{wave}$"
@@ -620,15 +702,19 @@ def convert_line_name_to_latex(lname):
         return latex_string
 
 
-def parse_units_from_column_name(col_name):
+def parse_units_from_column_name(col_name: str) -> u.Unit | None:
     """Look for units in the name of a column by searching for a format
-    as: wave(nm)
+    as: 'wave(nm)' or 'flux(erg/s/cm2/AA)'
 
-    Args:
-        col_name (str): column name to search
+    Parameters
+    ----------
+    col_name : str
+        Name of the column.
 
-    Returns:
-        astropy.Unit: The unit found or None.
+    Returns
+    -------
+    astropy.Unit or None
+        Parsed unit or ``None`` if no unit could be parsed.
     """
     try:
         units_str = col_name.split("(")[1].strip(")")
@@ -665,11 +751,15 @@ def get_flux_units(header, axis=2, default_units=None):
     if cunit2:
         if cunit2 == "ADU":
             cunit2 = "adu"
+        elif cunit2 == "erg/cm2/s/A":
+            cunit2 = ergscm2AA
         log.debug(f"Using CUNIT: '{cunit2}' for flux units")
         flux_units = u.Unit(cunit2)
     elif bunit:
         if bunit == "ADU":
             bunit = "adu"
+        elif bunit == "erg/cm2/s/A":
+            bunit = ergscm2AA
         log.debug(f"Using BUNIT: '{bunit}' for flux units")
         flux_units = u.Unit(bunit)
     elif default_units:
