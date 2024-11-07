@@ -39,7 +39,7 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
         self.scene().sigMouseMoved.connect(self.update_mouse_pos)
         self.active = False
         self.parentWidget = None
-        self.units = {}
+        self.units = None
         self.plotted_spectra = []
         self.plotted_photometry = []
 
@@ -49,7 +49,7 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
 
     # Set up plotting architecture
     # (i.e. anything that doesn't require actual data)
-    def set_up_plot(self, colors=None, name=None):
+    def set_up_plot(self, colors: dict | None = None, name: str | None = None) -> None:
         """
         Set up the main plot items.
         """
@@ -60,10 +60,8 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             self.colors = colors
 
         if name is None:
-            name = '1D'
-        log.info(
-            f"Setting up a new plot called '{name}'"
-        )
+            name = "1D"
+        log.info(f"Setting up a new plot called '{name}'")
 
         self._create_axis(title=name)
         # Adjust plots so they line up
@@ -89,7 +87,7 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
         # Add them to the plots
         self._add_placeholders()
 
-    def _create_axis(self, title):
+    def _create_axis(self, title: str) -> None:
         # Add title on row 0
         self.addLabel(title, row=0)
         # Define PlotItem as ax1D (subclass of GraphicsItem) on which to plot stuff
@@ -171,8 +169,11 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
         )
 
     def _add_placeholders(self):
+        """Add placeholders for the lambda 1 and lambda 2 lines."""
         self.ax1D.addItem(self.lam1_line)
         self.ax1D.addItem(self.lam2_line)
+        self.lam1_line.hide()
+        self.lam2_line.hide()
 
     # Get limits
     # @check_active
@@ -205,8 +206,8 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
     #     ymax = np.min(ymaxs).value
     #     return ymin, ymax
 
-    def clear_all(self):
-
+    def clear_all(self) -> None:
+        """Clear all the plots and reset the ViewBox."""
         # Try to deactivate all the ViewBoxes
         try:
             self.ax1D.vb.sigResized.disconnect()
@@ -216,90 +217,126 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             pass
 
         # Clear spectra
-        for spectrum_visrep in self.plotted_spectra:
-            spectrum_visrep.clear()
+        for spec_visrep in self.plotted_spectra:
+            spec_visrep.clear()
 
         self.plotted_spectra = []
 
+        # Clear photometry
+        for phot_visrep in self.plotted_photometry:
+            phot_visrep.clear()
+
+        self.plotted_photometry = []
+
+        # Hide placeholders
+        self.lam1_line.hide()
+        self.lam2_line.hide()
+
         # Reset units and set as inactive
-        self.units = {}
+        self.units = None
         self.clear()
         self.active = False
 
     @check_active
-    def add_photometry(self, phot_visrep):
+    def add_photometry(self, phot: PhotometricPoint, **kwargs) -> None:
+        """Add a photometry data point to the plot.
 
-        if not isinstance(phot_visrep, OneDSpectrumVisRep):
-            raise ValueError("phot_visrep must be a OneDSpectrumVisRep instance.")
+        Parameters
+        ----------
+        phot : PhotometricPoint
+            The photometric data point to add.
+        **kwargs
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if not isinstance(phot, PhotometricPoint):
+            raise ValueError("phot must be a PhotometricPoint instance.")
 
-        log.info("Adding visual representation of a photometry")
+        log.debug("Adding visual representation of photometry")
         if not self.units:
-            log.debug("No units defined for this ViewBox, assigning photometry units")
-            self.units = phot_visrep.mag.unit
-        else:
-            phot_visrep.set_units(self.units)
-        phot_visrep.update()
-        self.ax1D.vb.addItem(phot_visrep.PlotItem)
-        self.ax1D.vb.addItem(phot_visrep.PlotItem_unc)
-
-        # if this is the first object plotted, adjust ViewBox range
-        if not self.plotted_spectra and not self.plotted_photometry:
-            data = phot_visrep.PlotItem.getData()
-            self.ax1D.setXRange(
-                min=np.min(data[0]),
-                max=np.max(data[0]),
+            log.debug(
+                "No units defined for this ViewBox, assigning photometry units: "
+                f"'wvlg': {phot.phot_filter.wavelength.unit}, "
+                f"'flux': {phot.mag.unit}"
             )
-            self.ax1D.setYRange(
-                min=np.min(data[1]),
-                max=np.max(data[1]),
-            )
+            self.units = {
+                "wvlg": phot.phot_filter.wavelength.unit,
+                "flux": phot.mag.unit,
+            }
 
-        self.plotted_spectra.append(phot_visrep)
+        visrep = phot.plot_pyqt(vb=self.ax1D.vb, units=self.units, **kwargs)
+
+        self.plotted_photometry.append(visrep)
 
     @check_active
-    def add_spectrum(self, spectrum_visrep):
+    def remove_photometry(self, phot: PhotometricPoint) -> None:
+        """Remove photometric data point from the plot.
 
-        if not isinstance(spectrum_visrep, OneDSpectrumVisRep):
-            raise ValueError("spectrum_visrep must be a OneDSpectrumVisRep instance.")
+        Parameters
+        ----------
+        phot : PhotometricPoint
+            The photometric data point to remove.
+        """
+        if phot not in self.plotted_photometry:
+            raise ValueError("Photometric point is not in list")
+
+        log.info("Removing photometric point")
+
+        for item in phot.visrep.spec_artists:
+            self.ax1D.vb.removeItem(item)
+        self.plotted_photometry.remove(phot)
+
+        # spec.sigDispDataChanged.disconnect(self.update_bounds)
+
+    @check_active
+    def add_spectrum(self, spec: OneDSpectrum, **kwargs) -> None:
+        """Add a visual representation of a spectrum to the plot.
+
+        Parameters
+        ----------
+        spec : OneDSpectrum
+            An instance of a OneDSpectrum to add to the plot.
+        **kwargs
+            Additional keyword arguments to pass to the plotting function.
+        """
+        if not isinstance(spec, OneDSpectrum):
+            raise ValueError("spec must be a OneDSpectrum instance.")
 
         log.info("Adding visual representation of a spectrum")
         if not self.units:
-            log.debug("No units defined for this ViewBox, assigning spectrum units")
-            self.units = spectrum_visrep.units
-        else:
-            spectrum_visrep.set_units(self.units)
-        spectrum_visrep.update()
-        self.ax1D.vb.addItem(spectrum_visrep.PlotItem)
-        self.ax1D.vb.addItem(spectrum_visrep.PlotItem_unc)
-
-        # if this is the first object plotted, adjust ViewBox range
-        if not self.plotted_spectra and not self.plotted_photometry:
-            data = spectrum_visrep.PlotItem.getData()
-            self.ax1D.setXRange(
-                min=np.min(data[0]),
-                max=np.max(data[0]),
+            log.debug(
+                "No units defined for this ViewBox, assigning photometry units: "
+                f"'wvlg': {spec.units['wvlg']}, "
+                f"'flux': {spec.units['flux']}"
             )
-            self.ax1D.setYRange(
-                min=np.min(data[1]),
-                max=np.max(data[1]),
-            )
+            self.units = spec.units
 
-        self.plotted_spectra.append(spectrum_visrep)
+        visrep = spec.plot_pyqt(
+            vb=self.ax1D.vb,
+            units=(self.units["wvlg"], self.units["flux"]),
+            **kwargs,
+        )
 
+        self.plotted_spectra.append(visrep)
 
         # spec.sigDispDataChanged.connect(self.update_bounds)
 
     @check_active
-    def remove_spectrum(self, spectrum_visrep):
+    def remove_spectrum(self, spec: OneDSpectrum) -> None:
+        """Remove a visual representation of a spectrum from the plot.
 
-        if spectrum_visrep not in self.plotted_spectra:
+        Parameters
+        ----------
+        spectrum_visrep : OneDSpectrum
+            The visual representation of the spectrum to remove.
+        """
+        if spec not in self.plotted_spectra:
             raise ValueError("Spectrum is not in list")
 
-        log.info("Removing visual representation of a spectrum")
+        log.info("Removing spectrum")
 
-        self.ax1D.vb.removeItem(spectrum_visrep.PlotItem)
-        self.ax1D.vb.removeItem(spectrum_visrep.PlotItem_unc)
-        self.plotted_spectra.remove(spectrum_visrep)
+        self.ax1D.vb.removeItem(spec.visrep.PlotItem)
+        self.ax1D.vb.removeItem(spec.visrep.PlotItem_unc)
+        self.plotted_spectra.remove(spec)
 
         # spec.sigDispDataChanged.disconnect(self.update_bounds)
 
@@ -322,7 +359,6 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
         )
 
     # def adjust_1D_yrange(self):
-
 
     #     self.ax1D.setYRange(min=ymin, max=ymax)
 
@@ -396,10 +432,19 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
 
             super().keyPressEvent(ev)
 
-    def handle_key_press(self, vb, key, pos):
+    def handle_key_press(self, vb: pg.ViewBox, key: str, pos: QtCore.QPointF) -> None:
         """
         Custom function to handle key presses.
         pos is in coordinates of the ViewBox vb.
+
+        Parameters
+        ----------
+        vb : pg.ViewBox
+            The ViewBox in which the key press occurred.
+        key : str
+            The key that was pressed.
+        pos : QtCore.QPointF
+            The position of the mouse in the ViewBox coordinates.
         """
         if vb is self.ax1D.vb:
             if key == "Q":
@@ -427,8 +472,17 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             self.parentWidget.txb_wvlg2.setText("{:.5f}".format(x_pos))
         self.lam2_line.setPos(x_pos)
 
-    def pan(self, key, vb):
-        # Panning with keyboard
+    def pan(self, key: str, vb: pg.ViewBox) -> None:
+        """
+        Pan the plot in the direction of the key press.
+
+        Parameters
+        ----------
+        key : str
+            The key that was pressed.
+        vb : pg.ViewBox
+            The ViewBox in which the key press occurred.
+        """
         # The value returned after setting the range is slightly
         # larger (because of padding) and this results in 'zooming out'
         # after multiple key presses... Had to force padding to 0 when
@@ -444,7 +498,8 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             vb.setRange(yRange=np.array(y_view) - 0.15 * np.abs(y_view[1] - y_view[0]))
 
     # Slots
-    def update_mouse_pos(self, pos):
+    def update_mouse_pos(self, pos: QtCore.QPointF) -> None:
+        """Update the mouse position on the scene."""
         self.mousePoint = self.mapFromScene(pos)
 
     def update_statusbar(self, scene_pos):
@@ -483,4 +538,3 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
         if vb is self.ax1D.vb:
             self.chx.setPos(view_pos.x())
             self.chy.setPos(view_pos.y())
-
