@@ -9,8 +9,14 @@
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
     "cSpell.words": [
+        "crosshairs",
+        "ergscm",
         "pyqt",
+        "pyqtgraph",
+        "subspectrum",
+        "Tellurics",
         "visrep",
+        "visreps",
         "zhunter"
     ]
 }
