@@ -1,35 +1,22 @@
 from PyQt6 import QtGui
 from PyQt6 import QtCore
 import pyqtgraph as pg
-
-from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
-import zhunter.initialize as init
-from zhunter.spectrum import OneDSpectrum
-from zhunter.decorators import check_active
-from zhunter.spectrum import OneDSpectrumVisRep
-
 import numpy as np
 
-from collections import defaultdict
+from zhunter.misc import (
+    set_up_linked_vb,
+    add_crosshair,
+    get_vb_containing,
+    keys_mapping,
+)
+import zhunter.initialize as init
+from zhunter.decorators import check_active
+from zhunter.spectrum import OneDSpectrum
+from zhunter.photometry import PhotometricPoint
 
 import logging
 
 log = logging.getLogger(__name__)
-
-
-qt_keys = (
-    (getattr(QtCore.Qt.Key, attr), attr[4:])
-    for attr in dir(QtCore.Qt.Key)
-    if attr.startswith("Key_")
-)
-keys_mapping = defaultdict(lambda: "unknown", qt_keys)
-
-qt_events = (
-    (getattr(QtCore.QEvent.Type, event).name, getattr(QtCore.QEvent.Type, event).value)
-    for event in dir(QtCore.QEvent.Type)
-    if not event.startswith("_")
-)
-events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
 class OneDSpectralWidget(pg.GraphicsLayoutWidget):

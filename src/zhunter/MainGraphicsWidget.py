@@ -1,6 +1,5 @@
 import logging
 
-from collections import defaultdict
 
 from PyQt6 import QtCore
 from PyQt6 import QtGui
@@ -8,28 +7,18 @@ import pyqtgraph as pg
 import numpy as np
 import zhunter.initialize as init
 from zhunter.spectroscopic_system import Telluric, SkyBackground
-from zhunter.misc import set_up_linked_vb, add_crosshair, get_vb_containing
+from zhunter.misc import (
+    set_up_linked_vb,
+    add_crosshair,
+    get_vb_containing,
+    keys_mapping,
+)
 from zhunter.spectral_functions import extract_1d_from_2d
 from zhunter.data_handler import DataHandler
 
 log = logging.getLogger(__name__)
 
 ALLOWED_MODES = ["1D", "2D"]
-
-qt_keys = (
-    (getattr(QtCore.Qt.Key, attr), attr[4:])
-    for attr in dir(QtCore.Qt.Key)
-    if attr.startswith("Key_")
-)
-keys_mapping = defaultdict(lambda: "unknown", qt_keys)
-
-qt_events = (
-    (getattr(QtCore.QEvent.Type, event).name, getattr(QtCore.QEvent.Type, event).value)
-    for event in dir(QtCore.QEvent.Type)
-    if not event.startswith("_")
-    and isinstance(getattr(QtCore.QEvent.Type, event), QtCore.QEvent.Type)
-)
-events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
 class MainGraphicsWidget(pg.GraphicsLayoutWidget):

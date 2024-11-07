@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
 from astropy.units.quantity import Quantity
@@ -15,6 +16,21 @@ from zhunter.conversions import fwhm_to_sigma
 from zhunter.spectral_functions import gaussian_fct
 
 log = logging.getLogger(__name__)
+
+qt_keys = (
+    (getattr(QtCore.Qt.Key, attr), attr[4:])
+    for attr in dir(QtCore.Qt.Key)
+    if attr.startswith("Key_")
+)
+keys_mapping = defaultdict(lambda: "unknown", qt_keys)
+
+qt_events = (
+    (getattr(QtCore.QEvent.Type, event).name, getattr(QtCore.QEvent.Type, event).value)
+    for event in dir(QtCore.QEvent.Type)
+    if not event.startswith("_")
+    and isinstance(getattr(QtCore.QEvent.Type, event), QtCore.QEvent.Type)
+)
+events_mapping = defaultdict(lambda: "unknown", qt_events)
 
 
 def select_file(parent, last_fname, file_type):
