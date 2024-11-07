@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 # class Smoother:
 
+
 def rolling_median(wvlg, flux, unc=None, half_window_size=3):
     """Calculate the rolling median over +/- half window size.
     So med[i] = median(f[i-half_window_size:i+half_window_size]).
@@ -39,8 +40,8 @@ def rolling_median(wvlg, flux, unc=None, half_window_size=3):
     n = flux.shape[0]
     flux_med = np.zeros(n)
 
-    for i in range(half_window_size, n-half_window_size):
-        flux_med[i] = np.median(flux[i-half_window_size:i+half_window_size])
+    for i in range(half_window_size, n - half_window_size):
+        flux_med[i] = np.median(flux[i - half_window_size : i + half_window_size])
 
     return wvlg, flux_med, unc
 
@@ -64,7 +65,9 @@ def rolling_mean(wvlg, flux, unc=None, half_window_size=3):
     if not isinstance(half_window_size, int) or half_window_size < 1:
         raise ValueError("half_window_size must be a positive integer")
 
-    flux_med = convolve(flux, boxcar(2*half_window_size), mode='same')/(2*half_window_size)
+    flux_med = convolve(flux, boxcar(2 * half_window_size), mode="same") / (
+        2 * half_window_size
+    )
     return wvlg, flux_med, unc
 
 
@@ -197,7 +200,9 @@ def convolve_ispec(wvlg, flux, unc=None, to_resolution=5000, from_resolution=Non
     log.info("Convolving using iSpec")
 
     if from_resolution is not None and from_resolution <= to_resolution:
-        raise Exception("This method cannot deal with final resolutions that are bigger than original")
+        raise Exception(
+            "This method cannot deal with final resolutions that are bigger than original"
+        )
 
     total_points = len(wvlg)
     convolved_flux = np.zeros(total_points)
@@ -209,13 +214,13 @@ def convolve_ispec(wvlg, flux, unc=None, to_resolution=5000, from_resolution=Non
     # Define the edge of each bin as half the wavelength distance to the bin next to it
     edges_tmp = wvlg[:-1] + 0.5 * (wave_distance)
     # Define the edges for the first and last measure which where out of the previous calculations
-    first_edge = wvlg[0] - 0.5*wave_distance[0]
-    last_edge = wvlg[-1] + 0.5*wave_distance[-1]
+    first_edge = wvlg[0] - 0.5 * wave_distance[0]
+    last_edge = wvlg[-1] + 0.5 * wave_distance[-1]
     # Build the final edges array
     edges = np.array([first_edge] + edges_tmp.tolist() + [last_edge])
 
     # Bin width
-    bin_width = edges[1:] - edges[:-1]          # width per pixel
+    bin_width = edges[1:] - edges[:-1]  # width per pixel
 
     # FWHM of the gaussian for the given resolution
     if from_resolution is None:
@@ -245,19 +250,23 @@ def convolve_ispec(wvlg, flux, unc=None, to_resolution=5000, from_resolution=Non
         upper_pos = int(min(nwvlg, i + current_nbins + 1))
 
         # Select only the flux values for the segment that we are going to convolve
-        flux_segment = flux[lower_pos:upper_pos+1]
-        unc_segment = unc[lower_pos:upper_pos+1]
-        wvlg_segment = wvlg[lower_pos:upper_pos+1]
+        flux_segment = flux[lower_pos : upper_pos + 1]
+        unc_segment = unc[lower_pos : upper_pos + 1]
+        wvlg_segment = wvlg[lower_pos : upper_pos + 1]
 
         # Build the gaussian corresponding to the instrumental spread function
-        gaussian = np.exp(- ((wvlg_segment - current_center)**2) / (2*current_sigma**2)) / np.sqrt(2*np.pi*current_sigma**2)
+        gaussian = np.exp(
+            -((wvlg_segment - current_center) ** 2) / (2 * current_sigma**2)
+        ) / np.sqrt(2 * np.pi * current_sigma**2)
         gaussian = gaussian / np.sum(gaussian)
 
         # Convolve the current position by using the segment and the gaussian
         if flux[i] > 0:
             # Zero or negative values are considered as gaps in the spectrum
             only_positive_fluxes = flux_segment > 0
-            weighted_flux = flux_segment[only_positive_fluxes] * gaussian[only_positive_fluxes]
+            weighted_flux = (
+                flux_segment[only_positive_fluxes] * gaussian[only_positive_fluxes]
+            )
             current_convolved_flux = weighted_flux.sum()
             convolved_flux[i] = current_convolved_flux
         else:
@@ -288,14 +297,16 @@ def __get_fwhm(wvlg, from_resolution, to_resolution):
     a spectrum from one resolution to another at a given wavelength point.
     """
     if from_resolution <= to_resolution:
-        raise Exception("This method cannot deal with final resolutions that are equal or bigger than original")
+        raise Exception(
+            "This method cannot deal with final resolutions that are equal or bigger than original"
+        )
     from_dlam = wvlg / from_resolution
     to_dlam = wvlg / to_resolution
     fwhm = np.sqrt(to_dlam**2 - from_dlam**2)
     return fwhm
 
 
-def rebin_spectrum_1d(wvlg, flux,  unc=None, binning_factor=2):
+def rebin_spectrum_1d(wvlg, flux, unc=None, binning_factor=2):
     """
     Rebin a 1D spectrum with optional error propagation.
 
@@ -324,20 +335,23 @@ def rebin_spectrum_1d(wvlg, flux,  unc=None, binning_factor=2):
     flux_trunc = flux[: flux.size // binning_factor * binning_factor]
 
     # Reshape and sum the truncated spectrum along the new axis
-    flux_rebin = np.nansum(
-        flux_trunc.reshape(-1, binning_factor), axis=1
-    )/binning_factor
+    flux_rebin = (
+        np.nansum(flux_trunc.reshape(-1, binning_factor), axis=1) / binning_factor
+    )
 
     # Rebin wavelength
-    wvlg_rebin = np.linspace(wvlg_trunc.min(), wvlg_trunc.max(), int(len(wvlg_trunc) / binning_factor))
+    wvlg_rebin = np.linspace(
+        wvlg_trunc.min(), wvlg_trunc.max(), int(len(wvlg_trunc) / binning_factor)
+    )
 
     if unc is not None:
         unc_trunc = unc[: unc.size // binning_factor * binning_factor]
 
         # Propagate uncertainty in quadrature, accounting for NaNs
-        unc_rebin = np.sqrt(
-            np.nansum(unc_trunc.reshape(-1, binning_factor) ** 2, axis=1)
-        )/binning_factor
+        unc_rebin = (
+            np.sqrt(np.nansum(unc_trunc.reshape(-1, binning_factor) ** 2, axis=1))
+            / binning_factor
+        )
     else:
         unc_rebin = None
 
@@ -419,12 +433,18 @@ def rebin_spectrum_2d(wvlg, spat, flux, unc=None, binning_factors=(2, 2)):
     )
 
     # Calculate rebinned spectrum using np.nansum
-    flux_rebin = np.nansum(flux_reshape, axis=(1, 3))/(binning_factors[0]*binning_factors[1])
+    flux_rebin = np.nansum(flux_reshape, axis=(1, 3)) / (
+        binning_factors[0] * binning_factors[1]
+    )
 
     # Rebin wavelength
-    wvlg_rebin = np.linspace(wvlg_trunc.min(), wvlg_trunc.max(), int(len(wvlg_trunc) / binning_factors[1]))
+    wvlg_rebin = np.linspace(
+        wvlg_trunc.min(), wvlg_trunc.max(), int(len(wvlg_trunc) / binning_factors[1])
+    )
     # Rebin spatial
-    spat_rebin = np.linspace(spat_trunc.min(), spat_trunc.max(), int(len(spat_trunc) / binning_factors[0]))
+    spat_rebin = np.linspace(
+        spat_trunc.min(), spat_trunc.max(), int(len(spat_trunc) / binning_factors[0])
+    )
 
     if unc is not None:
         # Truncate and reshape uncertainty in the same way as the input spectrum
@@ -441,7 +461,9 @@ def rebin_spectrum_2d(wvlg, spat, flux, unc=None, binning_factors=(2, 2)):
         )
 
         # Calculate rebinned uncertainty using np.nansum
-        unc_rebin = np.sqrt(np.nansum(unc_reshape**2, axis=(1, 3)))/(binning_factors[0]*binning_factors[1])
+        unc_rebin = np.sqrt(np.nansum(unc_reshape**2, axis=(1, 3))) / (
+            binning_factors[0] * binning_factors[1]
+        )
 
     return wvlg_rebin, spat_rebin, flux_rebin, unc_rebin
 
