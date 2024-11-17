@@ -263,9 +263,9 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
                 "flux": phot.mag.unit,
             }
 
-        visrep = phot.plot_pyqt(vb=self.ax1D.vb, units=self.units, **kwargs)
+        phot.plot_pyqt(vb=self.ax1D.vb, units=self.units, **kwargs)
 
-        self.plotted_photometry.append(visrep)
+        self.plotted_photometry.append(phot)
 
     @check_active
     def remove_photometry(self, phot: PhotometricPoint) -> None:
@@ -310,13 +310,13 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             )
             self.units = spec.units
 
-        visrep = spec.plot_pyqt(
+        spec.plot_pyqt(
             vb=self.ax1D.vb,
             units=(self.units["wvlg"], self.units["flux"]),
             **kwargs,
         )
 
-        self.plotted_spectra.append(visrep)
+        self.plotted_spectra.append(spec)
 
         # spec.sigDispDataChanged.connect(self.update_bounds)
 

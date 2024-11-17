@@ -372,6 +372,8 @@ class OneDSpectrum(QtCore.QObject):
         args : dict, optional
             Dictionary containing the arguments to pass to the smoothing function.
         """
+        if args is None:
+            args = {}
         self.properties["smoothing"]["func"] = func
         self.properties["smoothing"]["args"] = args
 
@@ -455,7 +457,11 @@ class OneDSpectrum(QtCore.QObject):
         **kwargs
             Any additional arguments to pass to :meth:`PhotometricPointVisRep.create_visual_representation`
         """
-        visrep = OneDSpectrumVisRep(spectrum=self, style="pyqtgraph")
+        visrep = OneDSpectrumVisRep(
+            spectrum=self,
+            style="pyqtgraph",
+            color=kwargs.pop("color", "white"),
+        )
         visrep.plot_pyqt(vb=vb, **kwargs)
         self.visreps.append(visrep)
         return visrep
@@ -516,11 +522,12 @@ class OneDSpectrumVisRep(QtCore.QObject):
         }
 
         # Default properties
+        color = kwargs.pop("color", "white")
         self.properties = {
-            "color": kwargs.pop("color", "white"),
+            "color": color,
             # For uncertainty, try to get 'color_unc' keyword, otherwise use
-            # 'color' keyword if it was specified, otherwise use red
-            "color_unc": kwargs.pop("color_unc", kwargs.pop("color", "white")),
+            # 'color' keyword if it was specified
+            "color_unc": kwargs.pop("color_unc", color),
             "width": kwargs.pop("width", 1),
             "width_unc": kwargs.pop("width_unc", 0.5),
         }
