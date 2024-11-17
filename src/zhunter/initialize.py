@@ -7,10 +7,10 @@ import zhunter.io as io
 from .misc import create_line_ratios
 from astropy.io.ascii import read as ascii_read
 from zhunter.colors import COLORS
+from zhunter import __ROOT_DIR__ as ROOT_DIR
 
 log = logging.getLogger(__name__)
 
-ROOT_DIR = Path(__file__).parents[0]
 
 DIRS = {
     "ROOT": ROOT_DIR,
@@ -19,7 +19,7 @@ DIRS = {
     "CONFIG": ROOT_DIR / "config",
 }
 
-LINE_TYPES = ['intervening', 'emission', 'GRB']
+LINE_TYPES = ["intervening", "emission", "GRB"]
 
 line_dir = DIRS["DATA"] / "lines/"
 
@@ -82,9 +82,9 @@ def define_paths(input_fnames, default=True):
     fnames = {}
     for line_type in LINE_TYPES:
         if default:
-            fnames[line_type+'_lines'] = line_dir / input_fnames[line_type+'_lines']
+            fnames[line_type + "_lines"] = line_dir / input_fnames[line_type + "_lines"]
         else:
-            fnames[line_type+'_lines'] = Path(input_fnames[line_type+'_lines'])
+            fnames[line_type + "_lines"] = Path(input_fnames[line_type + "_lines"])
 
     fnames["line_ratio"] = DIRS["DATA"] / "lines/line_ratio.csv"
 
@@ -101,13 +101,13 @@ def define_paths(input_fnames, default=True):
         if not f.exists():
             raise FileNotFoundError(f"File '{f}' does not exist.")
 
-    fnames['config'] = input_fnames['config']
+    fnames["config"] = input_fnames["config"]
 
     # Get last opened file
-    if Path(input_fnames['last_opened']).expanduser().exists():
-        fnames["last_opened"] = input_fnames['last_opened']
+    if Path(input_fnames["last_opened"]).expanduser().exists():
+        fnames["last_opened"] = input_fnames["last_opened"]
     else:
-        fnames["last_opened"] = Path('~').expanduser()
+        fnames["last_opened"] = Path("~").expanduser()
 
     return fnames
 
@@ -153,7 +153,7 @@ def load_config(fname):
         config = yaml.safe_load(f)
         log.info(f"Loaded configuration from:\n{fname}")
 
-    config['fnames']['config'] = fname
+    config["fnames"]["config"] = fname
     return config
 
 
@@ -183,10 +183,8 @@ def load_line_lists(fnames, calc_ratio=True):
     lines = {}
 
     for line_type in LINE_TYPES:
-        log.debug(
-            f"Reading {line_type} lines from:\n{fnames[line_type+'_lines']}"
-        )
-        lines[line_type] = io.read_line_list(fnames[line_type+'_lines'])
+        log.debug(f"Reading {line_type} lines from:\n{fnames[line_type+'_lines']}")
+        lines[line_type] = io.read_line_list(fnames[line_type + "_lines"])
 
     if calc_ratio:
         ratios = create_line_ratios(fnames["intervening_lines"])
@@ -194,20 +192,20 @@ def load_line_lists(fnames, calc_ratio=True):
         log.debug(f"Read line ratios fron:\n{fnames['line_ratio']}")
         ratios = ascii_read(fnames["line_ratio"])
 
-    lines['ratios'] = ratios
+    lines["ratios"] = ratios
 
     return lines
 
 
 def update_last_opened(fnames):
     # Get the path to the configuration file
-    config_fname = fnames['config']
-    last_opened = fnames['last_opened']
+    config_fname = fnames["config"]
+    last_opened = fnames["last_opened"]
 
     with open(str(config_fname), "r") as f:
         config = yaml.safe_load(f)
 
-    config['fnames']['last_opened'] = str(last_opened)
+    config["fnames"]["last_opened"] = str(last_opened)
 
     with open(str(config_fname), "w") as f:
         yaml.dump(config, stream=f)
