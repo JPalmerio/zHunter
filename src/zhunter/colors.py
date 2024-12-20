@@ -5,6 +5,7 @@ from itertools import cycle
 import cmasher as cmr
 import seaborn as sns
 from matplotlib.colors import PowerNorm, Colormap, Normalize, to_hex
+from matplotlib.cm import ScalarMappable
 
 log = logging.getLogger(__name__)
 
@@ -178,6 +179,39 @@ def get_cblind_colors(rtype: type = dict, fmt: str = "rgb") -> dict | list:
         return colors
     elif rtype == list:
         return list(colors.values())
+
+
+def get_bb_color_from_temperature(
+    temperature: float,
+    temp_range: tuple = (4000, 7000),
+    cmap_range: tuple = (0, 1),
+    return_mappable: bool = False,
+):
+    """Get the color associated to a given blackbody temperature.
+
+    Parameters
+    ----------
+    temperature: float
+        Temperature of the blackbody in Kelvin.
+    temp_range: tuple, optional
+        Min and max values of the temperature to use.
+        Defaults to: (4000, 7000)
+    cmap_range: tuple, optional
+        Min and max values of the colormap to use.
+        Defaults to the entire colormap: (0, 1)
+    return_mappable: bool, optional
+        If ``True``, will return a tuple of (color, mappable).
+        Mappable can be used to then create a colorbar with
+        `plt.colorbar(mappable)`
+    """
+    norm = Normalize(vmin=temp_range[0], vmax=temp_range[1])
+    cmap = cmr.get_sub_cmap("nipy_spectral_r", cmap_range[0], cmap_range[1])
+
+    if return_mappable:
+        scal_map = ScalarMappable(norm=norm, cmap=cmap)
+        return cmap(norm(temperature)), scal_map
+
+    return cmap(norm(temperature))
 
 
 def get_spectral_color(
