@@ -10,7 +10,10 @@ log = logging.getLogger(__name__)
 ergscm2AA = u.def_unit(
     s="erg/s/cm2/AA",
     represents=u.Unit("erg s^-1 cm^-2 AA^-1"),
-    format={"latex": r"\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}"},
+    format={
+        "latex": r"\mathrm{erg\,s^{-1}\,cm^{-2}\,\mathring{A}^{-1}}",
+        "text": "erg/s/cm2/AA",
+    },
     doc="Flux density per unit wavelength",
 )
 ergscm2 = u.def_unit(

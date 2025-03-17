@@ -3,12 +3,13 @@ from pathlib import Path
 from astropy.io import fits
 from astropy.table import Table
 import numpy as np
+from zhunter.initialize import DIRS
 
 log = logging.getLogger(__name__)
 root_dir = Path(__file__).resolve().parents[2]
 
 
-def get_ls_image(ra, dec, bands="r", size=1024):
+def get_ls_image(ra, dec, bands="r", size=1024, cache=True):
     """
     Get image from Legacy Survey DR10
     ra, dec = position in degrees
@@ -28,13 +29,17 @@ def get_ls_image(ra, dec, bands="r", size=1024):
         "{service}?ra={ra}&dec={dec}&size={size}"
         "&layer=ls-dr10&pixscale=0.262&bands={bands}"
     ).format(**locals())
+    if cache:
+        from astropy.utils.data import download_file
 
+        url = download_file(url, cache=True, pkgname="zhunter")
+        log.debug(f"Downloaded image from {url}")
     fh = fits.open(url)[0]
 
     return fh
 
 
-def get_ps1_image(ra, dec, bands="r", size=1024):
+def get_ps1_image(ra, dec, bands="r", size=1024, cache=True):
     """
     Get image from Pan-STARRS1 DR2
     ra, dec = position in degrees
@@ -47,12 +52,19 @@ def get_ps1_image(ra, dec, bands="r", size=1024):
             bands, size
         )
     )
-    fitsurl = geturl(ra, dec, size=size, filters=bands, format="fits")
-    fh = fits.open(fitsurl[0])[0]
+    # Get the first url in the list
+    fitsurl = get_url(ra, dec, size=size, filters=bands, format="fits")[0]
+    if cache:
+        from astropy.utils.data import download_file
+
+        fitsurl = download_file(fitsurl, cache=True, pkgname="zhunter")
+        log.debug(f"Downloaded image from {fitsurl}")
+
+    fh = fits.open(fitsurl)[0]
     return fh
 
 
-def getimages(ra, dec, size=240, filters="grizy"):
+def get_images(ra, dec, size=240, filters="grizy"):
     """
     Query ps1filenames.py service to get a list of images
     ra, dec = position in degrees
@@ -69,7 +81,7 @@ def getimages(ra, dec, size=240, filters="grizy"):
     return table
 
 
-def geturl(
+def get_url(
     ra, dec, size=240, output_size=None, filters="grizy", format="jpg", color=False
 ):
     """
@@ -89,7 +101,7 @@ def geturl(
         raise ValueError("color images are available only for jpg or png formats")
     if format not in ("jpg", "png", "fits"):
         raise ValueError("format must be one of jpg, png, fits")
-    table = getimages(ra, dec, size=size, filters=filters)
+    table = get_images(ra, dec, size=size, filters=filters)
     url = (
         "https://ps1images.stsci.edu/cgi-bin/fitscut.cgi?"
         "ra={ra}&dec={dec}&size={size}&format={format}"
@@ -140,7 +152,27 @@ def get_img_size(fov, arcsec_per_pixel=0.262):
     return int(size)
 
 
-def query_lsdr10_photoz(ra, dec, radius, n_src_max=10000):
+def query_lsdr10_photoz(ra, dec, radius, n_src_max=10000, cache=True):
+    """Query the Legacy Survey DR10 for photometric redshifts of sources
+
+    Parameters
+    ----------
+    ra : float
+        Right ascension in degrees.
+    dec : float
+        Declination in degrees.
+    radius : float
+        Radius in degrees.
+    n_src_max : int, optional
+        Maximum number of sources to return.
+    cache : bool, optional
+        If True, cache the query results.
+
+    Returns
+    -------
+    astropy.table.Table
+        Table with the results of the query.
+    """
     tractor_cols = (
         "ls_id",
         "ra",
@@ -165,30 +197,41 @@ def query_lsdr10_photoz(ra, dec, radius, n_src_max=10000):
         "z_phot_l68",
         "z_phot_u68",
     )
-    from dl import queryClient as qc
-
-    result = qc.query(
-        sql=f"""
-    SELECT
-        {','.join([f't.{col}' for col in tractor_cols])},
-        {','.join([f'p.{col}' for col in photoz_cols])}
-    FROM 
-        ls_dr10.tractor AS t
-    JOIN 
-        ls_dr10.photo_z AS p
-    ON 
-        t.ls_id = p.ls_id
-    WHERE 
-        't' = Q3C_RADIAL_QUERY(t.ra, t.dec, {ra}, {dec}, {radius})
-    LIMIT {n_src_max:d}
-    """
+    cache_dir = DIRS["USER"] / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    fname = (
+        cache_dir
+        / f"lsdr10_photoz_query_results_ra{ra:.5f}_dec{dec:.5f}_rad{radius:5f}_nmax{n_src_max:d}.csv"
     )
 
-    fname = Path("_delete_me.csv")
-    with open(fname, "w") as f:
-        f.write(result)
+    if fname.exists():
+        log.debug(f"Reading cached query results from {fname!s}")
+    else:
+        log.debug("Querying LS DR10 catalog")
+        from dl import queryClient as qc
+
+        result = qc.query(
+            sql=f"""
+        SELECT
+            {','.join([f't.{col}' for col in tractor_cols])},
+            {','.join([f'p.{col}' for col in photoz_cols])}
+        FROM 
+            ls_dr10.tractor AS t
+        JOIN 
+            ls_dr10.photo_z AS p
+        ON 
+            t.ls_id = p.ls_id
+        WHERE 
+            't' = Q3C_RADIAL_QUERY(t.ra, t.dec, {ra}, {dec}, {radius})
+        LIMIT {n_src_max:d}
+        """
+        )
+
+        with open(fname, "w") as f:
+            f.write(result)
     tab = Table.read(fname, format="ascii.csv")
-    fname.unlink()
+    if not cache:
+        fname.unlink()
     return tab
 
 
@@ -214,7 +257,7 @@ def format_lsdr10_query_results(tab: Table) -> Table:
     # For each band, calculate the magnitude and propagate the error
     for b in bands:
         # Use the inverse variance column for the error
-        log10_flux, log10_flux_uncp, log10_flux_uncm = lin_to_log(
+        log10_flux, log10_flux_uncp, log10_flux_uncm = propagate_uncertainty_lin_to_log(
             tab[f"flux_{b}"], 1 / np.sqrt(tab[f"flux_ivar_{b}"])
         )
         # Convert log10(flux) to mag (formula comes from the conversion from linear fluxes in nanomaggies to AB magnitudes)

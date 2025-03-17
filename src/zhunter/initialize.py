@@ -7,16 +7,18 @@ import zhunter.io as io
 from .misc import create_line_ratios
 from astropy.io.ascii import read as ascii_read
 from zhunter.colors import COLORS
-from zhunter import __ROOT_DIR__ as ROOT_DIR
+
 
 log = logging.getLogger(__name__)
 
+ROOT_DIR = Path(__file__).parents[0]
 
 DIRS = {
     "ROOT": ROOT_DIR,
     "UI": ROOT_DIR / "ui",
     "DATA": ROOT_DIR / "data",
     "CONFIG": ROOT_DIR / "config",
+    "USER": Path("~/.zhunter").expanduser(),
 }
 
 LINE_TYPES = ["intervening", "emission", "GRB"]
@@ -39,15 +41,15 @@ def get_config_fname():
 
     log.debug("Looking for config file")
     # Try loading a user-defined config file
-    config_fname = Path("~/.config/zhunter/user_config.yaml").expanduser()
+    config_fname = DIRS["USER"] / "config/user_config.yaml"
     # If user-defined config file doesn't exist, try loading default config file
     if not config_fname.exists():
-        config_fname = Path("~/.config/zhunter/default_config.yaml").expanduser()
+        config_fname = DIRS["USER"] / "config/default_config.yaml"
         # if the default config file doesn't exist, it means it is the first
         # time zhunter is installed on the computer, so copy the file
         if not config_fname.exists():
             log.debug(
-                "No configuration under '~/.config/zhunter/default_config.yaml'"
+                f"No configuration under '{config_fname}'"
                 " on this computer, creating one"
             )
             config_fname.parent.mkdir(parents=True, exist_ok=True)
@@ -97,9 +99,9 @@ def define_paths(input_fnames, default=True):
     )
 
     # Make sure that all files are well defined
-    for f in fnames.values():
+    for item, f in fnames.items():
         if not f.exists():
-            raise FileNotFoundError(f"File '{f}' does not exist.")
+            raise FileNotFoundError(f"{item} file '{f}' does not exist.")
 
     fnames["config"] = input_fnames["config"]
 
