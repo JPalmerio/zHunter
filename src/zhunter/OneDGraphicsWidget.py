@@ -11,8 +11,8 @@ from zhunter.misc import (
 )
 import zhunter.initialize as init
 from zhunter.decorators import check_active
-from zhunter.spectrum import OneDSpectrum
-from zhunter.photometry import PhotometricPoint
+from zhunter.spectrum import OneDSpectrum, OneDSpectrumVisRep
+from zhunter.photometry import PhotometricPoint, PhotometricPointVisRep
 
 import logging
 
@@ -263,27 +263,27 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
                 "flux": phot.mag.unit,
             }
 
-        phot.plot_pyqt(vb=self.ax1D.vb, units=self.units, **kwargs)
+        phvr = phot.plot_pyqt(vb=self.ax1D.vb, units=self.units, **kwargs)
 
-        self.plotted_photometry.append(phot)
+        self.plotted_photometry.append(phvr)
 
     @check_active
-    def remove_photometry(self, phot: PhotometricPoint) -> None:
+    def remove_photometry(self, phvr: PhotometricPointVisRep) -> None:
         """Remove photometric data point from the plot.
 
         Parameters
         ----------
-        phot : PhotometricPoint
+        phvr : PhotometricPointVisRep
             The photometric data point to remove.
         """
-        if phot not in self.plotted_photometry:
+        if phvr not in self.plotted_photometry:
             raise ValueError("Photometric point is not in list")
 
         log.info("Removing photometric point")
 
-        for item in phot.visrep.spec_artists:
+        for item in phvr.spec_artists:
             self.ax1D.vb.removeItem(item)
-        self.plotted_photometry.remove(phot)
+        self.plotted_photometry.remove(phvr)
 
         # spec.sigDispDataChanged.disconnect(self.update_bounds)
 
@@ -310,33 +310,33 @@ class OneDSpectralWidget(pg.GraphicsLayoutWidget):
             )
             self.units = spec.units
 
-        spec.plot_pyqt(
+        spvr = spec.plot_pyqt(
             vb=self.ax1D.vb,
             units=(self.units["wvlg"], self.units["flux"]),
             **kwargs,
         )
 
-        self.plotted_spectra.append(spec)
+        self.plotted_spectra.append(spvr)
 
         # spec.sigDispDataChanged.connect(self.update_bounds)
 
     @check_active
-    def remove_spectrum(self, spec: OneDSpectrum) -> None:
+    def remove_spectrum(self, spvr: OneDSpectrumVisRep) -> None:
         """Remove a visual representation of a spectrum from the plot.
 
         Parameters
         ----------
-        spectrum_visrep : OneDSpectrum
+        spvr : OneDSpectrumVisRep
             The visual representation of the spectrum to remove.
         """
-        if spec not in self.plotted_spectra:
+        if spvr not in self.plotted_spectra:
             raise ValueError("Spectrum is not in list")
 
         log.info("Removing spectrum")
 
-        self.ax1D.vb.removeItem(spec.visrep.PlotItem)
-        self.ax1D.vb.removeItem(spec.visrep.PlotItem_unc)
-        self.plotted_spectra.remove(spec)
+        self.ax1D.vb.removeItem(spvr.PlotItem)
+        self.ax1D.vb.removeItem(spvr.PlotItem_unc)
+        self.plotted_spectra.remove(spvr)
 
         # spec.sigDispDataChanged.disconnect(self.update_bounds)
 
