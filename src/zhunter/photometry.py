@@ -10,16 +10,17 @@ from matplotlib.axes import Axes
 from matplotlib.container import ErrorbarContainer
 import pyqtgraph as pg
 from PyQt6 import QtGui
+from PyQt6.QtWidgets import QGraphicsPathItem
 
 
-from zhunter import __ROOT_DIR__
+from zhunter.initialize import DIRS
 from zhunter.colors import get_spectral_color, mpl_rbga_to_pyqt_color
 from zhunter.conversions import convert_flux_with_unc_propagation
-
+from zhunter.catalogs import propagate_uncertainty_lin_to_log
 import logging
 
 log = logging.getLogger(__name__)
-FILTER_DIR = __ROOT_DIR__ / "data/filters"
+DIRS["FILTER_DIR"] = DIRS["DATA"] / "filters"
 
 
 class PhotometricFilter:
@@ -42,6 +43,9 @@ class PhotometricFilter:
     width : Quantity
         Filter width.
     """
+
+    def __str__(self):
+        return f"PhotometricFilter: {self.name} (center={self.center:.3f}, width={self.width:.3f})"
 
     def __init__(self, name: str, color: str | None = None) -> None:
         """Initialize PhotometricFilter.
@@ -78,39 +82,50 @@ class PhotometricFilter:
             Name of the filter.
 
         """
-        fname = FILTER_DIR / f"{name}.dat"
+        fname = DIRS["FILTER_DIR"] / f"{name}.dat"
         try:
             data = np.loadtxt(fname).T
         except FileNotFoundError:
-            valid_filters = [f for f in FILTER_DIR.iterdir() if f.suffix == ".dat"]
+            valid_filters = [
+                f.stem for f in DIRS["FILTER_DIR"].iterdir() if f.suffix == ".dat"
+            ]
+            valid_filters.sort()
             raise FileNotFoundError(
                 "Invalid name for photometric filter. "
                 f"Valid names are: {valid_filters}.\n"
-                f"To add a filter, add a 'YourFilterName.dat' file in {FILTER_DIR} with "
-                "two space-separated columns: (wvlg_in_Å transmission)"
+                f"To add a filter, add a 'YourFilterName.dat' file in {DIRS["FILTER_DIR"]} with "
+                "two, space-separated columns: (wvlg_in_Å transmission)"
             )
 
         self.wavelength = data[0] * u.AA
         self.transmission = data[1] / data[1].max()
 
-    def _estimate_width(self, threshold: float = 0.1) -> Quantity:
-        """Estimate the width of the filter, using the interval
-        where the normalized transmission is greater than a certain threshold
-        (0.1 by default).
+    def _estimate_width(self, threshold: float = 90) -> Quantity:
+        """Estimate the width of the filter.
+
+        Uses the same definition as T90 for GRBs, i.e.
+        the interval representing [0.05-0.95] of the normalized cumulative distribution.
 
         Parameters
         ----------
         threshold : float, optional
-            Threshold used to estimate the width.
+            Percentage of the transmission to use for estimating the width of the filter.
+            Must be <=100
 
         Returns
         -------
         Quantity
             Filter width.
         """
-        mask = np.where(self.transmission >= threshold)
-        width = self.wavelength[mask].max() - self.wavelength[mask].min()
-        return width
+        w_cdf = np.cumsum(self.transmission) / np.sum(self.transmission)
+        thresh_frac = threshold / 100
+        if thresh_frac > 1:
+            raise ValueError("Threshold is a percentage, it must be <=100")
+        # ex: 0.05 in case threshold fraction = 0.9
+        frac_excluded = (1 - thresh_frac) / 2
+        i_beg = w_cdf.searchsorted(frac_excluded)
+        i_end = w_cdf.searchsorted(1 - frac_excluded)
+        return self.wavelength[i_end] - self.wavelength[i_beg]
 
 
 class PhotometricPoint:
@@ -122,7 +137,7 @@ class PhotometricPoint:
         If the data point is a limit or not.
     mag : Quantity
         Magnitude measurement preferably in AB system.
-    obs_dur : Quantity
+    obs_duration : Quantity
         Observation duration in seconds or ``None`` if unspecified.
     obs_time : Time
         Observation time as an Astropy Time instance.
@@ -135,6 +150,18 @@ class PhotometricPoint:
         List of visual representations of the data instantiated by a dedicated class.
 
     """
+
+    def __str__(self):
+        if self.limit:
+            mag_str = f"<{self.mag:.3f}"
+        else:
+            mag_str = f"{self.mag:.3f} ± {self.unc:.3f}"
+        base_str = f"PhotometricPoint: {mag_str} ({self.phot_filter.name})"
+        if self.obs_time is not None:
+            base_str += f" at {self.obs_time.isot}"
+        if self.obs_duration is not None:
+            base_str += f" for {self.obs_duration:.3f}"
+        return base_str
 
     def __init__(
         self,
@@ -185,8 +212,8 @@ class PhotometricPoint:
             else PhotometricFilter(phot_filter)
         )
         self.limit = limit
-        self.obs_time = Time(obs_time) if obs_time else obs_time
-        self.obs_dur = (
+        self.obs_time = Time(obs_time) if obs_time is not None else obs_time
+        self.obs_duration = (
             obs_duration.to("s") if isinstance(obs_duration, Quantity) else obs_duration
         )
         self.visreps = []
@@ -209,7 +236,7 @@ class PhotometricPoint:
             Any additional arguments to pass to :meth:`PhotometricPointVisRep.create_visual_representation`
         """
         visrep = PhotometricPointVisRep(
-            phot_data_point=self,
+            photometric_point=self,
             style="matplotlib",
             mode=mode,
         )
@@ -218,7 +245,7 @@ class PhotometricPoint:
         return visrep
 
     def plot_pyqt(
-        self, vb: pg.ViewBox, mode: str = "spectral", **kwargs
+        self, vb: pg.ViewBox, mode: str = "spectral", t0=None, **kwargs
     ) -> PhotometricPointVisRep:
         """Plot the data point using pyqtgraph.
         Two modes are possible: `spectral` to plot magnitude
@@ -231,17 +258,34 @@ class PhotometricPoint:
         mode : str, optional
             `spectral` or `temporal`. Spectral plots magnitude versus
             wavelength while temporal plots magnitude versus (observation) time.
+        t0: Time, optional
+            If provided, will subtract this time from the observation time (used for transient's trigger time).
         **kwargs
             Any additional arguments to pass to :meth:`PhotometricPointVisRep.create_visual_representation`
         """
         visrep = PhotometricPointVisRep(
-            phot_data_point=self,
+            photometric_point=self,
             style="pyqtgraph",
             mode=mode,
         )
-        visrep.create_visual_representation(ax=vb, **kwargs)
+        visrep.create_visual_representation(ax=vb, t0=t0, **kwargs)
         self.visreps.append(visrep)
         return visrep
+
+    def to_dict(self) -> dict:
+        """Convert the instance to a dictionary."""
+        return {
+            "mag": self.mag.to(u.ABmag).value,
+            "unc": self.unc.to(u.mag).value,
+            "phot_filter": self.phot_filter.name,
+            "obs_time": self.obs_time.isot if self.obs_time is not None else None,
+            "obs_duration": (
+                self.obs_duration.to(u.s).value
+                if self.obs_duration is not None
+                else None
+            ),
+            "limit": self.limit,
+        }
 
 
 class PhotometricPointVisRep:
@@ -249,7 +293,7 @@ class PhotometricPointVisRep:
 
     def __init__(
         self,
-        phot_data_point: PhotometricPoint,
+        photometric_point: PhotometricPoint,
         style: str = "matplotlib",
         mode: str = "spectral",
     ):
@@ -257,7 +301,7 @@ class PhotometricPointVisRep:
 
         Parameters
         ----------
-        phot_data_point : PhotometricPoint
+        photometric_point : PhotometricPoint
             Photometric data point to represent visually.
         style : str, optional
             Style of the visual representation. Can be 'matplotlib' or 'pyqtgraph'.
@@ -265,20 +309,24 @@ class PhotometricPointVisRep:
             `spectral` or `temporal`. Spectral plots magnitude versus
             wavelength while temporal plots magnitude versus (observation) time.
         """
-        if not isinstance(phot_data_point, PhotometricPoint):
-            raise TypeError("phot_data_point must be a PhotometricPoint instance.")
+        if not isinstance(photometric_point, PhotometricPoint):
+            raise TypeError("photometric_point must be a PhotometricPoint instance.")
 
         if style not in ("matplotlib", "pyqtgraph"):
             raise ValueError("style must be 'matplotlib' or 'pyqtgraph'")
 
-        self.pdp = phot_data_point
+        self.phot_pt = photometric_point
         self.style = style
         self.mode = mode
         # By default, visual representation units are the units of the photometric data point
         self.units = {
-            "wvlg": phot_data_point.phot_filter.wavelength.unit,
-            "time": phot_data_point.obs_time.unit if phot_data_point.obs_time else None,
-            "flux": phot_data_point.mag.unit,
+            "wvlg": photometric_point.phot_filter.wavelength.unit,
+            "time": (
+                photometric_point.obs_duration.unit
+                if hasattr(photometric_point.obs_duration, "unit")
+                else None
+            ),
+            "flux": photometric_point.mag.unit,
         }
         self.artists = []
 
@@ -286,6 +334,7 @@ class PhotometricPointVisRep:
         self,
         ax: Axes | pg.ViewBox,
         units: tuple[str, str] | None = None,
+        t0: Time | None = None,
         show_violin: bool = True,
         y_scale_factor: float | None = None,
         **kwargs,
@@ -300,6 +349,8 @@ class PhotometricPointVisRep:
         units : tuple[str, str], optional
             Units to use for the visual representation. For example, ('nm', 'uJy').
             If ``None``, uses the units of the photometric data point.
+        t0 : Time, optional
+            If provided, will subtract this time from the observation time (used for transient's trigger time).
         show_violin : bool, optional
             Only used if mode='spectral'. If True will add a violin plot
             representing the filter transmission scaled to the uncertainty.
@@ -316,7 +367,7 @@ class PhotometricPointVisRep:
         if self.mode not in ("spectral", "temporal"):
             raise ValueError("mode must be 'spectral' or 'temporal'")
 
-        if self.mode == "temporal" and self.pdp.obs_time is None:
+        if self.mode == "temporal" and self.phot_pt.obs_time is None:
             raise ValueError(
                 "Cannot create temporal representation, no observing time information. "
                 "Try setting the obs_time attribute of the PhotometricPoint instance."
@@ -331,13 +382,17 @@ class PhotometricPointVisRep:
             elif self.mode == "temporal":
                 units = (self.units["time"], self.units["flux"])
         else:
-            self.set_units(units)
+            # Convert tuple to dictionary
+            if self.mode == "spectral":
+                self.set_units({"wvlg": units[0], "flux": units[1]})
+            elif self.mode == "temporal":
+                self.set_units({"time": units[0], "flux": units[1]})
 
         if ax is None:
             # Default ax if not provided depends on if using matplotlib or pyqtgraph
             ax = pg.PlotWidget().plotItem.vb if self.style == "pyqtgraph" else plt.gca()
 
-        phot_filter = self.pdp.phot_filter
+        phot_filter = self.phot_pt.phot_filter
         # Define color
         color = kwargs.pop("color", phot_filter.color)
         if self.style == "pyqtgraph":
@@ -348,6 +403,7 @@ class PhotometricPointVisRep:
         _art = self.create_errorbar(
             ax=ax,
             units=units,
+            t0=t0,
             color=color,
             **kwargs,
         )
@@ -374,6 +430,9 @@ class PhotometricPointVisRep:
         self,
         ax: Axes | pg.ViewBox,
         units: dict | None = None,
+        t0: Time | None = None,
+        xlogscale: bool = False,
+        ylogscale: bool = False,
         **kwargs,
     ) -> pg.ErrorBarItem | ErrorbarContainer:
         """Create an error bar representing the photometric data point.
@@ -385,6 +444,12 @@ class PhotometricPointVisRep:
         units : dict, optional
             Dictionary with the units to use for the visual representation.
             By default, uses the units of the photometric data point.
+        t0 : Time, optional
+            If provided, will subtract this time from the observation time (used for transient's trigger time).
+        xlogscale : bool, optional
+            If the x axis is in log scale.
+        ylogscale : bool, optional
+            If the y axis is in log scale.
         **kwargs
             Any additional arguments to pass to the plotting function.
 
@@ -395,7 +460,7 @@ class PhotometricPointVisRep:
         """
         log.debug("Creating error bar for photometric data point")
 
-        phot_filter = self.pdp.phot_filter
+        phot_filter = self.phot_pt.phot_filter
         # Get color
         color = kwargs.pop("color", phot_filter.color)
         if self.style == "pyqtgraph":
@@ -410,33 +475,56 @@ class PhotometricPointVisRep:
         # Create the x and xerr values which depend on the type of plot
         # i.e. spectral or temporal
         if self.mode == "spectral":
-            x = phot_filter.center.to(units["wvlg"], equivalencies=u.spectral()).value
-            xerr = (
-                phot_filter.width.to(units["wvlg"], equivalencies=u.spectral()).value
-                / 2
-            )
+            x = phot_filter.center.to(units[0], equivalencies=u.spectral()).value
+            xerr = phot_filter.width.to(units[0], equivalencies=u.spectral()).value / 2
         elif self.mode == "temporal":
-            log.warning(
-                "Temporal mode not yet implemented. Only plotting as a function of MJD."
-            )
-            x = self.pdp.obs_time.mjd
-            xerr = (
-                self.pdp.obs_time.mjd - (self.pdp.obs_time - self.pdp.obs_dur / 2).mjd
-            )
-        log.debug(f"x, xerr = {x:.3e}, {xerr:.3e}")
+            x_beg = self.phot_pt.obs_time
+            x_end = self.phot_pt.obs_time + self.phot_pt.obs_duration
+            # Subtract t0 if provided
+            if t0 is not None:
+                log.info(
+                    f"Making temporal plot relative to t0: {t0.isot} (displayed in {units[0]})"
+                )
+                x_beg -= t0
+                x_end -= t0
+                x_beg = x_beg.to(units[0]).value
+                x_end = x_end.to(units[0]).value
+            else:
+                log.warning(
+                    f"No t0 provided, using absolute time in MJD. (ignoring unit: {units[0]})"
+                )
+                # Convert to mjd
+                x_beg = x_beg.mjd
+                x_end = x_end.mjd
+            x = (x_beg + x_end) / 2
+            xerr = (x_end - x_beg) / 2
+
+        if xlogscale:
+            log.info("Converting x axis to logscale because t0 is present")
+            x, xerrp, xerrm = propagate_uncertainty_lin_to_log(x, xerr)
+            xerr = np.array([[xerrm], [xerrp]])
+        else:
+            xerr = np.array([[xerr], [xerr]])
+
+        log.debug(f"x, xerr = {x:.3e}, {xerr}")
 
         # Convert to the right units
         y, yp, ym = convert_flux_with_unc_propagation(
-            flux=self.pdp.mag,
-            unc=self.pdp.unc,
-            to_unit=units["flux"],
-            limit=self.pdp.limit,
+            flux=self.phot_pt.mag,
+            unc=self.phot_pt.unc,
+            to_unit=units[1],
+            limit=self.phot_pt.limit,
             central_wavelength=phot_filter.center,
             n_samples=1000,
         )
         y = y.value
         # Need to convert to numpy array of shape (2, 1) for the error bar
         yerr = np.array([[ym.value], [yp.value]])
+
+        if ylogscale:
+            log.info("Converting y axis to logscale")
+            y, yerrp, yerrm = propagate_uncertainty_lin_to_log(y, yerr[1], yerr[0])
+            yerr = np.array([[yerrm], [yerrp]])
 
         log.debug(f"y, yerr = {y:.3e}, {yerr}")
 
@@ -447,10 +535,10 @@ class PhotometricPointVisRep:
                 y=y,
                 xerr=xerr,
                 yerr=yerr,
-                lolims=yerr[0] == 0 and self.pdp.limit,
-                uplims=yerr[1] == 0 and self.pdp.limit,
+                lolims=yerr[0] == 0 and self.phot_pt.limit,
+                uplims=yerr[1] == 0 and self.phot_pt.limit,
                 color=color,
-                marker="none" if self.pdp.limit else kwargs.pop("marker", "o"),
+                marker="none" if self.phot_pt.limit else kwargs.pop("marker", "o"),
                 markersize=kwargs.get("markersize", 8),
                 lw=kwargs.pop("lw", 1),
                 capsize=kwargs.pop("capsize", 3),
@@ -463,8 +551,8 @@ class PhotometricPointVisRep:
                 y=np.array(y),
                 top=np.array(yerr[1]),
                 bottom=np.array(yerr[0]),
-                left=np.array(xerr),
-                right=np.array(xerr),
+                left=np.array(xerr[1]),
+                right=np.array(xerr[0]),
                 beam=0,
                 pen=pen,
             )
@@ -499,7 +587,7 @@ class PhotometricPointVisRep:
             The violin plot artist. If using matplotlib, a PolyCollection is returned.
         """
 
-        phot_filter = self.pdp.phot_filter
+        phot_filter = self.phot_pt.phot_filter
         color = kwargs.pop("color", phot_filter.color)
         if self.style == "pyqtgraph":
             # Convert to pyqt color
@@ -514,17 +602,15 @@ class PhotometricPointVisRep:
             brush_color.setAlpha(60)
 
         # Prepare violin plot data by converting to the right units
-        x = phot_filter.wavelength.to(
-            units["wvlg"], equivalencies=u.spectral()
-        ).value.copy()
+        x = phot_filter.wavelength.to(units[0], equivalencies=u.spectral()).value.copy()
         y = phot_filter.transmission.copy()
 
         # Convert to the right units
         _y, yp, ym = convert_flux_with_unc_propagation(
-            flux=self.pdp.mag,
-            unc=self.pdp.unc,
-            to_unit=units["flux"],
-            limit=self.pdp.limit,
+            flux=self.phot_pt.mag,
+            unc=self.phot_pt.unc,
+            to_unit=units[1],
+            limit=self.phot_pt.limit,
             central_wavelength=phot_filter.center,
             n_samples=1000,
         )
@@ -542,7 +628,7 @@ class PhotometricPointVisRep:
                 y1=y1,
                 y2=y2,
                 color=kwargs.pop("color", phot_filter.color),
-                hatch="/" if self.pdp.limit else None,
+                hatch="/" if self.phot_pt.limit else None,
                 facecolor=colorConverter.to_rgba(color, alpha=0.1),
                 edgecolor=color,
                 linewidth=kwargs.pop("linewidth", 0.5),
@@ -564,6 +650,36 @@ class PhotometricPointVisRep:
     def set_units(self, units: dict):
         self.units.update(units)
 
+    def clear(self):
+        """Clear the visual representation."""
+        log.debug("Clearing visual representation of photometric data point")
+
+        for artist in self.artists:
+            if self.style == "pyqtgraph":
+                artist.remove()
+            elif self.style == "matplotlib":
+                artist.remove()
+
+    def hide(self):
+        """Hide the visual representation."""
+        log.debug("Hiding visual representation of photometric data point")
+
+        for artist in self.artists:
+            if self.style == "pyqtgraph":
+                artist.hide()
+            elif self.style == "matplotlib":
+                artist.set_visible(False)
+
+    def show(self):
+        """show the visual representation."""
+        log.debug("Showing visual representation of photometric data point")
+
+        for artist in self.artists:
+            if self.style == "pyqtgraph":
+                artist.show()
+            elif self.style == "matplotlib":
+                artist.set_visible(True)
+
     def update(self, vb_units: tuple[str, str] | None = None) -> None:
         """Update the visual representation of the photometric data point.
 
@@ -573,3 +689,4 @@ class PhotometricPointVisRep:
             Units to use for the visual representation. If not provided, will use the units of the photometric data point.
         """
         log.debug("Updating visual representation of photometric data point")
+        raise NotImplementedError("Method not yet implemented.")
