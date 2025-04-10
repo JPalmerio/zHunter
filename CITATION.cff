@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 title: "zHunter"
 version: 0.10.1
-license: "GNU General Public License v3"
+license: "GPL-3.0"
 type: software
 abstract: "A Python-based visualization tool for finding redshifts and manipulating astronomical spectra."
-message: "If you use this software, please cite it as below."
+message: "If you use this software, please cite it using the metadata from this file."
 authors:
   - given-names: Jesse Tomas
     family-names: Palmerio
@@ -15,3 +15,6 @@ keywords:
   - astrophysics
   - spectroscopy
   - visualization
+repository-code: "https://github.com/JPalmerio/zHunter"
+url: "https://github.com/JPalmerio/zHunter"
+date-released: "2025-04-10"
