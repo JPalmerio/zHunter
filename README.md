@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/465226687.svg)](https://doi.org/10.5281/zenodo.15189495)
+
 # *z*Hunter
 
 *z*Hunter is a Graphical User Interface (GUI) tool to visualize and perform basic manipulation of 1D and 2D astronomical spectra.
