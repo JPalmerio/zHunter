@@ -1,5 +1,12 @@
 [![DOI](https://zenodo.org/badge/465226687.svg)](https://doi.org/10.5281/zenodo.15189495)
 
+If you use this software in your research, please cite it using the DOI provided above (or see the "Cite this repository" tab on this page).
+For GCNs, you can acknowledge the use with a sentence such as:
+
+```
+This analysis was done with the help of the zHunter tool (https://doi.org/10.5281/zenodo.15189495)
+```
+
 # *z*Hunter
 
 *z*Hunter is a Graphical User Interface (GUI) tool to visualize and perform basic manipulation of 1D and 2D astronomical spectra.
